@@ -1,0 +1,13 @@
+"""AppConfig for the ``doctors`` app."""
+from __future__ import annotations
+
+from django.apps import AppConfig
+
+
+class DoctorsConfig(AppConfig):
+    """Clinical staff (DoctorProfile) app configuration."""
+
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.doctors"
+    label = "doctors"
+    verbose_name = "Shifokorlar"
