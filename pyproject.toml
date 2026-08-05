@@ -1,0 +1,51 @@
+# =============================================================================
+# Backend Python tooling config.
+# =============================================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [
+    "migrations",
+    "staticfiles",
+    "media",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+]
+ignore = [
+    "E501",  # line-length handled by formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"config/settings/*.py" = ["F401", "F403"]  # star-imports intentional
+"**/migrations/*.py" = ["E", "F", "I", "N"]
+# Tests deliberately use `pytest.raises(Exception)` when the exact class
+# is implementation-defined (e.g. DB IntegrityError vs Django ValidationError).
+"tests/**/*.py" = ["B017", "B904"]
+# `User = get_user_model()` is the canonical Django idiom; N806 flags it
+# incorrectly as a lowercase-variable violation.
+"apps/**/management/commands/*.py" = ["N806"]
+"apps/**/tasks.py" = ["N806"]
+# Serializer fields are intentionally camelCase so the API JSON matches
+# the TypeScript interfaces on the frontend (patientId, totalPaid, …).
+"apps/**/serializers.py" = ["N815"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.dev"
