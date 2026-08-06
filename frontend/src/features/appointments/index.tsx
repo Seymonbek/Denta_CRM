@@ -72,7 +72,7 @@ export function AppointmentsList() {
     ? appointmentsData
     : []
 
-  const { data: patientsData } = usePatients({ page: 1 })
+  const { data: patientsData } = usePatients({ page_size: 100 })
   const patients = Array.isArray(patientsData?.results)
     ? patientsData.results
     : Array.isArray(patientsData)

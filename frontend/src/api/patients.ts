@@ -10,6 +10,7 @@ export async function getPatientsApi(params?: {
   search?: string
   gender?: string
   page?: number
+  page_size?: number
 }): Promise<PaginatedResponse<Patient>> {
   const response = await apiClient.get<PaginatedResponse<Patient>>('patients/', { params })
   return response.data

@@ -11,7 +11,7 @@ import {
 
 export const PATIENTS_QUERY_KEY = ['patients']
 
-export function usePatients(params?: { search?: string; gender?: string; page?: number }) {
+export function usePatients(params?: { search?: string; gender?: string; page?: number; page_size?: number }) {
   return useQuery({
     queryKey: [...PATIENTS_QUERY_KEY, params],
     queryFn: () => getPatientsApi(params),

@@ -77,7 +77,7 @@ export function TreatmentsList() {
   const { data: doctorsData = [] } = useDoctors()
   const doctors = Array.isArray(doctorsData) ? doctorsData : []
 
-  const { data: patientsData } = usePatients()
+  const { data: patientsData } = usePatients({ page_size: 100 })
   const patients = Array.isArray(patientsData?.results)
     ? patientsData.results
     : Array.isArray(patientsData)

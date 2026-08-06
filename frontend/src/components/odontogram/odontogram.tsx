@@ -58,9 +58,9 @@ const PROCEDURE_LABELS: Record<ToothProcedure, string> = {
   filling: 'Plomba (Filling)',
   root_canal: 'Kanal davolash (Root Canal)',
   extraction: "Tishni olib tashlash (Extraction)",
-  crown: 'Kranka (Crown)',
+  crown: 'Koronka (Crown)',
   implant: 'Implant',
-  cleaning: 'Tzalash (Cleaning)',
+  cleaning: 'Tozalash (Cleaning)',
   other: 'Boshqa (Other)',
 }
 

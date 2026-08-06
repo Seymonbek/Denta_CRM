@@ -76,7 +76,7 @@ export function PaymentsList() {
     ? treatmentsData
     : []
 
-  const { data: patientsData } = usePatients()
+  const { data: patientsData } = usePatients({ page_size: 100 })
   const patients = Array.isArray(patientsData?.results)
     ? patientsData.results
     : Array.isArray(patientsData)
