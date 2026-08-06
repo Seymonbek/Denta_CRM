@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Calendar as CalendarIcon, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   useAppointments,
@@ -10,7 +10,7 @@ import { useDoctors, useAvailableSlots } from '@/api/hooks/use-doctors'
 import { usePatients } from '@/api/hooks/use-patients'
 import { useDepartments } from '@/api/hooks/use-departments'
 import { useProcedureTypes } from '@/api/hooks/use-procedure-types'
-import { Appointment, AvailableSlot } from '@/types/api'
+import { AvailableSlot } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -64,22 +64,39 @@ export function AppointmentsList() {
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null)
 
   const { data: appointmentsData, isLoading } = useAppointments({
-    status: statusFilter || undefined,
+    status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
   })
-  const appointments = appointmentsData?.results || []
+  const appointments = Array.isArray(appointmentsData?.results)
+    ? appointmentsData.results
+    : Array.isArray(appointmentsData)
+    ? appointmentsData
+    : []
 
   const { data: patientsData } = usePatients({ page: 1 })
-  const patients = patientsData?.results || []
+  const patients = Array.isArray(patientsData?.results)
+    ? patientsData.results
+    : Array.isArray(patientsData)
+    ? patientsData
+    : []
 
-  const { data: doctors = [] } = useDoctors()
-  const { data: departments = [] } = useDepartments()
-  const { data: procedureTypes = [] } = useProcedureTypes()
+  const { data: doctorsData = [] } = useDoctors()
+  const doctors = Array.isArray(doctorsData) ? doctorsData : []
 
-  const formattedDateStr = format(bookingDate, 'yyyy-MM-dd')
-  const { data: availableSlots = [], isLoading: isLoadingSlots } = useAvailableSlots(
+  const { data: departmentsData = [] } = useDepartments()
+  const departments = Array.isArray(departmentsData) ? departmentsData : []
+
+  const { data: procedureTypesData = [] } = useProcedureTypes()
+  const procedureTypes = Array.isArray(procedureTypesData) ? procedureTypesData : []
+
+  const formattedDateStr = bookingDate && !isNaN(new Date(bookingDate).getTime())
+    ? format(bookingDate, 'yyyy-MM-dd')
+    : format(new Date(), 'yyyy-MM-dd')
+
+  const { data: availableSlotsData = [], isLoading: isLoadingSlots } = useAvailableSlots(
     selectedDoctorId,
     formattedDateStr
   )
+  const availableSlots = Array.isArray(availableSlotsData) ? availableSlotsData : []
 
   const createAppointmentMutation = useCreateAppointment()
   const cancelAppointmentMutation = useCancelAppointment()
@@ -103,7 +120,6 @@ export function AppointmentsList() {
       setIsModalOpen(false)
       setSelectedSlot(null)
     } catch (err: any) {
-      // Catch backend ExclusionConstraint error (double-booking)
       const errorDetail =
         err?.response?.data?.detail ||
         err?.response?.data?.scheduledStart?.[0] ||
@@ -117,7 +133,7 @@ export function AppointmentsList() {
     try {
       await cancelAppointmentMutation.mutateAsync({ id, reason: 'Mijoz so’rovi bo’yicha' })
       toast.success('Navbat bekor qilindi.')
-    } catch (err: any) {
+    } catch {
       toast.error('Bekor qilishda xatolik.')
     }
   }
@@ -189,21 +205,28 @@ export function AppointmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                appointments.map((app: Appointment) => {
-                  const badge = STATUS_BADGES[app.status] || { label: app.status, variant: 'outline' }
+                appointments.map((app: any) => {
+                  const statusKey = app?.status || 'scheduled'
+                  const badge = STATUS_BADGES[statusKey] || { label: statusKey, variant: 'outline' }
+
+                  const patientName = app?.patientName || app?.patient_name || (typeof app?.patient === 'object' ? `${app.patient.firstName || app.patient.first_name || ''} ${app.patient.lastName || app.patient.last_name || ''}`.trim() : app?.patient) || 'Bemor'
+                  const doctorName = app?.doctorName || app?.doctor_name || (typeof app?.doctor === 'object' ? `${app.doctor.user?.firstName || app.doctor.user?.first_name || ''} ${app.doctor.user?.lastName || app.doctor.user?.last_name || ''}`.trim() : app?.doctor) || 'Shifokor'
+                  const departmentName = app?.departmentName || app?.department_name || (typeof app?.department === 'object' ? app.department.name : app?.department) || 'Bo’lim'
+                  const startDateStr = app?.scheduledStart || app?.scheduled_start || app?.start
+
                   return (
-                    <TableRow key={app.id} className='hover:bg-muted/20'>
+                    <TableRow key={app?.id || Math.random()} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
-                        {app.patientName || (typeof app.patient === 'object' ? `${app.patient.firstName} ${app.patient.lastName}` : app.patient)}
+                        {patientName}
                       </TableCell>
                       <TableCell className='text-xs'>
-                        {app.doctorName || (typeof app.doctor === 'object' ? app.doctor.user?.first_name || app.doctor.specialization : app.doctor)}
+                        {doctorName}
                       </TableCell>
                       <TableCell className='text-xs text-muted-foreground'>
-                        {app.departmentName || (typeof app.department === 'object' ? app.department.name : app.department)}
+                        {departmentName}
                       </TableCell>
                       <TableCell className='text-xs font-mono'>
-                        {format(new Date(app.scheduledStart), 'dd.MM.yyyy HH:mm')}
+                        {formatDateSafely(startDateStr)}
                       </TableCell>
                       <TableCell className='text-xs'>
                         <Badge variant={badge.variant as any} className='text-[10px]'>
@@ -211,7 +234,7 @@ export function AppointmentsList() {
                         </Badge>
                       </TableCell>
                       <TableCell className='text-end'>
-                        {app.status !== 'cancelled' && app.status !== 'completed' && (
+                        {statusKey !== 'cancelled' && statusKey !== 'completed' && (
                           <Button
                             size='sm'
                             variant='ghost'
@@ -246,9 +269,9 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Bemor tanlang' />
                     </SelectTrigger>
                     <SelectContent>
-                      {patients.map((p) => (
+                      {patients.map((p: any) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.firstName} {p.lastName} ({p.phoneNumber})
+                          {p.firstName || p.first_name} {p.lastName || p.last_name} ({p.phoneNumber || p.phone_number})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -262,7 +285,7 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Bo’lim tanlang' />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((d) => (
+                      {departments.map((d: any) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
@@ -280,9 +303,9 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Shifokor tanlang' />
                     </SelectTrigger>
                     <SelectContent>
-                      {doctors.map((doc) => (
+                      {doctors.map((doc: any) => (
                         <SelectItem key={doc.id} value={doc.id}>
-                          Dr. {doc.user?.firstName || ''} {doc.user?.lastName || ''} ({doc.specialization})
+                          Dr. {doc.user?.firstName || doc.user?.first_name || ''} {doc.user?.lastName || doc.user?.last_name || ''} ({doc.specialization})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -296,9 +319,9 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Muolaja turi' />
                     </SelectTrigger>
                     <SelectContent>
-                      {procedureTypes.map((proc) => (
+                      {procedureTypes.map((proc: any) => (
                         <SelectItem key={proc.id} value={proc.id}>
-                          {proc.name} ({proc.defaultDurationMinutes} daq, {Number(proc.defaultPrice).toLocaleString()} so'm)
+                          {proc.name} ({proc.defaultDurationMinutes || proc.default_duration_minutes || 30} daq, {Number(proc.defaultPrice || proc.default_price || 0).toLocaleString()} so'm)
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -338,4 +361,15 @@ export function AppointmentsList() {
       </Main>
     </>
   )
+}
+
+function formatDateSafely(dateStr: string) {
+  if (!dateStr) return '-'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return format(d, 'dd.MM.yyyy HH:mm')
+  } catch {
+    return String(dateStr)
+  }
 }

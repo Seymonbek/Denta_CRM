@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, Plus, Camera, FileText, CheckCircle2 } from 'lucide-react'
+import { Plus, Camera } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   useTreatments,
@@ -61,16 +61,34 @@ export function TreatmentsList() {
   const [price, setPrice] = useState('')
 
   const { data: treatmentsData, isLoading } = useTreatments()
-  const treatments = treatmentsData?.results || []
+  const treatments = Array.isArray(treatmentsData?.results)
+    ? treatmentsData.results
+    : Array.isArray(treatmentsData)
+    ? treatmentsData
+    : []
 
   const { data: appointmentsData } = useAppointments()
-  const appointments = appointmentsData?.results || []
+  const appointments = Array.isArray(appointmentsData?.results)
+    ? appointmentsData.results
+    : Array.isArray(appointmentsData)
+    ? appointmentsData
+    : []
 
-  const { data: doctors = [] } = useDoctors()
+  const { data: doctorsData = [] } = useDoctors()
+  const doctors = Array.isArray(doctorsData) ? doctorsData : []
+
   const { data: patientsData } = usePatients()
-  const patients = patientsData?.results || []
-  const { data: departments = [] } = useDepartments()
-  const { data: procedureTypes = [] } = useProcedureTypes()
+  const patients = Array.isArray(patientsData?.results)
+    ? patientsData.results
+    : Array.isArray(patientsData)
+    ? patientsData
+    : []
+
+  const { data: departmentsData = [] } = useDepartments()
+  const departments = Array.isArray(departmentsData) ? departmentsData : []
+
+  const { data: procedureTypesData = [] } = useProcedureTypes()
+  const procedureTypes = Array.isArray(procedureTypesData) ? procedureTypesData : []
 
   const createTreatmentMutation = useCreateTreatment()
   const uploadPhotoMutation = useUploadTreatmentPhoto()
@@ -95,7 +113,7 @@ export function TreatmentsList() {
       })
       toast.success('Davolash yozuvi yaratildi!')
       setIsModalOpen(false)
-    } catch (err: any) {
+    } catch {
       toast.error('Yaratishda xatolik yuz berdi.')
     }
   }
@@ -172,52 +190,62 @@ export function TreatmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                treatments.map((t: Treatment) => (
-                  <TableRow key={t.id} className='hover:bg-muted/20'>
-                    <TableCell className='font-medium text-xs'>
-                      {t.patientName || t.patient}
-                    </TableCell>
-                    <TableCell className='text-xs text-muted-foreground'>
-                      {t.doctorName || t.doctor}
-                    </TableCell>
-                    <TableCell className='text-xs max-w-xs'>
-                      <p className='font-semibold truncate'>{t.diagnosis || 'Tashxis kiritilmagan'}</p>
-                      <p className='text-[10px] text-muted-foreground truncate'>{t.procedureTypeName}</p>
-                    </TableCell>
-                    <TableCell className='text-xs font-mono font-bold'>
-                      {Number(t.price).toLocaleString()} so'm
-                    </TableCell>
-                    <TableCell className='text-xs'>
-                      <Badge
-                        variant={
-                          t.paymentStatus === 'paid'
-                            ? 'default'
-                            : t.paymentStatus === 'partial'
-                            ? 'secondary'
-                            : 'destructive'
-                        }
-                        className='text-[10px]'
-                      >
-                        {t.paymentStatus === 'paid' ? "To'langan" : t.paymentStatus === 'partial' ? "Qisman to'langan" : "To'lanmagan"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className='text-xs'>
-                      <Badge variant='outline' className='text-[10px] uppercase'>
-                        {t.stage === 'completed' ? 'Yakunlangan' : 'Jarayonda'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className='text-end'>
-                      <Button
-                        size='sm'
-                        variant='ghost'
-                        className='h-8 text-xs'
-                        onClick={() => setSelectedTreatmentForPhoto(t)}
-                      >
-                        <Camera className='me-1.5 h-3.5 w-3.5' /> Foto
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                treatments.map((t: any) => {
+                  const patientName = t?.patientName || t?.patient_name || (typeof t?.patient === 'object' ? `${t.patient.firstName || t.patient.first_name || ''} ${t.patient.lastName || t.patient.last_name || ''}`.trim() : t?.patient) || 'Bemor'
+                  const doctorName = t?.doctorName || t?.doctor_name || (typeof t?.doctor === 'object' ? `${t.doctor.user?.firstName || t.doctor.user?.first_name || ''} ${t.doctor.user?.lastName || t.doctor.user?.last_name || ''}`.trim() : t?.doctor) || 'Shifokor'
+                  const procedureTypeName = t?.procedureTypeName || t?.procedure_type_name || (typeof t?.procedureType === 'object' ? t.procedureType.name : t?.procedureType) || ''
+
+                  return (
+                    <TableRow key={t?.id || Math.random()} className='hover:bg-muted/20'>
+                      <TableCell className='font-medium text-xs'>
+                        {patientName}
+                      </TableCell>
+                      <TableCell className='text-xs text-muted-foreground'>
+                        {doctorName}
+                      </TableCell>
+                      <TableCell className='text-xs max-w-xs'>
+                        <p className='font-semibold truncate'>{t?.diagnosis || 'Tashxis kiritilmagan'}</p>
+                        <p className='text-[10px] text-muted-foreground truncate'>{procedureTypeName}</p>
+                      </TableCell>
+                      <TableCell className='text-xs font-mono font-bold'>
+                        {Number(t?.price || 0).toLocaleString()} so'm
+                      </TableCell>
+                      <TableCell className='text-xs'>
+                        <Badge
+                          variant={
+                            t?.paymentStatus === 'paid' || t?.payment_status === 'paid'
+                              ? 'default'
+                              : t?.paymentStatus === 'partial' || t?.payment_status === 'partial'
+                              ? 'secondary'
+                              : 'destructive'
+                          }
+                          className='text-[10px]'
+                        >
+                          {t?.paymentStatus === 'paid' || t?.payment_status === 'paid'
+                            ? "To'langan"
+                            : t?.paymentStatus === 'partial' || t?.payment_status === 'partial'
+                            ? "Qisman to'langan"
+                            : "To'lanmagan"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='text-xs'>
+                        <Badge variant='outline' className='text-[10px] uppercase'>
+                          {t?.stage === 'completed' ? 'Yakunlangan' : 'Jarayonda'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='text-end'>
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          className='h-8 text-xs'
+                          onClick={() => setSelectedTreatmentForPhoto(t)}
+                        >
+                          <Camera className='me-1.5 h-3.5 w-3.5' /> Foto
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -237,7 +265,7 @@ export function TreatmentsList() {
                   value={appointmentId}
                   onValueChange={(val) => {
                     setAppointmentId(val)
-                    const app = appointments.find((a) => a.id === val)
+                    const app = appointments.find((a: any) => a.id === val)
                     if (app) {
                       setPatientId(typeof app.patient === 'object' ? app.patient.id : app.patient)
                       setDoctorId(typeof app.doctor === 'object' ? app.doctor.id : app.doctor)
@@ -252,9 +280,9 @@ export function TreatmentsList() {
                     <SelectValue placeholder='Navbatni tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {appointments.map((a) => (
+                    {appointments.map((a: any) => (
                       <SelectItem key={a.id} value={a.id}>
-                        {format(new Date(a.scheduledStart), 'dd.MM.yyyy HH:mm')} - {a.patientName || 'Bemor'}
+                        {formatDateSafely(a.scheduledStart || a.scheduled_start)} - {a.patientName || 'Bemor'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -269,9 +297,9 @@ export function TreatmentsList() {
                       <SelectValue placeholder='Bemor' />
                     </SelectTrigger>
                     <SelectContent>
-                      {patients.map((p) => (
+                      {patients.map((p: any) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.firstName} {p.lastName}
+                          {p.firstName || p.first_name} {p.lastName || p.last_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -285,9 +313,9 @@ export function TreatmentsList() {
                       <SelectValue placeholder='Shifokor' />
                     </SelectTrigger>
                     <SelectContent>
-                      {doctors.map((d) => (
+                      {doctors.map((d: any) => (
                         <SelectItem key={d.id} value={d.id}>
-                          Dr. {d.user?.firstName} {d.user?.lastName}
+                          Dr. {d.user?.firstName || d.user?.first_name || ''} {d.user?.lastName || d.user?.last_name || ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -303,7 +331,7 @@ export function TreatmentsList() {
                       <SelectValue placeholder='Bo’lim' />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((d) => (
+                      {departments.map((d: any) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
@@ -318,15 +346,15 @@ export function TreatmentsList() {
                     value={procedureTypeId}
                     onValueChange={(val) => {
                       setProcedureTypeId(val)
-                      const proc = procedureTypes.find((p) => p.id === val)
-                      if (proc) setPrice(proc.defaultPrice)
+                      const proc = procedureTypes.find((p: any) => p.id === val)
+                      if (proc) setPrice(proc.defaultPrice || proc.default_price || '')
                     }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder='Muolaja' />
                     </SelectTrigger>
                     <SelectContent>
-                      {procedureTypes.map((p) => (
+                      {procedureTypes.map((p: any) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
                         </SelectItem>
@@ -424,4 +452,15 @@ export function TreatmentsList() {
       </Main>
     </>
   )
+}
+
+function formatDateSafely(dateStr: string) {
+  if (!dateStr) return '-'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return format(d, 'dd.MM.yyyy HH:mm')
+  } catch {
+    return String(dateStr)
+  }
 }

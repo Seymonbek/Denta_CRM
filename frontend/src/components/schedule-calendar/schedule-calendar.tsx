@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { format, addDays } from 'date-fns'
+import { format } from 'date-fns'
 import { Calendar as CalendarIcon, Clock, CheckCircle2 } from 'lucide-react'
 import { AvailableSlot } from '@/types/api'
 import { Button } from '@/components/ui/button'
@@ -16,17 +16,23 @@ interface ScheduleCalendarProps {
 
 export function ScheduleCalendar({
   availableSlots = [],
-  selectedDate,
+  selectedDate = new Date(),
   onDateChange,
   onSlotSelect,
   isLoadingSlots = false,
 }: ScheduleCalendarProps) {
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null)
 
+  const slots = Array.isArray(availableSlots) ? availableSlots : []
+
   const handleSlotClick = (slot: AvailableSlot) => {
     setSelectedSlot(slot)
     onSlotSelect(slot)
   }
+
+  const formattedDate = selectedDate && !isNaN(new Date(selectedDate).getTime())
+    ? format(new Date(selectedDate), 'dd.MM.yyyy')
+    : ''
 
   return (
     <div className='grid grid-cols-1 md:grid-cols-2 gap-6 rounded-xl border bg-card p-5 shadow-sm'>
@@ -51,16 +57,18 @@ export function ScheduleCalendar({
             <Clock className='h-4 w-4 text-primary' />
             <span>Bo'sh Vaqt Oraliqlari (Slots)</span>
           </div>
-          <Badge variant='outline' className='text-xs font-mono'>
-            {format(selectedDate, 'dd.MM.yyyy')}
-          </Badge>
+          {formattedDate && (
+            <Badge variant='outline' className='text-xs font-mono'>
+              {formattedDate}
+            </Badge>
+          )}
         </div>
 
         {isLoadingSlots ? (
           <div className='flex items-center justify-center p-8 text-xs text-muted-foreground animate-pulse'>
             Vaqt oraliklari yuklanmoqda...
           </div>
-        ) : availableSlots.length === 0 ? (
+        ) : slots.length === 0 ? (
           <div className='flex flex-col items-center justify-center p-8 text-center border rounded-lg bg-muted/20'>
             <Clock className='h-8 w-8 text-muted-foreground/40 mb-2' />
             <p className='text-xs font-medium text-muted-foreground'>
@@ -69,7 +77,7 @@ export function ScheduleCalendar({
           </div>
         ) : (
           <div className='grid grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pe-1'>
-            {availableSlots.map((slot, idx) => {
+            {slots.map((slot, idx) => {
               const startStr = formatSlotTime(slot.start)
               const endStr = formatSlotTime(slot.end)
               const isSelected = selectedSlot?.start === slot.start
@@ -96,10 +104,12 @@ export function ScheduleCalendar({
 }
 
 function formatSlotTime(timeStr: string) {
+  if (!timeStr) return ''
   try {
     const d = new Date(timeStr)
+    if (isNaN(d.getTime())) return String(timeStr)
     return format(d, 'HH:mm')
   } catch {
-    return timeStr
+    return String(timeStr)
   }
 }
