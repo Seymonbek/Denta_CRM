@@ -62,7 +62,6 @@ export const sidebarData: SidebarData = {
           title: 'Davolash yozuvlari',
           url: '/treatments',
           icon: Activity,
-          roles: ['bosh_shifokor', 'doctor'],
         },
       ],
     },
@@ -73,7 +72,6 @@ export const sidebarData: SidebarData = {
           title: 'Bo’limlar',
           url: '/departments',
           icon: Building2,
-          roles: ['bosh_shifokor'],
         },
         {
           title: 'Shifokorlar',
@@ -84,13 +82,11 @@ export const sidebarData: SidebarData = {
           title: 'Retseptlar',
           url: '/prescriptions',
           icon: FileText,
-          roles: ['bosh_shifokor', 'doctor'],
         },
         {
           title: 'Sklad (Materiallar)',
           url: '/inventory',
           icon: Package,
-          roles: ['bosh_shifokor', 'doctor'],
         },
         {
           title: 'To’lovlar & Komissiya',
@@ -111,7 +107,6 @@ export const sidebarData: SidebarData = {
           title: 'Hisobotlar',
           url: '/reports',
           icon: BarChart3,
-          roles: ['bosh_shifokor'],
         },
         {
           title: 'Bildirishnomalar',
