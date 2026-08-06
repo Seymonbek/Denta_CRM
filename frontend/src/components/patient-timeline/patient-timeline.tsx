@@ -2,21 +2,10 @@ import { format } from 'date-fns'
 import { Calendar, Activity, CreditCard, FileText, Camera } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
-interface TimelineItem {
-  id: string
-  type: 'appointment' | 'treatment' | 'payment' | 'prescription' | 'photo'
-  title: string
-  description?: string
-  date: string
-  meta?: Record<string, any>
-}
+export function PatientTimeline({ history = [] }: { history: any[] }) {
+  const items = Array.isArray(history) ? history : []
 
-interface PatientTimelineProps {
-  history: any[]
-}
-
-export function PatientTimeline({ history = [] }: PatientTimelineProps) {
-  if (!history || history.length === 0) {
+  if (!items || items.length === 0) {
     return (
       <div className='flex flex-col items-center justify-center p-8 text-center border rounded-xl bg-card/50'>
         <Calendar className='h-10 w-10 text-muted-foreground/50 mb-2' />
@@ -27,13 +16,17 @@ export function PatientTimeline({ history = [] }: PatientTimelineProps) {
 
   return (
     <div className='relative ps-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border'>
-      {history.map((item: any, idx: number) => {
-        const itemType = item.type || 'appointment'
+      {items.map((item: any, idx: number) => {
+        const itemType = item?.type || 'appointment'
         const icon = getTimelineIcon(itemType)
-        const dateStr = item.date || item.createdAt || item.scheduledStart || ''
+        const dateStr = item?.date || item?.createdAt || item?.created_at || item?.scheduledStart || item?.scheduled_start || ''
+        const title = item?.title || item?.diagnosis || item?.procedureName || item?.description || 'Tarix yozuvi'
+        const doctorName = item?.doctorName || item?.doctor_name || (item?.doctor ? `Dr. ${item.doctor.firstName || ''} ${item.doctor.lastName || ''}`.trim() : '')
+        const description = item?.description || item?.notes || ''
+        const amount = item?.amount || item?.totalPrice || item?.total_price
 
         return (
-          <div key={item.id || idx} className='relative group'>
+          <div key={item?.id || idx} className='relative group'>
             {/* Timeline node icon */}
             <div className='absolute -left-[31px] top-0 flex h-7 w-7 items-center justify-center rounded-full border bg-background text-primary shadow-sm group-hover:scale-110 transition-transform'>
               {icon}
@@ -42,32 +35,32 @@ export function PatientTimeline({ history = [] }: PatientTimelineProps) {
             <div className='flex flex-col gap-1 rounded-xl border bg-card p-4 shadow-sm hover:shadow-md transition-shadow'>
               <div className='flex items-center justify-between gap-2'>
                 <h4 className='font-semibold text-sm tracking-tight'>
-                  {item.title || item.diagnosis || item.description || 'Tarix yozuvi'}
+                  {title}
                 </h4>
                 {dateStr && (
                   <time className='text-[11px] text-muted-foreground font-mono'>
-                    {formatDate(dateStr)}
+                    {formatDateSafely(dateStr)}
                   </time>
                 )}
               </div>
 
-              {item.doctorName && (
+              {doctorName && (
                 <p className='text-xs text-muted-foreground font-medium'>
-                  Shifokor: <span className='text-foreground'>{item.doctorName}</span>
+                  Shifokor: <span className='text-foreground'>{doctorName}</span>
                 </p>
               )}
 
-              {item.description && (
+              {description && (
                 <p className='text-xs text-muted-foreground line-clamp-2 mt-1'>
-                  {item.description}
+                  {description}
                 </p>
               )}
 
-              {item.amount && (
+              {amount != null && (
                 <div className='mt-2 flex items-center justify-between border-t pt-2 text-xs'>
                   <span className='text-muted-foreground'>To'lov summasi:</span>
                   <Badge variant='outline' className='font-bold text-emerald-600 dark:text-emerald-400'>
-                    {Number(item.amount).toLocaleString()} so'm
+                    {Number(amount).toLocaleString()} so'm
                   </Badge>
                 </div>
               )}
@@ -94,10 +87,13 @@ function getTimelineIcon(type: string) {
   }
 }
 
-function formatDate(dateStr: string) {
+function formatDateSafely(dateStr: string) {
+  if (!dateStr) return ''
   try {
-    return format(new Date(dateStr), 'dd.MM.yyyy HH:mm')
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return format(d, 'dd.MM.yyyy HH:mm')
   } catch {
-    return dateStr
+    return String(dateStr)
   }
 }
