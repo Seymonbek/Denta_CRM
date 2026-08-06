@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { BarChart3, TrendingUp, DollarSign, Calendar } from 'lucide-react'
 import {
   useRevenueReport,
   useProceduresReport,
@@ -9,18 +8,34 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { StatsCharts } from '@/components/stats-charts/stats-charts'
 
 export function ReportsList() {
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [period, setPeriod] = useState<string>('month')
 
-  const { data: revenueData } = useRevenueReport({ dateFrom, dateTo })
-  const { data: proceduresData } = useProceduresReport({ dateFrom, dateTo })
-  const { data: departmentsData } = useDepartmentsReport({ dateFrom, dateTo })
+  const { data: revenueData, isLoading: isRevLoading } = useRevenueReport(period)
+  const { data: proceduresData } = useProceduresReport(period)
+  const { data: departmentsData } = useDepartmentsReport(period)
+
+  const totalRevenue = revenueData?.totalRevenue ?? revenueData?.total_revenue ?? 0
+  const topProcedures = Array.isArray(proceduresData?.results)
+    ? proceduresData.results
+    : Array.isArray(proceduresData)
+    ? proceduresData
+    : []
+  const departmentBreakdown = Array.isArray(departmentsData)
+    ? departmentsData
+    : Array.isArray(departmentsData?.results)
+    ? departmentsData.results
+    : []
 
   return (
     <>
@@ -37,78 +52,69 @@ export function ReportsList() {
           <div>
             <h1 className='text-2xl font-bold tracking-tight'>Moliyaviy va Operatsion Hisobotlar</h1>
             <p className='text-xs text-muted-foreground'>
-              Sana oralig’i bo’yicha klinika tahlillari va statistikasi.
+              Sana oralig’i va davrlar bo’yicha klinika tahlillari va statistikasi.
             </p>
           </div>
 
           <div className='flex items-center gap-2'>
-            <div className='flex items-center gap-1.5'>
-              <span className='text-xs text-muted-foreground'>Dan:</span>
-              <Input
-                type='date'
-                className='h-8 text-xs font-mono w-32'
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-            </div>
-            <div className='flex items-center gap-1.5'>
-              <span className='text-xs text-muted-foreground'>Gacha:</span>
-              <Input
-                type='date'
-                className='h-8 text-xs font-mono w-32'
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
-            </div>
+            <span className='text-xs font-medium text-muted-foreground'>Davr:</span>
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger className='w-36 text-xs'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='day'>Bugun (Kunlik)</SelectItem>
+                <SelectItem value='week'>Shu Hafta</SelectItem>
+                <SelectItem value='month'>Shu Oy</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
         <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-          <Card>
+          <Card className='shadow-sm'>
             <CardHeader className='pb-2'>
               <CardTitle className='text-xs font-medium text-muted-foreground'>
-                Tanlangan Oraliqdagi Jami Daromad
+                Jami Tushgan Daromad
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400'>
-                {revenueData?.totalRevenue
-                  ? `${Number(revenueData.totalRevenue).toLocaleString()} so'm`
-                  : "0 so'm"}
+                {isRevLoading ? '...' : `${Number(totalRevenue).toLocaleString()} so'm`}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className='shadow-sm'>
             <CardHeader className='pb-2'>
               <CardTitle className='text-xs font-medium text-muted-foreground'>
-                Amalga Oshirilgan Muolajalar Soni
+                Top Muolajalar Turi Soni
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold font-mono'>
-                {proceduresData?.totalCount || 0} ta
+                {topProcedures.length} ta
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className='shadow-sm'>
             <CardHeader className='pb-2'>
               <CardTitle className='text-xs font-medium text-muted-foreground'>
-                Faol Bo'limlar
+                Qamrab Olingan Bo'limlar
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold font-mono'>
-                {departmentsData?.length || 0} ta
+                {departmentBreakdown.length} ta
               </div>
             </CardContent>
           </Card>
         </div>
 
         <StatsCharts
-          topProcedures={proceduresData?.results || []}
-          departmentBreakdown={departmentsData || []}
+          topProcedures={topProcedures}
+          departmentBreakdown={departmentBreakdown}
         />
       </Main>
     </>

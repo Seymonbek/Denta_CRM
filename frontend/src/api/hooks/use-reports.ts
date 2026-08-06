@@ -13,23 +13,23 @@ export function useDashboardReport(period: string = 'month') {
   })
 }
 
-export function useRevenueReport(params?: { dateFrom?: string; dateTo?: string }) {
+export function useRevenueReport(period: string = 'month') {
   return useQuery({
-    queryKey: ['reports', 'revenue', params],
-    queryFn: () => getRevenueReportApi(params),
+    queryKey: ['reports', 'revenue', period],
+    queryFn: () => getRevenueReportApi(period),
   })
 }
 
-export function useProceduresReport(params?: { dateFrom?: string; dateTo?: string }) {
+export function useProceduresReport(period: string = 'month', limit: number = 10) {
   return useQuery({
-    queryKey: ['reports', 'procedures', params],
-    queryFn: () => getProceduresReportApi(params),
+    queryKey: ['reports', 'procedures', period, limit],
+    queryFn: () => getProceduresReportApi(period, limit),
   })
 }
 
-export function useDepartmentsReport(params?: { dateFrom?: string; dateTo?: string }) {
+export function useDepartmentsReport(period: string = 'month') {
   return useQuery({
-    queryKey: ['reports', 'departments', params],
-    queryFn: () => getDepartmentsReportApi(params),
+    queryKey: ['reports', 'departments', period],
+    queryFn: () => getDepartmentsReportApi(period),
   })
 }

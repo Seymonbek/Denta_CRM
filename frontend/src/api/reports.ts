@@ -8,17 +8,23 @@ export async function getDashboardReportApi(period: string = 'month'): Promise<D
   return response.data
 }
 
-export async function getRevenueReportApi(params?: { dateFrom?: string; dateTo?: string }): Promise<any> {
-  const response = await apiClient.get('reports/revenue/', { params })
+export async function getRevenueReportApi(period: string = 'month'): Promise<any> {
+  const response = await apiClient.get('reports/revenue/', {
+    params: { period },
+  })
   return response.data
 }
 
-export async function getProceduresReportApi(params?: { dateFrom?: string; dateTo?: string }): Promise<any> {
-  const response = await apiClient.get('reports/procedures/', { params })
+export async function getProceduresReportApi(period: string = 'month', limit: number = 10): Promise<any> {
+  const response = await apiClient.get('reports/procedures/', {
+    params: { period, limit },
+  })
   return response.data
 }
 
-export async function getDepartmentsReportApi(params?: { dateFrom?: string; dateTo?: string }): Promise<any> {
-  const response = await apiClient.get('reports/departments/', { params })
+export async function getDepartmentsReportApi(period: string = 'month'): Promise<any> {
+  const response = await apiClient.get('reports/departments/', {
+    params: { period },
+  })
   return response.data
 }

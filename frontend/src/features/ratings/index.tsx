@@ -5,7 +5,6 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -16,7 +15,9 @@ import {
 } from '@/components/ui/table'
 
 export function RatingsList() {
-  const { data: leaderboard = [], isLoading } = useLeaderboard()
+  const { data: leaderboardData = [], isLoading } = useLeaderboard()
+
+  const leaderboard = Array.isArray(leaderboardData) ? leaderboardData : []
 
   return (
     <>
@@ -62,10 +63,17 @@ export function RatingsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                leaderboard.map((entry, idx) => {
-                  const rank = entry.rank || idx + 1
+                leaderboard.map((entry: any, idx: number) => {
+                  const rank = entry?.rank || idx + 1
+                  const doctorId = entry?.doctorId || entry?.doctor?.id || String(idx)
+                  const firstName = entry?.firstName || entry?.doctor?.user?.firstName || 'Shifokor'
+                  const lastName = entry?.lastName || entry?.doctor?.user?.lastName || ''
+                  const specialization = entry?.specialization || entry?.doctor?.specialization || 'Stomatolog'
+                  const totalPoints = entry?.totalPoints ?? entry?.points ?? 0
+                  const badgeCount = entry?.badgeCount ?? entry?.badgesCount ?? 0
+
                   return (
-                    <TableRow key={entry.doctor.id} className='hover:bg-muted/20'>
+                    <TableRow key={doctorId} className='hover:bg-muted/20'>
                       <TableCell className='text-center font-bold text-sm'>
                         {rank === 1 ? (
                           <span className='inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold'>
@@ -87,28 +95,28 @@ export function RatingsList() {
                       <TableCell className='font-medium text-xs'>
                         <div className='flex items-center gap-2'>
                           <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs'>
-                            {entry.doctor.user?.firstName?.[0] || 'D'}
+                            {firstName[0]}
                           </div>
                           <div>
                             <p className='font-bold'>
-                              Dr. {entry.doctor.user?.firstName} {entry.doctor.user?.lastName}
+                              Dr. {firstName} {lastName}
                             </p>
                           </div>
                         </div>
                       </TableCell>
 
                       <TableCell className='text-xs font-medium text-muted-foreground'>
-                        {entry.doctor.specialization}
+                        {specialization}
                       </TableCell>
 
                       <TableCell className='text-center'>
                         <Badge variant='outline' className='font-mono text-xs'>
-                          🏅 {entry.badgeCount || 0} ta nishon
+                          🏅 {badgeCount} ta nishon
                         </Badge>
                       </TableCell>
 
                       <TableCell className='text-end font-bold font-mono text-base text-amber-600 dark:text-amber-400'>
-                        {entry.totalPoints || 0} pts
+                        {totalPoints} pts
                       </TableCell>
                     </TableRow>
                   )

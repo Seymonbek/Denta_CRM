@@ -33,6 +33,18 @@ export function Dashboard() {
   const [period, setPeriod] = useState<string>('month')
   const { data: report, isLoading } = useDashboardReport(period)
 
+  const topProcedures = Array.isArray(report?.topProcedures)
+    ? report.topProcedures
+    : Array.isArray(report?.top_procedures)
+    ? report.top_procedures
+    : []
+
+  const departmentBreakdown = Array.isArray(report?.departmentBreakdown)
+    ? report.departmentBreakdown
+    : Array.isArray(report?.department_breakdown)
+    ? report.department_breakdown
+    : []
+
   return (
     <>
       <Header>
@@ -54,14 +66,13 @@ export function Dashboard() {
           <div className='flex items-center gap-2'>
             <span className='text-xs font-medium text-muted-foreground'>Davr:</span>
             <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className='w-32 text-xs'>
+              <SelectTrigger className='w-36 text-xs'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value='day'>Bugun (Kunlik)</SelectItem>
                 <SelectItem value='week'>Shu hafta</SelectItem>
                 <SelectItem value='month'>Shu oy</SelectItem>
-                <SelectItem value='year'>Shu yil</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -80,7 +91,7 @@ export function Dashboard() {
               <div className='text-2xl font-bold text-emerald-600 dark:text-emerald-400'>
                 {isLoading
                   ? '...'
-                  : `${Number(report?.totalRevenue || 0).toLocaleString()} so'm`}
+                  : `${Number(report?.totalRevenue ?? report?.total_revenue ?? 0).toLocaleString()} so'm`}
               </div>
               <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
                 <TrendingUp className='h-3 w-3 text-emerald-500' /> Tushgan barcha to'lovlar
@@ -97,10 +108,10 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold'>
-                {isLoading ? '...' : report?.totalPatients || 0} ta
+                {isLoading ? '...' : (report?.totalPatients ?? report?.total_patients ?? 0)} ta
               </div>
               <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
-                <UserPlus className='h-3 w-3 text-blue-500' /> +{report?.newPatientsCount || 0} ta yangi
+                <UserPlus className='h-3 w-3 text-blue-500' /> +{report?.newPatientsCount ?? report?.new_patients_count ?? 0} ta yangi
               </p>
             </CardContent>
           </Card>
@@ -114,7 +125,7 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold'>
-                {isLoading ? '...' : report?.completedAppointments || 0} / {report?.totalAppointments || 0}
+                {isLoading ? '...' : (report?.completedAppointments ?? report?.completed_appointments ?? 0)} / {(report?.totalAppointments ?? report?.total_appointments ?? 0)}
               </div>
               <p className='text-[11px] text-muted-foreground mt-1'>
                 Muvaffaqiyatli yakunlangan
@@ -131,7 +142,7 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold text-rose-600 dark:text-rose-400'>
-                {isLoading ? '...' : report?.cancelledAppointments || 0} ta
+                {isLoading ? '...' : (report?.cancelledAppointments ?? report?.cancelled_appointments ?? 0)} ta
               </div>
               <p className='text-[11px] text-muted-foreground mt-1'>
                 Mijoz bekor qilgan
@@ -142,8 +153,8 @@ export function Dashboard() {
 
         {/* Charts */}
         <StatsCharts
-          topProcedures={report?.topProcedures}
-          departmentBreakdown={report?.departmentBreakdown}
+          topProcedures={topProcedures}
+          departmentBreakdown={departmentBreakdown}
         />
       </Main>
     </>
