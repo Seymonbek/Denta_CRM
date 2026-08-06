@@ -25,16 +25,16 @@ export function ReportsList() {
   const { data: proceduresData } = useProceduresReport(period)
   const { data: departmentsData } = useDepartmentsReport(period)
 
-  const totalRevenue = revenueData?.totalRevenue ?? revenueData?.total_revenue ?? 0
+  const totalRevenue = revenueData?.total ?? revenueData?.totalRevenue ?? revenueData?.total_revenue ?? 0
   const topProcedures = Array.isArray(proceduresData?.results)
     ? proceduresData.results
     : Array.isArray(proceduresData)
     ? proceduresData
     : []
-  const departmentBreakdown = Array.isArray(departmentsData)
-    ? departmentsData
-    : Array.isArray(departmentsData?.results)
+  const departmentBreakdown = Array.isArray(departmentsData?.results)
     ? departmentsData.results
+    : Array.isArray(departmentsData)
+    ? departmentsData
     : []
 
   return (

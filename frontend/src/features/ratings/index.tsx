@@ -17,7 +17,11 @@ import {
 export function RatingsList() {
   const { data: leaderboardData = [], isLoading } = useLeaderboard()
 
-  const leaderboard = Array.isArray(leaderboardData) ? leaderboardData : []
+  const leaderboard = Array.isArray(leaderboardData?.results)
+    ? leaderboardData.results
+    : Array.isArray(leaderboardData)
+    ? leaderboardData
+    : []
 
   return (
     <>
@@ -66,11 +70,11 @@ export function RatingsList() {
                 leaderboard.map((entry: any, idx: number) => {
                   const rank = entry?.rank || idx + 1
                   const doctorId = entry?.doctorId || entry?.doctor?.id || String(idx)
-                  const firstName = entry?.firstName || entry?.doctor?.user?.firstName || 'Shifokor'
-                  const lastName = entry?.lastName || entry?.doctor?.user?.lastName || ''
+                  const firstName = entry?.firstName || entry?.doctor?.user?.firstName || entry?.doctor?.user?.first_name || 'Shifokor'
+                  const lastName = entry?.lastName || entry?.doctor?.user?.lastName || entry?.doctor?.user?.last_name || ''
                   const specialization = entry?.specialization || entry?.doctor?.specialization || 'Stomatolog'
                   const totalPoints = entry?.totalPoints ?? entry?.points ?? 0
-                  const badgeCount = entry?.badgeCount ?? entry?.badgesCount ?? 0
+                  const badgeCount = entry?.badgeCount ?? entry?.badgesCount ?? entry?.badges_count ?? 0
 
                   return (
                     <TableRow key={doctorId} className='hover:bg-muted/20'>
