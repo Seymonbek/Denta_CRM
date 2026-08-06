@@ -301,6 +301,7 @@ def dashboard_payload(period: Period) -> dict[str, Any]:
         "revenueByDay": revenue_by_day(start, end),
         "appointmentsByStatus": counts,
         "topProcedures": top_procedures(start, end, limit=5),
+        "departmentBreakdown": department_breakdown(start, end),
         "topDoctors": doctor_productivity(start, end, limit=5),
         "generatedAt": _iso(_tz_now()),
     }

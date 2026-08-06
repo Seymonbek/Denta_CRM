@@ -11,15 +11,18 @@ import {
 } from 'recharts'
 
 interface TopProcedure {
-  procedureTypeName: string
-  count: number
-  revenue: string
+  name?: string
+  procedureTypeName?: string
+  count?: number
+  revenue?: string
 }
 
 interface DepartmentBreakdown {
-  departmentName: string
-  revenue: string
-  patientCount: number
+  name?: string
+  departmentName?: string
+  revenue?: string
+  treatments?: number
+  patientCount?: number
 }
 
 interface StatsChartsProps {
@@ -31,15 +34,15 @@ export function StatsCharts({
   topProcedures = [],
   departmentBreakdown = [],
 }: StatsChartsProps) {
-  const procData = topProcedures.map((p) => ({
-    name: p.procedureTypeName,
-    Bemorlar: p.count,
+  const procData = topProcedures.map((p: any) => ({
+    name: p.name || p.procedureTypeName || p.procedure_type_name || 'Muolaja',
+    Bemorlar: p.count ?? p.patientCount ?? 0,
     Daromad: parseFloat(p.revenue || '0'),
   }))
 
-  const deptData = departmentBreakdown.map((d) => ({
-    name: d.departmentName,
-    Bemorlar: d.patientCount,
+  const deptData = departmentBreakdown.map((d: any) => ({
+    name: d.name || d.departmentName || d.department_name || 'Bo\'lim',
+    Muolajalar: d.treatments ?? d.patientCount ?? 0,
     Daromad: parseFloat(d.revenue || '0'),
   }))
 

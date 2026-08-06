@@ -22,6 +22,7 @@ from apps.inventory.models import Material, MaterialUsage, MaterialStockLog
 from apps.payments.models import Payment, CommissionRecord
 from apps.ratings.models import ScoreLog, Badge, DoctorBadge
 from apps.notifications.models import NotificationLog
+from apps.reports.services import invalidate_all
 
 
 FIRST_NAMES_MALE = ["Jamshid", "Bobur", "Sardor", "Otabek", "Jasur", "Alisher", "Sanjar", "Davron", "Jahongir", "Shoxrux", "Umid", "Farrux", "Ulug'bek", "Sherzod", "Kamol"]
@@ -325,20 +326,20 @@ class Command(BaseCommand):
         # 9. INVENTORY (Materials & Usage Logs)
         self.stdout.write("9. Creating Inventory Materials, Restocks & Usages...")
         materials_data = [
-            ("Stomatologik Kompozit Plomba (Filtek Z250)", "piece", Decimal("55.00"), Decimal("15.00"), Decimal("130000.00")),
-            ("Lidokain 2% Anesteziya Ampula (20ml)", "piece", Decimal("8.00"), Decimal("30.00"), Decimal("6000.00")),
-            ("Stomatologik bir martalik ignalar (30G)", "piece", Decimal("250.00"), Decimal("50.00"), Decimal("1800.00")),
-            ("Antiseptik sprey (Xlorgeksidin 500ml)", "ml", Decimal("5.00"), Decimal("20.00"), Decimal("28000.00")),
-            ("Alginat qolip kukuni (Tropicalgin)", "gram", Decimal("1200.00"), Decimal("300.00"), Decimal("95000.00")),
-            ("Sirokniy/Keramika Vinir Sementi (RelyX)", "piece", Decimal("12.00"), Decimal("5.00"), Decimal("450000.00")),
-            ("Tish oqartiruvchi gel (Opalescence 40%)", "piece", Decimal("4.00"), Decimal("10.00"), Decimal("220000.00")),
-            ("Stomatologik bir martalik salfetka va qo'lqop", "piece", Decimal("500.00"), Decimal("100.00"), Decimal("800.00")),
-            ("Rentgen plyonkasi va sensori qoplamalari", "piece", Decimal("85.00"), Decimal("25.00"), Decimal("15000.00")),
+            ("Stomatologik Kompozit Plomba (Filtek Z250)", "piece", Decimal("500.00"), Decimal("15.00"), Decimal("130000.00")),
+            ("Lidokain 2% Anesteziya Ampula (20ml)", "piece", Decimal("300.00"), Decimal("30.00"), Decimal("6000.00")),
+            ("Stomatologik bir martalik ignalar (30G)", "piece", Decimal("1000.00"), Decimal("50.00"), Decimal("1800.00")),
+            ("Antiseptik sprey (Xlorgeksidin 500ml)", "ml", Decimal("200.00"), Decimal("20.00"), Decimal("28000.00")),
+            ("Alginat qolip kukuni (Tropicalgin)", "gram", Decimal("5000.00"), Decimal("300.00"), Decimal("95000.00")),
+            ("Sirokniy/Keramika Vinir Sementi (RelyX)", "piece", Decimal("100.00"), Decimal("5.00"), Decimal("450000.00")),
+            ("Tish oqartiruvchi gel (Opalescence 40%)", "piece", Decimal("50.00"), Decimal("10.00"), Decimal("220000.00")),
+            ("Stomatologik bir martalik salfetka va qo'lqop", "piece", Decimal("2000.00"), Decimal("100.00"), Decimal("800.00")),
+            ("Rentgen plyonkasi va sensori qoplamalari", "piece", Decimal("400.00"), Decimal("25.00"), Decimal("15000.00")),
         ]
 
         materials = []
         for name, unit, q_stock, threshold, cost in materials_data:
-            mat, _ = Material.objects.get_or_create(
+            mat, created = Material.objects.get_or_create(
                 name=name,
                 defaults={
                     "unit": unit,
@@ -349,21 +350,29 @@ class Command(BaseCommand):
             )
             materials.append(mat)
 
-            # Stock log entry with resulting_quantity
-            MaterialStockLog.objects.create(
-                material=mat,
-                change_amount=q_stock,
-                resulting_quantity=q_stock,
-                reason="restock",
-            )
+            if created:
+                # Stock log entry with resulting_quantity
+                MaterialStockLog.objects.create(
+                    material=mat,
+                    change_amount=q_stock,
+                    resulting_quantity=q_stock,
+                    reason="restock",
+                )
+
+        # Ensure materials stock is safe before usages
+        for mat in materials:
+            if mat.quantity_in_stock < Decimal("50.00"):
+                mat.quantity_in_stock = Decimal("200.00")
+                mat.save(update_fields=["quantity_in_stock"])
 
         for tr in treatments[:25]:
             mat = random.choice(materials)
-            MaterialUsage.objects.get_or_create(
-                treatment=tr,
-                material=mat,
-                defaults={"quantity_used": Decimal("1.00")},
-            )
+            if not MaterialUsage.objects.filter(treatment=tr, material=mat).exists():
+                MaterialUsage.objects.create(
+                    treatment=tr,
+                    material=mat,
+                    quantity_used=Decimal("1.00"),
+                )
 
         # 10. PAYMENTS & COMMISSIONS (Generates 50M+ UZS in payments!)
         self.stdout.write("10. Creating Payments & Commission Records...")
@@ -436,4 +445,5 @@ class Command(BaseCommand):
                 sent_at=timezone.now(),
             )
 
+        invalidate_all()
         self.stdout.write(self.style.SUCCESS("Heavy data seeding completed! Tens of millions UZS revenue created!"))
