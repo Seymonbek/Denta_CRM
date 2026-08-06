@@ -50,8 +50,14 @@ export function AIAssistantPage() {
   const { data: user } = useMe()
   const chatMutation = useAIChat()
   const { data: inventorySummary, isLoading: isInventoryLoading } = useAIInventorySummary()
-  const { data: permissions = [] } = useAIPermissions()
+  const { data: permissionsData = [] } = useAIPermissions()
   const updatePermissionMutation = useUpdateAIPermission()
+
+  const permissionsList = Array.isArray(permissionsData?.results)
+    ? permissionsData.results
+    : Array.isArray(permissionsData)
+    ? permissionsData
+    : []
 
   const [inputMessage, setInputMessage] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -59,7 +65,7 @@ export function AIAssistantPage() {
     {
       id: 'welcome-1',
       sender: 'ai',
-      text: `Assalomu alaykum, ${user?.firstName || 'Foydalanuvchi'}! Men DentaCRM aqlli Sun'iy Intelekt (AI) yordamchisiman. 🤖✨\n\nKlinikangizdagi bemorlar, kassa tushumi, shifokorlar jadvali va sklad zaxiralari bo'yicha har qanday savolingizga real-vaqt rejimida javob bera olaman. Sizga qanday yordam bera olaman?`,
+      text: `Assalomu alaykum, ${user?.firstName || user?.first_name || 'Foydalanuvchi'}! Men DentaCRM aqlli Sun'iy Intelekt (AI) yordamchisiman. 🤖✨\n\nKlinikangizdagi bemorlar, kassa tushumi, shifokorlar jadvali va sklad zaxiralari bo'yicha har qanday savolingizga real-vaqt rejimida javob bera olaman. Sizga qanday yordam bera olaman?`,
       timestamp: new Date().toISOString(),
       source: 'gemini-ai',
     },
@@ -116,6 +122,10 @@ export function AIAssistantPage() {
   }
 
   const isBoshShifokor = user?.role === 'bosh_shifokor' || user?.role === 'admin'
+
+  const totalItemsCount = inventorySummary?.totalItemsCount ?? inventorySummary?.total_items_count ?? 0
+  const lowStockItemsCount = inventorySummary?.lowStockItemsCount ?? inventorySummary?.low_stock_items_count ?? 0
+  const aiRecommendation = inventorySummary?.aiRecommendation || inventorySummary?.ai_recommendation || "Barcha zaxira materiallari yetarli darajada. Sklad holati a'lo!"
 
   return (
     <>
@@ -181,7 +191,7 @@ export function AIAssistantPage() {
                         {
                           id: `welcome-${Date.now()}`,
                           sender: 'ai',
-                          text: `Suhbat tozalandi. Sizga yana qanday yordam bera olaman, ${user?.firstName || ''}?`,
+                          text: `Suhbat tozalandi. Sizga yana qanday yordam bera olaman, ${user?.firstName || user?.first_name || ''}?`,
                           timestamp: new Date().toISOString(),
                           source: 'gemini-ai',
                         },
@@ -341,13 +351,13 @@ export function AIAssistantPage() {
                     <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                       <div className='rounded-xl border bg-muted/20 p-4'>
                         <span className='text-xs font-semibold text-muted-foreground'>Jami Material Turlari</span>
-                        <p className='text-2xl font-bold font-mono mt-1'>{inventorySummary?.totalItemsCount || 0}</p>
+                        <p className='text-2xl font-bold font-mono mt-1'>{totalItemsCount}</p>
                       </div>
 
                       <div className='rounded-xl border bg-rose-500/10 border-rose-500/30 p-4'>
                         <span className='text-xs font-semibold text-rose-600 dark:text-rose-400'>Kritik Kam Qolgan Materiallar</span>
                         <p className='text-2xl font-bold font-mono mt-1 text-rose-600 dark:text-rose-400'>
-                          {inventorySummary?.lowStockItemsCount || 0} ta
+                          {lowStockItemsCount} ta
                         </p>
                       </div>
                     </div>
@@ -357,7 +367,7 @@ export function AIAssistantPage() {
                         💡 AI Smart Recommendation (Tavsiya):
                       </h4>
                       <div className='p-4 rounded-xl border bg-emerald-500/10 border-emerald-500/30 text-xs font-mono leading-relaxed text-foreground'>
-                        {inventorySummary?.aiRecommendation || "Barcha zaxira materiallari yetarli darajada. Sklad holati a'lo!"}
+                        {aiRecommendation}
                       </div>
                     </div>
                   </>
@@ -379,34 +389,40 @@ export function AIAssistantPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='space-y-3'>
-                  {permissions.map((p) => {
-                    const roleLabel =
-                      p.role === 'bosh_shifokor'
-                        ? 'Bosh Shifokor'
-                        : p.role === 'admin'
-                        ? 'Administrator'
-                        : p.role === 'doctor'
-                        ? 'Shifokor (Doctor)'
-                        : 'Retseptsiya (Reception)'
+                  {permissionsList.length === 0 ? (
+                    <div className='text-xs text-muted-foreground italic text-center py-4'>
+                      Ruxsatlar sozlamalari yuklanmoqda...
+                    </div>
+                  ) : (
+                    permissionsList.map((p: any) => {
+                      const roleLabel =
+                        p.role === 'bosh_shifokor'
+                          ? 'Bosh Shifokor'
+                          : p.role === 'admin'
+                          ? 'Administrator'
+                          : p.role === 'doctor'
+                          ? 'Shifokor (Doctor)'
+                          : 'Retseptsiya (Reception)'
 
-                    return (
-                      <div
-                        key={p.id}
-                        className='flex items-center justify-between rounded-xl border bg-muted/20 p-4'
-                      >
-                        <div>
-                          <span className='font-bold text-sm'>{roleLabel}</span>
-                          <p className='text-xs text-muted-foreground font-mono'>Role code: {p.role}</p>
+                      return (
+                        <div
+                          key={p.id || p.role}
+                          className='flex items-center justify-between rounded-xl border bg-muted/20 p-4'
+                        >
+                          <div>
+                            <span className='font-bold text-sm'>{roleLabel}</span>
+                            <p className='text-xs text-muted-foreground font-mono'>Role code: {p.role}</p>
+                          </div>
+                          <Switch
+                            checked={Boolean(p.enabled)}
+                            onCheckedChange={(checked) =>
+                              updatePermissionMutation.mutate({ id: p.id, enabled: checked })
+                            }
+                          />
                         </div>
-                        <Switch
-                          checked={p.enabled}
-                          onCheckedChange={(checked) =>
-                            updatePermissionMutation.mutate({ id: p.id, enabled: checked })
-                          }
-                        />
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
