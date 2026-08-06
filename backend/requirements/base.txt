@@ -1,0 +1,43 @@
+# =============================================================================
+# DentaCRM backend — base requirements (shared between dev and prod).
+# Compatible with Python 3.12+ and Python 3.14+.
+# =============================================================================
+
+# --- Core web stack ---------------------------------------------------------
+Django>=5.0.9,<6.0.0
+djangorestframework>=3.15.2
+djangorestframework-simplejwt>=5.3.1
+drf-spectacular>=0.27.2
+django-filter>=24.3
+django-cors-headers>=4.5.0
+django-simple-history>=3.7.0
+
+# --- Database & config ------------------------------------------------------
+psycopg[binary]>=3.2.3
+dj-database-url>=2.2.0
+python-dotenv>=1.0.1
+
+# --- Cache / async ----------------------------------------------------------
+redis>=5.0.8
+celery>=5.4.0
+django-celery-beat>=2.7.0
+django-celery-results>=2.5.1
+
+# --- Storage (S3/MinIO) -----------------------------------------------------
+django-storages>=1.14.4
+boto3>=1.35.36
+
+# --- Media processing -------------------------------------------------------
+Pillow>=10.4.0
+
+# --- Telegram bot -----------------------------------------------------------
+aiogram>=3.13.1
+
+# --- Utilities --------------------------------------------------------------
+python-dateutil>=2.9.0
+
+# --- AI Assistant ------------------------------------------------------------
+google-genai>=0.1.1
+
+# --- Admin UI Theme ---------------------------------------------------------
+django-unfold>=0.33.0

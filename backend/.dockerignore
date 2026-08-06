@@ -1,0 +1,47 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+media/
+staticfiles/
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Documentation (not needed in container)
+docs/
+*.md
+!README.md
+LICENSE
+
+# Tests (not needed in production container)
+tests/
+pytest.ini
+.coveragerc
+
+# Database
+db.sqlite3
+db.sqlite3-journal
+
+# Docker (avoid recursive context)
+Dockerfile
+docker-compose*.yml
+

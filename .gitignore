@@ -1,32 +1,31 @@
-# Python
-__pycache__/
+# Python / Django
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.venv/
-
-# Django
+backend/venv/
+backend/.venv/
+backend/env/
+backend/db.sqlite3
+backend/db.sqlite3-journal
+backend/media/
+backend/staticfiles/
+backend/.env
+backend/.pytest_cache/
+backend/.coverage
 *.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-media/
-staticfiles/
-.env
 
-# Testing & Linting
-.coverage
-.coverage.*
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
 
 # IDE & OS
 .vscode/

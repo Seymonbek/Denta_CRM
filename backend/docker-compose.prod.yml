@@ -1,0 +1,159 @@
+# =============================================================================
+# DentaCRM — Production Docker Compose
+# =============================================================================
+# Optimized for minimal memory usage and maximum performance.
+# Usage: docker compose -f docker-compose.prod.yml up -d
+# =============================================================================
+
+name: dentacrm-prod
+
+services:
+  # ---------------------------------------------------------------------------
+  # Database: PostgreSQL 16 (tuned for low memory)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: dentacrm_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dentacrm}
+      POSTGRES_USER: ${POSTGRES_USER:-dentacrm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    # PostgreSQL memory optimization
+    command: >
+      postgres
+        -c shared_buffers=128MB
+        -c effective_cache_size=256MB
+        -c work_mem=4MB
+        -c maintenance_work_mem=64MB
+        -c max_connections=100
+        -c random_page_cost=1.1
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=4MB
+        -c default_statistics_target=100
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dentacrm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Cache & Broker: Redis 7 (memory-optimized)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: dentacrm_redis
+    restart: unless-stopped
+    # Redis memory optimization
+    command: >
+      redis-server
+        --maxmemory 64mb
+        --maxmemory-policy allkeys-lru
+        --save 60 100
+        --appendonly no
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  # Web App: Gunicorn (multi-worker production server)
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: dentacrm_web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS}
+      DATABASE_URL: postgres://${POSTGRES_USER:-dentacrm}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-dentacrm}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      DJANGO_LOG_JSON: "1"
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker (limited concurrency to save memory)
+  # ---------------------------------------------------------------------------
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: dentacrm_celery_worker
+    restart: unless-stopped
+    command: celery -A config worker -l warning --pool=threads --concurrency=4 --max-tasks-per-child=200
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DATABASE_URL: postgres://${POSTGRES_USER:-dentacrm}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-dentacrm}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ---------------------------------------------------------------------------
+  # Celery Beat (lightweight scheduler)
+  # ---------------------------------------------------------------------------
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: dentacrm_celery_beat
+    restart: unless-stopped
+    command: celery -A config beat -l warning
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DATABASE_URL: postgres://${POSTGRES_USER:-dentacrm}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-dentacrm}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  postgres_data:
+  redis_data:
