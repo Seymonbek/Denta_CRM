@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   Users,
-  Calendar,
   CreditCard,
   UserPlus,
   CheckCircle2,
@@ -17,7 +16,6 @@ import { StatsCharts } from '@/components/stats-charts/stats-charts'
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -44,6 +42,15 @@ export function Dashboard() {
     : Array.isArray(report?.department_breakdown)
     ? report.department_breakdown
     : []
+
+  // Support backend kpi payload nested structure
+  const kpi = report?.kpi || {}
+  const totalRevenue = kpi.revenue ?? report?.totalRevenue ?? report?.total_revenue ?? 0
+  const totalPatients = kpi.newPatients ?? report?.totalPatients ?? report?.total_patients ?? 0
+  const newPatientsCount = kpi.newPatients ?? report?.newPatientsCount ?? report?.new_patients_count ?? 0
+  const completedAppts = kpi.appointmentsCompleted ?? report?.completedAppointments ?? report?.completed_appointments ?? 0
+  const totalAppts = kpi.appointmentsTotal ?? report?.totalAppointments ?? report?.total_appointments ?? 0
+  const cancelledAppts = report?.appointmentsByStatus?.cancelled ?? report?.cancelledAppointments ?? report?.cancelled_appointments ?? 0
 
   return (
     <>
@@ -91,7 +98,7 @@ export function Dashboard() {
               <div className='text-2xl font-bold text-emerald-600 dark:text-emerald-400'>
                 {isLoading
                   ? '...'
-                  : `${Number(report?.totalRevenue ?? report?.total_revenue ?? 0).toLocaleString()} so'm`}
+                  : `${Number(totalRevenue).toLocaleString()} so'm`}
               </div>
               <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
                 <TrendingUp className='h-3 w-3 text-emerald-500' /> Tushgan barcha to'lovlar
@@ -108,10 +115,10 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold'>
-                {isLoading ? '...' : (report?.totalPatients ?? report?.total_patients ?? 0)} ta
+                {isLoading ? '...' : totalPatients} ta
               </div>
               <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
-                <UserPlus className='h-3 w-3 text-blue-500' /> +{report?.newPatientsCount ?? report?.new_patients_count ?? 0} ta yangi
+                <UserPlus className='h-3 w-3 text-blue-500' /> +{newPatientsCount} ta yangi
               </p>
             </CardContent>
           </Card>
@@ -125,7 +132,7 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold'>
-                {isLoading ? '...' : (report?.completedAppointments ?? report?.completed_appointments ?? 0)} / {(report?.totalAppointments ?? report?.total_appointments ?? 0)}
+                {isLoading ? '...' : `${completedAppts} / ${totalAppts}`}
               </div>
               <p className='text-[11px] text-muted-foreground mt-1'>
                 Muvaffaqiyatli yakunlangan
@@ -142,7 +149,7 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold text-rose-600 dark:text-rose-400'>
-                {isLoading ? '...' : (report?.cancelledAppointments ?? report?.cancelled_appointments ?? 0)} ta
+                {isLoading ? '...' : cancelledAppts} ta
               </div>
               <p className='text-[11px] text-muted-foreground mt-1'>
                 Mijoz bekor qilgan

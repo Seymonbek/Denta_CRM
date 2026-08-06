@@ -165,7 +165,7 @@ export function PrescriptionsList() {
                 <TableHeader>
                   <TableRow className='bg-muted/30'>
                     <TableHead className='text-xs font-semibold'>Retsept Mazmuni</TableHead>
-                    <TableHead className='text-xs font-semibold'>Davolash ID</TableHead>
+                    <TableHead className='text-xs font-semibold'>Davolash / Bemor</TableHead>
                     <TableHead className='text-xs font-semibold'>Telegram'ga Yuborilgan Sana</TableHead>
                     <TableHead className='text-xs font-semibold text-end'>Holati</TableHead>
                   </TableRow>
@@ -185,14 +185,18 @@ export function PrescriptionsList() {
                     </TableRow>
                   ) : (
                     prescriptions.map((p: any) => {
-                      const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || ''
+                      const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || p?.sent_at || ''
+                      const treatmentDisplay = typeof p?.treatment === 'object'
+                        ? (p?.treatment?.patient_name || p?.treatment?.diagnosis || p?.treatment?.id || '—')
+                        : String(p?.treatment || '—')
+
                       return (
                         <TableRow key={p?.id || Math.random()} className='hover:bg-muted/20'>
                           <TableCell className='text-xs font-medium max-w-md whitespace-pre-line'>
                             {p?.content || '—'}
                           </TableCell>
                           <TableCell className='text-xs font-mono text-muted-foreground'>
-                            {p?.treatment || '—'}
+                            {treatmentDisplay}
                           </TableCell>
                           <TableCell className='text-xs font-mono text-muted-foreground'>
                             {formatDateSafely(sentAt)}
@@ -372,7 +376,7 @@ export function PrescriptionsList() {
   )
 }
 
-function formatDateSafely(dateStr: string) {
+function formatDateSafely(dateStr: any) {
   if (!dateStr) return '—'
   try {
     const d = new Date(dateStr)
