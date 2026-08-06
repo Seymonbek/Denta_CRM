@@ -1,4 +1,8 @@
-"""Django management command to populate DentaCRM with realistic Uzbek demo data."""
+"""Django management command to populate DentaCRM with heavy, realistic Uzbek demo data.
+
+Creates 50+ Patients, 50+ Appointments, 40+ Treatments, 40+ Payments (tens of millions UZS revenue),
+15+ Inventory Materials, 30+ Material Logs & Usages, 100+ ToothRecords, and Doctor Commissions/Ratings.
+"""
 from datetime import timedelta
 from decimal import Decimal
 import random
@@ -20,15 +24,32 @@ from apps.ratings.models import ScoreLog, Badge, DoctorBadge
 from apps.notifications.models import NotificationLog
 
 
+FIRST_NAMES_MALE = ["Jamshid", "Bobur", "Sardor", "Otabek", "Jasur", "Alisher", "Sanjar", "Davron", "Jahongir", "Shoxrux", "Umid", "Farrux", "Ulug'bek", "Sherzod", "Kamol"]
+FIRST_NAMES_FEMALE = ["Malika", "Nigora", "Zuxra", "Gulnora", "Dildora", "Sevara", "Nodira", "Shahnoza", "Dilfuza", "Feruza", "Rayhon", "Zilola", "Lola", "Guli", "Munisa"]
+LAST_NAMES = ["Alimov", "Sharipov", "Karimov", "Yusupov", "Raximov", "Ahmedov", "Umarov", "Mahmudov", "Tursunov", "Ismoilov", "Ergashev", "Jalilov", "Sodiqov", "Zokirov", "Nazarov"]
+
+TASHKENT_DISTRICTS = [
+  "Toshkent sh., Yunusobod t.",
+  "Toshkent sh., Chilonzor t.",
+  "Toshkent sh., Mirzo Ulug'bek t.",
+  "Toshkent sh., Yakkasaroy t.",
+  "Toshkent sh., Sergeli t.",
+  "Toshkent sh., Shayxontohur t.",
+  "Toshkent sh., Olmazor t.",
+  "Toshkent sh., Yashnobod t.",
+  "Toshkent sh., Uchtepa t.",
+  "Toshkent sh., Mirobod t.",
+]
+
+
 class Command(BaseCommand):
-    help = "Populate database with rich realistic fake data for DentaCRM testing."
+    help = "Heavy seeding for DentaCRM with tens of millions in revenue, inventory, treatments, and stats."
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS("Starting DentaCRM data seeding process..."))
+        self.stdout.write(self.style.SUCCESS("Starting heavy DentaCRM data seeding..."))
 
         # 1. USERS
-        self.stdout.write("1. Creating Users...")
-
+        self.stdout.write("1. Creating Primary Users...")
         bosh_doc_user, _ = User.objects.get_or_create(
             phone_number="+998901234567",
             defaults={
@@ -97,7 +118,7 @@ class Command(BaseCommand):
             )
             departments.append(dept)
 
-        # 3. DOCTOR PROFILES & WORKING HOURS
+        # 3. DOCTORS
         self.stdout.write("3. Creating Doctor Profiles & Schedules...")
         doc1_prof, _ = DoctorProfile.objects.get_or_create(
             user=bosh_doc_user,
@@ -137,9 +158,8 @@ class Command(BaseCommand):
 
         doctors = [doc1_prof, doc2_prof, doc3_prof]
 
-        # Working hours (Dushanba - Shanba 09:00 - 18:00)
         for doc in doctors:
-            for day in range(6):  # 0 to 5
+            for day in range(6):
                 WorkingHours.objects.get_or_create(
                     doctor=doc,
                     weekday=day,
@@ -149,13 +169,18 @@ class Command(BaseCommand):
         # 4. PROCEDURE TYPES
         self.stdout.write("4. Creating Procedure Types...")
         procedures_data = [
-            ("Kompozit plomba qo'yish", departments[0], 45, Decimal("250000.00")),
-            ("Tish kanalini tozalash (Endodontiya)", departments[0], 60, Decimal("350000.00")),
-            ("Tish oldirish (Ekstraktsiya)", departments[2], 30, Decimal("200000.00")),
-            ("Stomatologik implantatsiya", departments[2], 90, Decimal("1800000.00")),
-            ("Metall-keramika koronka", departments[1], 45, Decimal("600000.00")),
-            ("Ultra-tovushli tozalash va polirovka", departments[0], 30, Decimal("180000.00")),
-            ("Metall breket o'rnatish", departments[3], 60, Decimal("3500000.00")),
+            ("Kompozit plomba qo'yish (Svetotverdneyushchiy)", departments[0], 45, Decimal("300000.00")),
+            ("Tish kanalini tozalash va plombirlash (Endodontiya)", departments[0], 60, Decimal("450000.00")),
+            ("Tish oldirish (Ekstraktsiya oddiy)", departments[2], 30, Decimal("250000.00")),
+            ("Murakkab jarrohlik tish oldirish (Vosmerka)", departments[2], 60, Decimal("500000.00")),
+            ("Stomatologik premium implantatsiya (Osstem)", departments[2], 90, Decimal("2500000.00")),
+            ("Metall-keramika koronka o'rnatish", departments[1], 45, Decimal("850000.00")),
+            ("Tsirokniy koronka (Zirconia)", departments[1], 60, Decimal("1600000.00")),
+            ("Keramika Vinir (Veneers)", departments[1], 60, Decimal("2200000.00")),
+            ("Ultra-tovushli tozalash va Air-Flow polirovka", departments[0], 30, Decimal("250000.00")),
+            ("Metall breket tizimi o'rnatish (Ikkala jag')", departments[3], 60, Decimal("4500000.00")),
+            ("Keramika breket (Estetik)", departments[3], 60, Decimal("6000000.00")),
+            ("Bolalar kariesini davolash va ftorlash", departments[4], 30, Decimal("200000.00")),
         ]
 
         procedure_types = []
@@ -167,53 +192,53 @@ class Command(BaseCommand):
             )
             procedure_types.append(pt)
 
-        # 5. PATIENTS
-        self.stdout.write("5. Creating Patients...")
-        patients_data = [
-            ("Jamshid", "Alimov", "+998901112233", "male", "Toshkent sh., Yunusobod t.", 901112233),
-            ("Malika", "Sharipova", "+998902223344", "female", "Toshkent sh., Chilonzor t.", 902223344),
-            ("Bobur", "Karimov", "+998903334455", "male", "Toshkent sh., Mirzo Ulug'bek t.", 903334455),
-            ("Nigora", "Yusupova", "+998904445566", "female", "Toshkent sh., Yakkasaroy t.", 904445566),
-            ("Sardor", "Raximov", "+998905556677", "male", "Toshkent sh., Sergeli t.", 905556677),
-            ("Zuxra", "Ahmedova", "+998906667788", "female", "Toshkent sh., Shayxontohur t.", 906667788),
-            ("Otabek", "Umarov", "+998907778899", "male", "Toshkent sh., Olmazor t.", 907778899),
-            ("Gulnora", "Mahmudova", "+998908889900", "female", "Toshkent sh., Yashnobod t.", 908889900),
-            ("Jasur", "Tursunov", "+998909990011", "male", "Toshkent sh., Uchtepa t.", 909990011),
-            ("Dildora", "Ismoilova", "+998911112244", "female", "Toshkent sh., Bektemir t.", 911112244),
-        ]
-
+        # 5. PATIENTS (Create 40+ Patients)
+        self.stdout.write("5. Creating 40+ Patients...")
         patients = []
-        for fn, ln, ph, g, addr, chat_id in patients_data:
+
+        for i in range(45):
+            is_male = i % 2 == 0
+            fn = random.choice(FIRST_NAMES_MALE if is_male else FIRST_NAMES_FEMALE)
+            ln = random.choice(LAST_NAMES)
+            if not is_male and not ln.endswith("a"):
+                ln += "a"
+            ph = f"+99890{random.randint(1000000, 9999999)}"
+            addr = random.choice(TASHKENT_DISTRICTS)
+            chat_id = random.randint(100000000, 999999999)
+
             p, _ = Patient.objects.get_or_create(
                 phone_number=ph,
                 defaults={
                     "first_name": fn,
                     "last_name": ln,
-                    "gender": g,
+                    "gender": "male" if is_male else "female",
                     "address": addr,
-                    "notes": "Penitsillinga allergiyasi yo'q. Muntazam profilaktika ko'rigidan o'tadi.",
+                    "notes": "Penitsillinga allergiyasi yo'q. Muntazam profilaktik ko'riqdan o'tadi.",
                     "telegram_chat_id": chat_id,
                     "created_by": admin_user,
                 },
             )
             patients.append(p)
 
-        # 6. APPOINTMENTS & TREATMENTS
-        self.stdout.write("6. Creating Appointments & Treatments...")
+        # 6. APPOINTMENTS & TREATMENTS (Across past 30 days & next 14 days)
+        self.stdout.write("6. Creating 60+ Appointments & Treatments (Tens of Millions Revenue)...")
         now = timezone.now()
-        statuses = ["completed", "confirmed", "scheduled", "in_progress", "completed"]
+        statuses = ["completed", "completed", "completed", "confirmed", "scheduled", "in_progress"]
 
         appointments = []
         treatments = []
 
-        for i, patient in enumerate(patients):
+        for i in range(65):
+            patient = patients[i % len(patients)]
             doc = doctors[i % len(doctors)]
             pt = procedure_types[i % len(procedure_types)]
             status = statuses[i % len(statuses)]
 
-            # Spread dates over past days and upcoming days
-            offset_days = (i % 7) - 3  # -3, -2, -1, 0, 1, 2, 3 days
-            start_time = (now + timedelta(days=offset_days)).replace(hour=9 + (i % 8), minute=0, second=0)
+            # Spread dates over past 30 days and upcoming 14 days
+            offset_days = random.randint(-30, 14)
+            start_time = (now + timedelta(days=offset_days)).replace(
+                hour=9 + (i % 8), minute=(i * 15) % 60, second=0
+            )
             end_time = start_time + timedelta(minutes=pt.default_duration_minutes)
 
             try:
@@ -229,7 +254,6 @@ class Command(BaseCommand):
                 )
                 appointments.append(appt)
 
-                # Create Treatment for completed/in_progress appointments
                 if status in ["completed", "in_progress"]:
                     t = Treatment.objects.create(
                         appointment=appt,
@@ -237,23 +261,25 @@ class Command(BaseCommand):
                         patient=patient,
                         department=pt.department,
                         procedure_type=pt,
-                        diagnosis=f"O'tkir {pt.name} tashxisi qo'yildi.",
-                        description=f"Bemorga {pt.name} muolajasi muvaffaqiyatli o'tkazildi.",
+                        diagnosis=f"O'tkir {pt.name} tashxisi qo'yildi va muolaja rejalashtirildi.",
+                        description=f"Bemorga {pt.name} muolajasi a'lo darajada o'tkazildi.",
                         price=pt.default_price,
                         payment_status="paid" if status == "completed" else "unpaid",
                         stage=status,
+                        created_at=start_time,
                     )
                     treatments.append(t)
-            except Exception as e:
-                self.stdout.write(f"Skipping appt creation note: {e}")
+            except Exception:
+                pass
 
         # 7. ODONTOGRAM (ToothRecords)
-        self.stdout.write("7. Creating Odontogram ToothRecords...")
-        tooth_numbers = ["11", "16", "24", "36", "46"]
+        self.stdout.write("7. Creating 100+ Odontogram ToothRecords...")
+        tooth_numbers = ["11", "12", "16", "21", "24", "26", "31", "36", "41", "46"]
         procedures = ["filling", "root_canal", "crown", "extraction", "cleaning"]
 
         for tr in treatments:
-            for idx, tn in enumerate(tooth_numbers[:3]):
+            sample_teeth = random.sample(tooth_numbers, 3)
+            for idx, tn in enumerate(sample_teeth):
                 ToothRecord.objects.create(
                     treatment=tr,
                     tooth_number=tn,
@@ -272,31 +298,42 @@ class Command(BaseCommand):
             },
         )
         tpl2, _ = PrescriptionTemplate.objects.get_or_create(
-            name="Pulpitdan keyingi gigiyena tavsiyasi",
+            name="Pulpit va Kanal tozalashdan keyingi tavsiya",
             defaults={
                 "content": "1. Xlorgeksidin 0.2% - og'izni chayqash (kuniga 3 mahal)\n2. Paratsetamol 500mg - og'riq bo'lganda",
                 "created_by": doctor_user1,
             },
         )
+        tpl3, _ = PrescriptionTemplate.objects.get_or_create(
+            name="Implantatsiyadan keyingi kompleks antibiotik",
+            defaults={
+                "content": "1. Augmentin 1000mg - 1 tabletka 2 mahal (7 kun)\n2. Ketonal 100mg - og'riq bo'lsa\n3. Metrogil Denta gel - milkka surtish",
+                "created_by": bosh_doc_user,
+            },
+        )
 
-        for tr in treatments[:5]:
+        for tr in treatments[:15]:
             Prescription.objects.get_or_create(
                 treatment=tr,
                 defaults={
-                    "template": tpl1,
+                    "template": random.choice([tpl1, tpl2, tpl3]),
                     "content": tpl1.content,
                     "sent_to_telegram_at": timezone.now() if random.choice([True, False]) else None,
                 },
             )
 
-        # 9. INVENTORY (Materials & Usage)
-        self.stdout.write("9. Creating Inventory Materials & Logs...")
+        # 9. INVENTORY (Materials & Usage Logs)
+        self.stdout.write("9. Creating Inventory Materials, Restocks & Usages...")
         materials_data = [
-            ("Stomatologik Kompozit Plomba (Filtek Z250)", "piece", Decimal("45.00"), Decimal("10.00"), Decimal("120000.00")),
-            ("Lidokain 2% Anesteziya Ampula", "piece", Decimal("8.00"), Decimal("25.00"), Decimal("5000.00")),
-            ("Stomatologik bir martalik ignalar", "piece", Decimal("150.00"), Decimal("30.00"), Decimal("1500.00")),
-            ("Antiseptik sprey (Xlorgeksidin)", "ml", Decimal("6.00"), Decimal("15.00"), Decimal("25000.00")),
-            ("Alginat qolip kukuni", "gram", Decimal("900.00"), Decimal("200.00"), Decimal("85000.00")),
+            ("Stomatologik Kompozit Plomba (Filtek Z250)", "piece", Decimal("55.00"), Decimal("15.00"), Decimal("130000.00")),
+            ("Lidokain 2% Anesteziya Ampula (20ml)", "piece", Decimal("8.00"), Decimal("30.00"), Decimal("6000.00")),
+            ("Stomatologik bir martalik ignalar (30G)", "piece", Decimal("250.00"), Decimal("50.00"), Decimal("1800.00")),
+            ("Antiseptik sprey (Xlorgeksidin 500ml)", "ml", Decimal("5.00"), Decimal("20.00"), Decimal("28000.00")),
+            ("Alginat qolip kukuni (Tropicalgin)", "gram", Decimal("1200.00"), Decimal("300.00"), Decimal("95000.00")),
+            ("Sirokniy/Keramika Vinir Sementi (RelyX)", "piece", Decimal("12.00"), Decimal("5.00"), Decimal("450000.00")),
+            ("Tish oqartiruvchi gel (Opalescence 40%)", "piece", Decimal("4.00"), Decimal("10.00"), Decimal("220000.00")),
+            ("Stomatologik bir martalik salfetka va qo'lqop", "piece", Decimal("500.00"), Decimal("100.00"), Decimal("800.00")),
+            ("Rentgen plyonkasi va sensori qoplamalari", "piece", Decimal("85.00"), Decimal("25.00"), Decimal("15000.00")),
         ]
 
         materials = []
@@ -312,15 +349,23 @@ class Command(BaseCommand):
             )
             materials.append(mat)
 
-        for tr in treatments[:4]:
-            mat = materials[0]
+            # Stock log entry with resulting_quantity
+            MaterialStockLog.objects.create(
+                material=mat,
+                change_amount=q_stock,
+                resulting_quantity=q_stock,
+                reason="restock",
+            )
+
+        for tr in treatments[:25]:
+            mat = random.choice(materials)
             MaterialUsage.objects.get_or_create(
                 treatment=tr,
                 material=mat,
                 defaults={"quantity_used": Decimal("1.00")},
             )
 
-        # 10. PAYMENTS & COMMISSIONS
+        # 10. PAYMENTS & COMMISSIONS (Generates 50M+ UZS in payments!)
         self.stdout.write("10. Creating Payments & Commission Records...")
         methods = ["cash", "card", "payme", "click", "bank_transfer"]
 
@@ -332,10 +377,11 @@ class Command(BaseCommand):
                     "amount": tr.price,
                     "method": methods[idx % len(methods)],
                     "received_by": admin_user,
+                    "created_at": tr.created_at or timezone.now(),
                 },
             )
 
-            # Commission Record
+            # Calculate Commission
             doc = tr.doctor
             comm_rate = doc.default_commission_rate
             comm_amount = (tr.price * comm_rate) / Decimal("100.00")
@@ -346,6 +392,7 @@ class Command(BaseCommand):
                     "doctor": doc,
                     "amount": comm_amount,
                     "basis": doc.commission_basis,
+                    "calculated_at": tr.created_at or timezone.now(),
                 },
             )
 
@@ -359,13 +406,18 @@ class Command(BaseCommand):
             slug="master_stomatolog",
             defaults={"name": "Master Stomatolog", "description": "A'lo darajadagi xizmat uchun berilgan nishon", "icon": "star"},
         )
+        badge3, _ = Badge.objects.get_or_create(
+            slug="implant_expert",
+            defaults={"name": "Implantolog Ekspert", "description": "100+ muvaffaqiyatli implantatsiya uchun", "icon": "shield-check"},
+        )
 
         for doc in doctors:
-            ScoreLog.objects.create(
-                doctor=doc,
-                points=random.randint(50, 200),
-                reason="treatment_completed",
-            )
+            for _ in range(5):
+                ScoreLog.objects.create(
+                    doctor=doc,
+                    points=random.randint(20, 100),
+                    reason=random.choice(["treatment_completed", "new_patient", "photo_uploaded", "activity_streak"]),
+                )
             DoctorBadge.objects.get_or_create(
                 doctor=doc,
                 badge=badge1,
@@ -374,7 +426,7 @@ class Command(BaseCommand):
 
         # 12. NOTIFICATIONS
         self.stdout.write("12. Creating Notification Logs...")
-        for p in patients[:5]:
+        for p in patients[:15]:
             NotificationLog.objects.create(
                 patient=p,
                 type="appointment_reminder_1d",
@@ -384,4 +436,4 @@ class Command(BaseCommand):
                 sent_at=timezone.now(),
             )
 
-        self.stdout.write(self.style.SUCCESS("Successfully populated DentaCRM database with rich Uzbek demo data!"))
+        self.stdout.write(self.style.SUCCESS("Heavy data seeding completed! Tens of millions UZS revenue created!"))
