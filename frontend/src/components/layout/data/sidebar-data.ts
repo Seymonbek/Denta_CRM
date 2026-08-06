@@ -12,6 +12,7 @@ import {
   BarChart3,
   Bell,
   Settings,
+  Sparkles,
 } from 'lucide-react'
 
 export interface NavSubItem {
@@ -96,8 +97,14 @@ export const sidebarData: SidebarData = {
       ],
     },
     {
-      title: 'Tahlil va Statistika',
+      title: 'AI & Statistika',
       items: [
+        {
+          title: 'AI Yordamchi (Gemini)',
+          url: '/ai-assistant',
+          icon: Sparkles,
+          badge: 'AI',
+        },
         {
           title: 'Reyting va Nishonlar',
           url: '/ratings',

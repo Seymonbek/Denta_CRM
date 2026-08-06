@@ -8,6 +8,8 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
+import { createFileRoute } from '@tanstack/react-router'
+
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
@@ -34,6 +36,10 @@ import { Route as AuthenticatedRatingsIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedReportsIndexRouteImport } from './routes/_authenticated/reports/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedTreatmentsIndexRouteImport } from './routes/_authenticated/treatments/index'
+
+const AuthenticatedAiAssistantIndexLazyRouteImport = createFileRoute(
+  '/_authenticated/ai-assistant/',
+)()
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -84,6 +90,16 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAiAssistantIndexLazyRoute =
+  AuthenticatedAiAssistantIndexLazyRouteImport.update({
+    id: '/ai-assistant/',
+    path: '/ai-assistant/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any).lazy(() =>
+    import('./routes/_authenticated/ai-assistant/index.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AuthenticatedAppointmentsIndexRoute =
   AuthenticatedAppointmentsIndexRouteImport.update({
     id: '/appointments/',
@@ -199,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/reports/': typeof AuthenticatedReportsIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/treatments/': typeof AuthenticatedTreatmentsIndexRoute
+  '/ai-assistant/': typeof AuthenticatedAiAssistantIndexLazyRoute
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof authForgotPasswordRoute
@@ -225,6 +242,7 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthenticatedReportsIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/treatments': typeof AuthenticatedTreatmentsIndexRoute
+  '/ai-assistant': typeof AuthenticatedAiAssistantIndexLazyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -253,6 +271,7 @@ export interface FileRoutesById {
   '/_authenticated/reports/': typeof AuthenticatedReportsIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/treatments/': typeof AuthenticatedTreatmentsIndexRoute
+  '/_authenticated/ai-assistant/': typeof AuthenticatedAiAssistantIndexLazyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -281,6 +300,7 @@ export interface FileRouteTypes {
     | '/reports/'
     | '/settings/'
     | '/treatments/'
+    | '/ai-assistant/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -307,6 +327,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/settings'
     | '/treatments'
+    | '/ai-assistant'
   id:
     | '__root__'
     | '/_authenticated'
@@ -334,6 +355,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reports/'
     | '/_authenticated/settings/'
     | '/_authenticated/treatments/'
+    | '/_authenticated/ai-assistant/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -418,6 +440,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ai-assistant/': {
+      id: '/_authenticated/ai-assistant/'
+      path: '/ai-assistant'
+      fullPath: '/ai-assistant/'
+      preLoaderRoute: typeof AuthenticatedAiAssistantIndexLazyRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/appointments/': {
@@ -545,6 +574,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReportsIndexRoute: typeof AuthenticatedReportsIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
   AuthenticatedTreatmentsIndexRoute: typeof AuthenticatedTreatmentsIndexRoute
+  AuthenticatedAiAssistantIndexLazyRoute: typeof AuthenticatedAiAssistantIndexLazyRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -564,6 +594,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReportsIndexRoute: AuthenticatedReportsIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
   AuthenticatedTreatmentsIndexRoute: AuthenticatedTreatmentsIndexRoute,
+  AuthenticatedAiAssistantIndexLazyRoute:
+    AuthenticatedAiAssistantIndexLazyRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

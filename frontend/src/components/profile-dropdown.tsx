@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { Sparkles, Settings, LogOut } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import useDialogState from '@/hooks/use-dialog-state'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -25,7 +26,7 @@ export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
   const user = useAuthStore((s) => s.user)
 
-  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() || 'Foydalanuvchi' : 'Foydalanuvchi'
+  const fullName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Foydalanuvchi' : 'Foydalanuvchi'
   const initials = user ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || 'DC' : 'DC'
   const roleLabel = user?.role ? ROLE_LABELS[user.role] || user.role : ''
 
@@ -60,12 +61,19 @@ export function ProfileDropdown() {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
-              <Link to='/settings'>Profil va Sozlamalar</Link>
+              <Link to='/ai-assistant' className='flex items-center gap-2 text-primary font-medium'>
+                <Sparkles className='h-4 w-4' /> AI Smart Assistant
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to='/settings' className='flex items-center gap-2'>
+                <Settings className='h-4 w-4' /> Profil va Sozlamalar
+              </Link>
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>
-            Tizimdan chiqish
+          <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)} className='flex items-center gap-2'>
+            <LogOut className='h-4 w-4' /> Tizimdan chiqish
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
