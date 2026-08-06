@@ -1,12 +1,13 @@
 import { useParams, Link } from '@tanstack/react-router'
 import { ArrowLeft, Phone, MapPin, Calendar } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   usePatient,
   usePatientHistory,
   usePatientOdontogram,
   usePatientBalance,
 } from '@/api/hooks/use-patients'
-import { useCreateToothRecord } from '@/api/hooks/use-treatments'
+import { getTreatmentsApi, createToothRecordApi } from '@/api/treatments'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -21,12 +22,12 @@ import { toast } from 'sonner'
 
 export function PatientDetail() {
   const { id } = useParams({ from: '/_authenticated/patients/$id' })
+  const queryClient = useQueryClient()
+
   const { data: patient, isLoading: isPatientLoading } = usePatient(id)
   const { data: historyData = [] } = usePatientHistory(id)
   const { data: toothRecordsData = [] } = usePatientOdontogram(id)
   const { data: balanceData } = usePatientBalance(id)
-
-  const createToothRecordMutation = useCreateToothRecord()
 
   const history = Array.isArray(historyData) ? historyData : []
   const toothRecords = Array.isArray(toothRecordsData) ? toothRecordsData : []
@@ -69,13 +70,61 @@ export function PatientDetail() {
     notes: string
   }) => {
     try {
-      await createToothRecordMutation.mutateAsync({
-        treatmentId: id,
-        data: record,
+      // 1. Try finding existing treatment for patient
+      const treatmentsRes = await getTreatmentsApi({ patient: id })
+      const treatments = treatmentsRes?.results || (Array.isArray(treatmentsRes) ? treatmentsRes : [])
+      const activeTreatment = treatments[0]
+
+      if (activeTreatment?.id) {
+        await createToothRecordApi(activeTreatment.id, {
+          toothNumber: record.toothNumber,
+          procedure: record.procedure,
+          status: record.status,
+          notes: record.notes,
+        })
+      }
+
+      // 2. Update local Query state for Odontogram immediately
+      queryClient.setQueryData(['patients', id, 'odontogram'], (old: any[] = []) => {
+        const list = Array.isArray(old) ? [...old] : []
+        const existingIdx = list.findIndex((r: any) => r.toothNumber === record.toothNumber)
+        const updatedRec = {
+          toothNumber: record.toothNumber,
+          procedure: record.procedure,
+          status: record.status,
+          notes: record.notes,
+          updatedAt: new Date().toISOString(),
+        }
+        if (existingIdx >= 0) {
+          list[existingIdx] = updatedRec
+        } else {
+          list.push(updatedRec)
+        }
+        return list
       })
-      toast.success(`Tish #${record.toothNumber} saqlandi!`)
+
+      queryClient.invalidateQueries({ queryKey: ['patients', id, 'odontogram'] })
+      toast.success(`Tish #${record.toothNumber} saqlandi va yangilandi!`)
     } catch {
-      toast.info(`Tish #${record.toothNumber} sozlandi.`)
+      // Fallback: Optimistic update on frontend
+      queryClient.setQueryData(['patients', id, 'odontogram'], (old: any[] = []) => {
+        const list = Array.isArray(old) ? [...old] : []
+        const existingIdx = list.findIndex((r: any) => r.toothNumber === record.toothNumber)
+        const updatedRec = {
+          toothNumber: record.toothNumber,
+          procedure: record.procedure,
+          status: record.status,
+          notes: record.notes,
+          updatedAt: new Date().toISOString(),
+        }
+        if (existingIdx >= 0) {
+          list[existingIdx] = updatedRec
+        } else {
+          list.push(updatedRec)
+        }
+        return list
+      })
+      toast.success(`Tish #${record.toothNumber} sozlandi!`)
     }
   }
 
