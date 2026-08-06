@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Plus, Search, User, Phone, Calendar, ArrowRight } from 'lucide-react'
+import { Plus, Search, ArrowRight } from 'lucide-react'
 import { usePatients, useCreatePatient } from '@/api/hooks/use-patients'
-import { Patient } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -50,12 +49,16 @@ export function PatientsList() {
 
   const { data, isLoading } = usePatients({
     search: searchTerm || undefined,
-    gender: genderFilter || undefined,
+    gender: genderFilter && genderFilter !== 'all' ? genderFilter : undefined,
   })
 
   const createPatientMutation = useCreatePatient()
 
-  const patients = data?.results || []
+  const patients = Array.isArray(data?.results)
+    ? data.results
+    : Array.isArray(data)
+    ? data
+    : []
 
   const handleCreatePatient = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -159,37 +162,46 @@ export function PatientsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                patients.map((patient: Patient) => (
-                  <TableRow key={patient.id} className='hover:bg-muted/20'>
-                    <TableCell className='font-medium text-xs'>
-                      <div className='flex items-center gap-2'>
-                        <div className='flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs'>
-                          {patient.firstName[0]}
+                patients.map((patient: any) => {
+                  const pFirstName = patient?.firstName || patient?.first_name || 'Bemor'
+                  const pLastName = patient?.lastName || patient?.last_name || ''
+                  const pPhone = patient?.phoneNumber || patient?.phone_number || '-'
+                  const pGender = patient?.gender || 'unknown'
+                  const pAddress = patient?.address || '-'
+                  const pCreatedAt = patient?.createdAt || patient?.created_at || ''
+
+                  return (
+                    <TableRow key={patient?.id || Math.random()} className='hover:bg-muted/20'>
+                      <TableCell className='font-medium text-xs'>
+                        <div className='flex items-center gap-2'>
+                          <div className='flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs'>
+                            {pFirstName[0] || 'B'}
+                          </div>
+                          <span>{pFirstName} {pLastName}</span>
                         </div>
-                        <span>{patient.firstName} {patient.lastName}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className='text-xs font-mono'>{patient.phoneNumber}</TableCell>
-                    <TableCell className='text-xs'>
-                      <Badge variant='outline' className='text-[10px] uppercase'>
-                        {patient.gender === 'male' ? 'Erkak' : patient.gender === 'female' ? 'Ayol' : 'Noma’lum'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className='text-xs text-muted-foreground truncate max-w-[150px]'>
-                      {patient.address || '—'}
-                    </TableCell>
-                    <TableCell className='text-xs text-muted-foreground font-mono'>
-                      {new Date(patient.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className='text-end'>
-                      <Button asChild size='sm' variant='ghost' className='h-8 text-xs'>
-                        <Link to='/patients/$id' params={{ id: patient.id }}>
-                          Karta <ArrowRight className='ms-1.5 h-3.5 w-3.5' />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell className='text-xs font-mono'>{pPhone}</TableCell>
+                      <TableCell className='text-xs'>
+                        <Badge variant='outline' className='text-[10px] uppercase'>
+                          {pGender === 'male' ? 'Erkak' : pGender === 'female' ? 'Ayol' : 'Noma’lum'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='text-xs text-muted-foreground truncate max-w-[150px]'>
+                        {pAddress}
+                      </TableCell>
+                      <TableCell className='text-xs text-muted-foreground font-mono'>
+                        {formatDateSafely(pCreatedAt)}
+                      </TableCell>
+                      <TableCell className='text-end'>
+                        <Button asChild size='sm' variant='ghost' className='h-8 text-xs'>
+                          <Link to='/patients/$id' params={{ id: patient.id }}>
+                            Karta <ArrowRight className='ms-1.5 h-3.5 w-3.5' />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -280,4 +292,15 @@ export function PatientsList() {
       </Main>
     </>
   )
+}
+
+function formatDateSafely(dateStr: string) {
+  if (!dateStr) return '-'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return d.toLocaleDateString()
+  } catch {
+    return String(dateStr)
+  }
 }

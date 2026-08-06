@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Package, AlertTriangle, Plus, RefreshCw, Edit3 } from 'lucide-react'
+import { Package, AlertTriangle, Plus, RefreshCw } from 'lucide-react'
 import {
   useMaterials,
   useCreateMaterial,
   useRestockMaterial,
-  useAdjustMaterial,
 } from '@/api/hooks/use-inventory'
 import { Material, MaterialUnit } from '@/types/api'
 import { Header } from '@/components/layout/header'
@@ -50,7 +49,13 @@ export function InventoryList() {
   const [minimumThreshold, setMinimumThreshold] = useState('')
   const [unitCost, setUnitCost] = useState('')
 
-  const { data: materials = [], isLoading } = useMaterials()
+  const { data: materialsData = [], isLoading } = useMaterials()
+  const materials = Array.isArray(materialsData?.results)
+    ? materialsData.results
+    : Array.isArray(materialsData)
+    ? materialsData
+    : []
+
   const createMaterialMutation = useCreateMaterial()
   const restockMutation = useRestockMaterial()
 
@@ -148,21 +153,23 @@ export function InventoryList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                materials.map((m: Material) => {
-                  const stockNum = parseFloat(m.quantityInStock || '0')
-                  const thresholdNum = parseFloat(m.minimumThreshold || '0')
+                materials.map((m: any) => {
+                  const stockNum = parseFloat(m?.quantityInStock || m?.quantity_in_stock || '0')
+                  const thresholdNum = parseFloat(m?.minimumThreshold || m?.minimum_threshold || '0')
+                  const costNum = m?.unitCost || m?.unit_cost
+                  const unitVal = m?.unit || 'piece'
                   const isLowStock = stockNum <= thresholdNum
 
                   return (
-                    <TableRow key={m.id} className='hover:bg-muted/20'>
+                    <TableRow key={m?.id || Math.random()} className='hover:bg-muted/20'>
                       <TableCell className='font-semibold text-xs'>
                         <div className='flex items-center gap-2'>
                           <Package className='h-4 w-4 text-primary' />
-                          <span>{m.name}</span>
+                          <span>{m?.name || 'Material'}</span>
                         </div>
                       </TableCell>
                       <TableCell className='text-xs font-mono uppercase'>
-                        {m.unit === 'gram' ? 'Gramm' : m.unit === 'piece' ? 'Dona' : 'ML'}
+                        {unitVal === 'gram' ? 'Gramm' : unitVal === 'piece' ? 'Dona' : 'ML'}
                       </TableCell>
                       <TableCell className='text-xs font-bold font-mono'>
                         {stockNum.toLocaleString()}
@@ -171,7 +178,7 @@ export function InventoryList() {
                         {thresholdNum.toLocaleString()}
                       </TableCell>
                       <TableCell className='text-xs font-mono'>
-                        {m.unitCost ? `${Number(m.unitCost).toLocaleString()} so'm` : '—'}
+                        {costNum ? `${Number(costNum).toLocaleString()} so'm` : '—'}
                       </TableCell>
                       <TableCell className='text-xs'>
                         {isLowStock ? (

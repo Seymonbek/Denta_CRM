@@ -39,7 +39,12 @@ export function DepartmentsList() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
 
-  const { data: departments = [], isLoading } = useDepartments()
+  const { data: departmentsData = [], isLoading } = useDepartments()
+  const departments = Array.isArray(departmentsData?.results)
+    ? departmentsData.results
+    : Array.isArray(departmentsData)
+    ? departmentsData
+    : []
 
   const createDeptMutation = useCreateDepartment()
   const updateDeptMutation = useUpdateDepartment()
@@ -54,7 +59,7 @@ export function DepartmentsList() {
 
   const handleOpenEdit = (dept: Department) => {
     setEditingDept(dept)
-    setName(dept.name)
+    setName(dept.name || '')
     setDescription(dept.description || '')
     setIsModalOpen(true)
   }
@@ -88,7 +93,7 @@ export function DepartmentsList() {
     try {
       await deleteDeptMutation.mutateAsync(id)
       toast.success("Bo'lim o'chirildi.")
-    } catch (err: any) {
+    } catch {
       toast.error("O'chirishda xatolik.")
     }
   }
@@ -142,45 +147,50 @@ export function DepartmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                departments.map((dept: Department) => (
-                  <TableRow key={dept.id} className='hover:bg-muted/20'>
-                    <TableCell className='font-semibold text-xs'>
-                      <div className='flex items-center gap-2'>
-                        <Building2 className='h-4 w-4 text-primary' />
-                        <span>{dept.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className='text-xs text-muted-foreground max-w-xs truncate'>
-                      {dept.description || '—'}
-                    </TableCell>
-                    <TableCell className='text-xs'>
-                      <Badge variant={dept.isActive ? 'default' : 'secondary'} className='text-[10px]'>
-                        {dept.isActive ? 'Faol' : 'Nofaol'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className='text-xs font-mono text-muted-foreground'>
-                      {new Date(dept.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className='text-end space-x-1'>
-                      <Button
-                        size='sm'
-                        variant='ghost'
-                        className='h-8 w-8 p-0'
-                        onClick={() => handleOpenEdit(dept)}
-                      >
-                        <Edit2 className='h-3.5 w-3.5' />
-                      </Button>
-                      <Button
-                        size='sm'
-                        variant='ghost'
-                        className='h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50'
-                        onClick={() => handleDelete(dept.id)}
-                      >
-                        <Trash2 className='h-3.5 w-3.5' />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                departments.map((dept: any) => {
+                  const isActive = dept?.isActive ?? dept?.is_active ?? true
+                  const createdAt = dept?.createdAt || dept?.created_at || ''
+
+                  return (
+                    <TableRow key={dept?.id || Math.random()} className='hover:bg-muted/20'>
+                      <TableCell className='font-semibold text-xs'>
+                        <div className='flex items-center gap-2'>
+                          <Building2 className='h-4 w-4 text-primary' />
+                          <span>{dept?.name || 'Bo’lim'}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className='text-xs text-muted-foreground max-w-xs truncate'>
+                        {dept?.description || '—'}
+                      </TableCell>
+                      <TableCell className='text-xs'>
+                        <Badge variant={isActive ? 'default' : 'secondary'} className='text-[10px]'>
+                          {isActive ? 'Faol' : 'Nofaol'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='text-xs font-mono text-muted-foreground'>
+                        {formatDateSafely(createdAt)}
+                      </TableCell>
+                      <TableCell className='text-end space-x-1'>
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          className='h-8 w-8 p-0'
+                          onClick={() => handleOpenEdit(dept)}
+                        >
+                          <Edit2 className='h-3.5 w-3.5' />
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          className='h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                          onClick={() => handleDelete(dept.id)}
+                        >
+                          <Trash2 className='h-3.5 w-3.5' />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -228,4 +238,15 @@ export function DepartmentsList() {
       </Main>
     </>
   )
+}
+
+function formatDateSafely(dateStr: string) {
+  if (!dateStr) return '-'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return d.toLocaleDateString()
+  } catch {
+    return String(dateStr)
+  }
 }

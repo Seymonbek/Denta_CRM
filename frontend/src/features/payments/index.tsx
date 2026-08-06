@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CreditCard, Plus, DollarSign, Calculator, ShieldCheck, Ban } from 'lucide-react'
+import { Plus, Ban } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   usePayments,
@@ -11,7 +11,7 @@ import {
 import { useTreatments } from '@/api/hooks/use-treatments'
 import { usePatients } from '@/api/hooks/use-patients'
 import { useDoctors } from '@/api/hooks/use-doctors'
-import { Payment, PaymentMethod } from '@/types/api'
+import { PaymentMethod } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -44,7 +44,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 
-const METHOD_LABELS: Record<PaymentMethod, string> = {
+const METHOD_LABELS: Record<string, string> = {
   cash: 'Naqd Pul',
   card: 'Plastik Karta',
   payme: 'Payme',
@@ -63,17 +63,32 @@ export function PaymentsList() {
   const [method, setMethod] = useState<PaymentMethod>('cash')
 
   const { data: paymentsData, isLoading } = usePayments()
-  const payments = paymentsData?.results || []
+  const payments = Array.isArray(paymentsData?.results)
+    ? paymentsData.results
+    : Array.isArray(paymentsData)
+    ? paymentsData
+    : []
 
   const { data: treatmentsData } = useTreatments()
-  const treatments = treatmentsData?.results || []
+  const treatments = Array.isArray(treatmentsData?.results)
+    ? treatmentsData.results
+    : Array.isArray(treatmentsData)
+    ? treatmentsData
+    : []
 
   const { data: patientsData } = usePatients()
-  const patients = patientsData?.results || []
+  const patients = Array.isArray(patientsData?.results)
+    ? patientsData.results
+    : Array.isArray(patientsData)
+    ? patientsData
+    : []
 
-  const { data: doctors = [] } = useDoctors()
+  const { data: doctorsData = [] } = useDoctors()
+  const doctors = Array.isArray(doctorsData) ? doctorsData : []
 
-  const { data: commissions = [] } = useDoctorCommissions(selectedDoctorId)
+  const { data: commissionsData = [] } = useDoctorCommissions(selectedDoctorId)
+  const commissions = Array.isArray(commissionsData) ? commissionsData : []
+
   const { data: summary } = useDoctorCommissionSummary(selectedDoctorId)
 
   const createPaymentMutation = useCreatePayment()
@@ -86,7 +101,6 @@ export function PaymentsList() {
       return
     }
 
-    // Generate unique Idempotency-Key for safe payment execution
     const idempotencyKey = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
     try {
@@ -173,34 +187,40 @@ export function PaymentsList() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    payments.map((p: Payment) => (
-                      <TableRow key={p.id} className='hover:bg-muted/20'>
-                        <TableCell className='font-medium text-xs'>
-                          {p.patientName || p.patient}
-                        </TableCell>
-                        <TableCell className='text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400'>
-                          +{Number(p.amount).toLocaleString()} so'm
-                        </TableCell>
-                        <TableCell className='text-xs'>
-                          <Badge variant='outline' className='text-[10px]'>
-                            {METHOD_LABELS[p.method] || p.method}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className='text-xs font-mono text-muted-foreground'>
-                          {format(new Date(p.createdAt), 'dd.MM.yyyy HH:mm')}
-                        </TableCell>
-                        <TableCell className='text-end'>
-                          <Button
-                            size='sm'
-                            variant='ghost'
-                            className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
-                            onClick={() => handleVoid(p.id)}
-                          >
-                            <Ban className='h-3.5 w-3.5 me-1' /> Bekor qilish
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    payments.map((p: any) => {
+                      const patientName = p?.patientName || p?.patient_name || (typeof p?.patient === 'object' ? `${p.patient.firstName || p.patient.first_name || ''} ${p.patient.lastName || p.patient.last_name || ''}`.trim() : p?.patient) || 'Bemor'
+                      const pMethod = p?.method || 'cash'
+                      const createdAt = p?.createdAt || p?.created_at || ''
+
+                      return (
+                        <TableRow key={p?.id || Math.random()} className='hover:bg-muted/20'>
+                          <TableCell className='font-medium text-xs'>
+                            {patientName}
+                          </TableCell>
+                          <TableCell className='text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400'>
+                            +{Number(p?.amount || 0).toLocaleString()} so'm
+                          </TableCell>
+                          <TableCell className='text-xs'>
+                            <Badge variant='outline' className='text-[10px]'>
+                              {METHOD_LABELS[pMethod] || pMethod}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className='text-xs font-mono text-muted-foreground'>
+                            {formatDateSafely(createdAt)}
+                          </TableCell>
+                          <TableCell className='text-end'>
+                            <Button
+                              size='sm'
+                              variant='ghost'
+                              className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                              onClick={() => handleVoid(p.id)}
+                            >
+                              <Ban className='h-3.5 w-3.5 me-1' /> Bekor qilish
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -217,9 +237,9 @@ export function PaymentsList() {
                     <SelectValue placeholder='Shifokor' />
                   </SelectTrigger>
                   <SelectContent>
-                    {doctors.map((d) => (
+                    {doctors.map((d: any) => (
                       <SelectItem key={d.id} value={d.id}>
-                        Dr. {d.user?.firstName} {d.user?.lastName} ({d.specialization})
+                        Dr. {d.user?.firstName || d.user?.first_name || ''} {d.user?.lastName || d.user?.last_name || ''} ({d.specialization})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -229,7 +249,7 @@ export function PaymentsList() {
                   <div className='ms-auto flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg'>
                     <span className='text-xs font-medium text-muted-foreground'>Jami Komissiya:</span>
                     <span className='text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400'>
-                      {Number(summary.totalCommission || 0).toLocaleString()} so'm
+                      {Number(summary.totalCommission ?? summary.total_commission ?? 0).toLocaleString()} so'm
                     </span>
                   </div>
                 )}
@@ -259,22 +279,27 @@ export function PaymentsList() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      commissions.map((c) => (
-                        <TableRow key={c.id}>
-                          <TableCell className='text-xs font-medium'>{c.doctorName || c.doctor}</TableCell>
-                          <TableCell className='text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400'>
-                            +{Number(c.amount).toLocaleString()} so'm
-                          </TableCell>
-                          <TableCell className='text-xs'>
-                            <Badge variant='secondary' className='text-[10px]'>
-                              {c.basis === 'from_total' ? 'Umumiy summadan' : 'Sofi foydadan'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className='text-xs font-mono text-muted-foreground'>
-                            {format(new Date(c.calculatedAt), 'dd.MM.yyyy HH:mm')}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      commissions.map((c: any) => {
+                        const doctorName = c?.doctorName || c?.doctor_name || (typeof c?.doctor === 'object' ? `${c.doctor.user?.firstName || c.doctor.user?.first_name || ''} ${c.doctor.user?.lastName || c.doctor.user?.last_name || ''}`.trim() : c?.doctor) || 'Shifokor'
+                        const calcAt = c?.calculatedAt || c?.calculated_at || ''
+
+                        return (
+                          <TableRow key={c?.id || Math.random()}>
+                            <TableCell className='text-xs font-medium'>{doctorName}</TableCell>
+                            <TableCell className='text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400'>
+                              +{Number(c?.amount || 0).toLocaleString()} so'm
+                            </TableCell>
+                            <TableCell className='text-xs'>
+                              <Badge variant='secondary' className='text-[10px]'>
+                                {c?.basis === 'from_total' ? 'Umumiy summadan' : 'Sofi foydadan'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className='text-xs font-mono text-muted-foreground'>
+                              {formatDateSafely(calcAt)}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -297,10 +322,10 @@ export function PaymentsList() {
                   value={treatmentId}
                   onValueChange={(val) => {
                     setTreatmentId(val)
-                    const tr = treatments.find((t) => t.id === val)
+                    const tr = treatments.find((t: any) => t.id === val)
                     if (tr) {
-                      setPatientId(tr.patient)
-                      setAmount(tr.price)
+                      setPatientId(typeof tr.patient === 'object' ? tr.patient.id : tr.patient)
+                      setAmount(tr.price || '')
                     }
                   }}
                 >
@@ -308,9 +333,9 @@ export function PaymentsList() {
                     <SelectValue placeholder='Davolash ishini tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {treatments.map((t) => (
+                    {treatments.map((t: any) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.patientName || 'Bemor'} - {t.procedureTypeName || 'Muolaja'} ({Number(t.price).toLocaleString()} so'm)
+                        {t.patientName || t.patient_name || 'Bemor'} - {t.procedureTypeName || t.procedure_type_name || 'Muolaja'} ({Number(t.price || 0).toLocaleString()} so'm)
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -324,9 +349,9 @@ export function PaymentsList() {
                     <SelectValue placeholder='Bemor' />
                   </SelectTrigger>
                   <SelectContent>
-                    {patients.map((p) => (
+                    {patients.map((p: any) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.firstName} {p.lastName}
+                        {p.firstName || p.first_name} {p.lastName || p.last_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -376,4 +401,15 @@ export function PaymentsList() {
       </Main>
     </>
   )
+}
+
+function formatDateSafely(dateStr: string) {
+  if (!dateStr) return '-'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return format(d, 'dd.MM.yyyy HH:mm')
+  } catch {
+    return String(dateStr)
+  }
 }

@@ -1,7 +1,6 @@
-import { Bell, Send, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Send, CheckCircle2, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { useNotifications } from '@/api/hooks/use-notifications'
-import { NotificationLog } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -18,7 +17,11 @@ import {
 
 export function NotificationsList() {
   const { data: notificationsData, isLoading } = useNotifications()
-  const notifications = notificationsData?.results || []
+  const notifications = Array.isArray(notificationsData?.results)
+    ? notificationsData.results
+    : Array.isArray(notificationsData)
+    ? notificationsData
+    : []
 
   return (
     <>
@@ -64,41 +67,48 @@ export function NotificationsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                notifications.map((n: NotificationLog) => (
-                  <TableRow key={n.id} className='hover:bg-muted/20'>
-                    <TableCell className='text-xs font-medium max-w-md truncate'>
-                      {n.message}
-                    </TableCell>
-                    <TableCell className='text-xs'>
-                      <Badge variant='outline' className='text-[10px] uppercase'>
-                        {n.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className='text-xs font-mono'>
-                      <span className='flex items-center gap-1 text-sky-600 dark:text-sky-400'>
-                        <Send className='h-3 w-3' /> Telegram
-                      </span>
-                    </TableCell>
-                    <TableCell className='text-xs font-mono text-muted-foreground'>
-                      {n.sentAt ? format(new Date(n.sentAt), 'dd.MM.yyyy HH:mm') : '—'}
-                    </TableCell>
-                    <TableCell className='text-end'>
-                      {n.status === 'sent' ? (
-                        <Badge variant='default' className='text-[10px] bg-emerald-600'>
-                          <CheckCircle2 className='me-1 h-3 w-3' /> Yuborilgan
+                notifications.map((n: any) => {
+                  const sentAt = n?.sentAt || n?.sent_at || ''
+                  const nType = n?.type || 'notification'
+                  const nStatus = n?.status || 'sent'
+                  const channel = n?.channel || 'telegram'
+
+                  return (
+                    <TableRow key={n?.id || Math.random()} className='hover:bg-muted/20'>
+                      <TableCell className='text-xs font-medium max-w-md truncate'>
+                        {n?.message || '—'}
+                      </TableCell>
+                      <TableCell className='text-xs'>
+                        <Badge variant='outline' className='text-[10px] uppercase'>
+                          {nType}
                         </Badge>
-                      ) : n.status === 'failed' ? (
-                        <Badge variant='destructive' className='text-[10px]'>
-                          <AlertCircle className='me-1 h-3 w-3' /> Xatolik
-                        </Badge>
-                      ) : (
-                        <Badge variant='secondary' className='text-[10px]'>
-                          Kutilmoqda
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell className='text-xs font-mono'>
+                        <span className='flex items-center gap-1 text-sky-600 dark:text-sky-400'>
+                          <Send className='h-3 w-3' /> {channel}
+                        </span>
+                      </TableCell>
+                      <TableCell className='text-xs font-mono text-muted-foreground'>
+                        {formatDateSafely(sentAt)}
+                      </TableCell>
+                      <TableCell className='text-end'>
+                        {nStatus === 'sent' ? (
+                          <Badge variant='default' className='text-[10px] bg-emerald-600'>
+                            <CheckCircle2 className='me-1 h-3 w-3' /> Yuborilgan
+                          </Badge>
+                        ) : nStatus === 'failed' ? (
+                          <Badge variant='destructive' className='text-[10px]'>
+                            <AlertCircle className='me-1 h-3 w-3' /> Xatolik
+                          </Badge>
+                        ) : (
+                          <Badge variant='secondary' className='text-[10px]'>
+                            Kutilmoqda
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -106,4 +116,15 @@ export function NotificationsList() {
       </Main>
     </>
   )
+}
+
+function formatDateSafely(dateStr: string) {
+  if (!dateStr) return '—'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return format(d, 'dd.MM.yyyy HH:mm')
+  } catch {
+    return String(dateStr)
+  }
 }

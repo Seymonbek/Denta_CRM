@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { FileText, Send, Plus, CheckCircle, MessageSquare } from 'lucide-react'
+import { FileText, Send, Plus } from 'lucide-react'
+import { format } from 'date-fns'
 import {
   usePrescriptionTemplates,
   useCreatePrescriptionTemplate,
@@ -55,11 +56,26 @@ export function PrescriptionsList() {
   const [issueContent, setIssueContent] = useState('')
   const [sendTelegram, setSendTelegram] = useState(true)
 
-  const { data: templates = [], isLoading: isTemplatesLoading } = usePrescriptionTemplates()
+  const { data: templatesData = [], isLoading: isTemplatesLoading } = usePrescriptionTemplates()
+  const templates = Array.isArray(templatesData?.results)
+    ? templatesData.results
+    : Array.isArray(templatesData)
+    ? templatesData
+    : []
+
   const { data: prescriptionsData, isLoading: isPrescriptionsLoading } = usePrescriptions()
-  const prescriptions = prescriptionsData?.results || []
+  const prescriptions = Array.isArray(prescriptionsData?.results)
+    ? prescriptionsData.results
+    : Array.isArray(prescriptionsData)
+    ? prescriptionsData
+    : []
+
   const { data: treatmentsData } = useTreatments()
-  const treatments = treatmentsData?.results || []
+  const treatments = Array.isArray(treatmentsData?.results)
+    ? treatmentsData.results
+    : Array.isArray(treatmentsData)
+    ? treatmentsData
+    : []
 
   const createTemplateMutation = useCreatePrescriptionTemplate()
   const issuePrescriptionMutation = useIssuePrescription()
@@ -168,30 +184,33 @@ export function PrescriptionsList() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    prescriptions.map((p) => (
-                      <TableRow key={p.id} className='hover:bg-muted/20'>
-                        <TableCell className='text-xs font-medium max-w-md whitespace-pre-line'>
-                          {p.content}
-                        </TableCell>
-                        <TableCell className='text-xs font-mono text-muted-foreground'>
-                          {p.treatment}
-                        </TableCell>
-                        <TableCell className='text-xs font-mono text-muted-foreground'>
-                          {p.sentToTelegramAt ? format(new Date(p.sentToTelegramAt), 'dd.MM.yyyy HH:mm') : "—"}
-                        </TableCell>
-                        <TableCell className='text-end'>
-                          {p.sentToTelegramAt ? (
-                            <Badge variant='default' className='text-[10px] bg-emerald-600'>
-                              <Send className='me-1 h-3 w-3' /> Telegram'ga Yuborilgan
-                            </Badge>
-                          ) : (
-                            <Badge variant='secondary' className='text-[10px]'>
-                              Saqlangan
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    prescriptions.map((p: any) => {
+                      const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || ''
+                      return (
+                        <TableRow key={p?.id || Math.random()} className='hover:bg-muted/20'>
+                          <TableCell className='text-xs font-medium max-w-md whitespace-pre-line'>
+                            {p?.content || '—'}
+                          </TableCell>
+                          <TableCell className='text-xs font-mono text-muted-foreground'>
+                            {p?.treatment || '—'}
+                          </TableCell>
+                          <TableCell className='text-xs font-mono text-muted-foreground'>
+                            {formatDateSafely(sentAt)}
+                          </TableCell>
+                          <TableCell className='text-end'>
+                            {sentAt ? (
+                              <Badge variant='default' className='text-[10px] bg-emerald-600'>
+                                <Send className='me-1 h-3 w-3' /> Telegram'ga Yuborilgan
+                              </Badge>
+                            ) : (
+                              <Badge variant='secondary' className='text-[10px]'>
+                                Saqlangan
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -210,14 +229,14 @@ export function PrescriptionsList() {
                   Hali hech qanday shablon yaratilmagan.
                 </div>
               ) : (
-                templates.map((tpl) => (
-                  <div key={tpl.id} className='flex flex-col justify-between rounded-xl border bg-card p-4 shadow-sm hover:shadow transition-shadow'>
+                templates.map((tpl: any) => (
+                  <div key={tpl?.id || Math.random()} className='flex flex-col justify-between rounded-xl border bg-card p-4 shadow-sm hover:shadow transition-shadow'>
                     <div>
                       <h4 className='font-bold text-sm mb-2 flex items-center gap-2'>
-                        <FileText className='h-4 w-4 text-primary' /> {tpl.name}
+                        <FileText className='h-4 w-4 text-primary' /> {tpl?.name || 'Shablon'}
                       </h4>
                       <p className='text-xs text-muted-foreground whitespace-pre-line bg-muted/30 p-2.5 rounded-lg border font-mono'>
-                        {tpl.content}
+                        {tpl?.content || ''}
                       </p>
                     </div>
                   </div>
@@ -283,9 +302,9 @@ export function PrescriptionsList() {
                     <SelectValue placeholder='Davolanishni tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {treatments.map((t) => (
+                    {treatments.map((t: any) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.patientName || 'Bemor'} - {t.diagnosis || 'Tashxis'}
+                        {t.patientName || t.patient_name || 'Bemor'} - {t.diagnosis || 'Tashxis'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -298,7 +317,7 @@ export function PrescriptionsList() {
                   value={selectedTemplateId}
                   onValueChange={(val) => {
                     setSelectedTemplateId(val)
-                    const tpl = templates.find((t) => t.id === val)
+                    const tpl = templates.find((t: any) => t.id === val)
                     if (tpl) setIssueContent(tpl.content)
                   }}
                 >
@@ -306,7 +325,7 @@ export function PrescriptionsList() {
                     <SelectValue placeholder='Shablon tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {templates.map((tpl) => (
+                    {templates.map((tpl: any) => (
                       <SelectItem key={tpl.id} value={tpl.id}>
                         {tpl.name}
                       </SelectItem>
@@ -351,4 +370,15 @@ export function PrescriptionsList() {
       </Main>
     </>
   )
+}
+
+function formatDateSafely(dateStr: string) {
+  if (!dateStr) return '—'
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
+    return format(d, 'dd.MM.yyyy HH:mm')
+  } catch {
+    return String(dateStr)
+  }
 }

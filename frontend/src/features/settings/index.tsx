@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings, ShieldCheck, KeyRound, Save, Lock } from 'lucide-react'
+import { ShieldCheck, Save } from 'lucide-react'
 import {
   useMe,
   useUpdateMe,
@@ -41,9 +41,10 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (user) {
-      setFirstName(user.firstName || '')
-      setLastName(user.lastName || '')
-      setTelegramChatId(user.telegramChatId ? String(user.telegramChatId) : '')
+      setFirstName(user.firstName || user.first_name || '')
+      setLastName(user.lastName || user.last_name || '')
+      const chatVal = user.telegramChatId ?? user.telegram_chat_id
+      setTelegramChatId(chatVal ? String(chatVal) : '')
     }
   }, [user])
 
@@ -87,6 +88,9 @@ export function SettingsPage() {
       toast.error(err?.response?.data?.detail || 'Parol noto’g’ri yoki xatolik yuz berdi.')
     }
   }
+
+  const twoFactorEnabled = Boolean(user?.twoFactorEnabled ?? user?.two_factor_enabled)
+  const phoneNumber = user?.phoneNumber || user?.phone_number || ''
 
   return (
     <>
@@ -138,7 +142,7 @@ export function SettingsPage() {
 
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Telefon Raqami (Login)</label>
-                  <Input value={user?.phoneNumber || ''} disabled className='bg-muted/50 font-mono' />
+                  <Input value={phoneNumber} disabled className='bg-muted/50 font-mono' />
                 </div>
 
                 <div className='space-y-1'>
@@ -175,11 +179,11 @@ export function SettingsPage() {
                 <div className='space-y-0.5'>
                   <span className='text-sm font-semibold'>Telegram 2FA Holati</span>
                   <p className='text-xs text-muted-foreground'>
-                    {user?.twoFactorEnabled ? "2FA yoqilgan — Hisobingiz maksimal himoyalangan." : "2FA o'chirilgan."}
+                    {twoFactorEnabled ? "2FA yoqilgan — Hisobingiz maksimal himoyalangan." : "2FA o'chirilgan."}
                   </p>
                 </div>
                 <Switch
-                  checked={Boolean(user?.twoFactorEnabled)}
+                  checked={twoFactorEnabled}
                   onCheckedChange={handleToggle2FATrigger}
                 />
               </div>

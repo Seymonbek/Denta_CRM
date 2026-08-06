@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Stethoscope, Clock, CalendarX, Plus, ChevronRight } from 'lucide-react'
+import { Clock, CalendarX, Plus } from 'lucide-react'
 import {
   useDoctors,
   useWorkingHours,
@@ -50,7 +50,13 @@ const WEEKDAYS = [
 ]
 
 export function DoctorsList() {
-  const { data: doctors = [], isLoading } = useDoctors()
+  const { data: doctorsData = [], isLoading } = useDoctors()
+  const doctors = Array.isArray(doctorsData?.results)
+    ? doctorsData.results
+    : Array.isArray(doctorsData)
+    ? doctorsData
+    : []
+
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorProfile | null>(null)
 
   // Working Hours Form State
@@ -63,8 +69,11 @@ export function DoctorsList() {
   const [dateEnd, setDateEnd] = useState('')
   const [reason, setReason] = useState('')
 
-  const { data: workingHours = [] } = useWorkingHours(selectedDoctor?.id || '')
-  const { data: timeOffs = [] } = useTimeOff(selectedDoctor?.id || '')
+  const { data: workingHoursData = [] } = useWorkingHours(selectedDoctor?.id || '')
+  const workingHours = Array.isArray(workingHoursData) ? workingHoursData : []
+
+  const { data: timeOffsData = [] } = useTimeOff(selectedDoctor?.id || '')
+  const timeOffs = Array.isArray(timeOffsData) ? timeOffsData : []
 
   const createWorkingHoursMutation = useCreateWorkingHours(selectedDoctor?.id || '')
   const createTimeOffMutation = useCreateTimeOff(selectedDoctor?.id || '')
@@ -149,53 +158,65 @@ export function DoctorsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                doctors.map((doc: DoctorProfile) => (
-                  <TableRow key={doc.id} className='hover:bg-muted/20'>
-                    <TableCell className='font-medium text-xs'>
-                      <div className='flex items-center gap-2'>
-                        <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs'>
-                          {doc.user?.firstName?.[0] || 'D'}
+                doctors.map((doc: any) => {
+                  const firstName = doc?.user?.firstName || doc?.user?.first_name || 'Shifokor'
+                  const lastName = doc?.user?.lastName || doc?.user?.last_name || ''
+                  const phoneNumber = doc?.user?.phoneNumber || doc?.user?.phone_number || ''
+                  const specialization = doc?.specialization || 'Stomatolog'
+                  const departments = Array.isArray(doc?.departments) ? doc.departments : []
+                  const commissionBasis = doc?.commissionBasis || doc?.commission_basis || 'from_total'
+                  const commissionRate = doc?.defaultCommissionRate ?? doc?.default_commission_rate ?? 0
+
+                  return (
+                    <TableRow key={doc?.id || Math.random()} className='hover:bg-muted/20'>
+                      <TableCell className='font-medium text-xs'>
+                        <div className='flex items-center gap-2'>
+                          <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs'>
+                            {firstName[0] || 'D'}
+                          </div>
+                          <div>
+                            <p className='font-semibold'>
+                              Dr. {firstName} {lastName}
+                            </p>
+                            {phoneNumber && (
+                              <p className='text-[10px] text-muted-foreground font-mono'>
+                                {phoneNumber}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className='font-semibold'>
-                            Dr. {doc.user?.firstName} {doc.user?.lastName}
-                          </p>
-                          <p className='text-[10px] text-muted-foreground font-mono'>
-                            {doc.user?.phoneNumber}
-                          </p>
+                      </TableCell>
+                      <TableCell className='text-xs font-medium'>{specialization}</TableCell>
+                      <TableCell className='text-xs'>
+                        <div className='flex flex-wrap gap-1'>
+                          {departments.map((dep: any) => (
+                            <Badge key={dep.id} variant='outline' className='text-[10px]'>
+                              {dep.name}
+                            </Badge>
+                          ))}
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className='text-xs font-medium'>{doc.specialization}</TableCell>
-                    <TableCell className='text-xs'>
-                      <div className='flex flex-wrap gap-1'>
-                        {doc.departments?.map((dep) => (
-                          <Badge key={dep.id} variant='outline' className='text-[10px]'>
-                            {dep.name}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className='text-xs'>
-                      <Badge variant='secondary' className='text-[10px]'>
-                        {doc.commissionBasis === 'from_total' ? 'Umumiy summa (Total)' : 'Sofi foyda (Net)'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className='text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400'>
-                      {doc.defaultCommissionRate}%
-                    </TableCell>
-                    <TableCell className='text-end'>
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        className='h-8 text-xs'
-                        onClick={() => setSelectedDoctor(doc)}
-                      >
-                        <Clock className='me-1.5 h-3.5 w-3.5' /> Jadvalni Boshqarish
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                      </TableCell>
+                      <TableCell className='text-xs'>
+                        <Badge variant='secondary' className='text-[10px]'>
+                          {commissionBasis === 'from_total' ? 'Umumiy summa (Total)' : 'Sofi foyda (Net)'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className='text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400'>
+                        {commissionRate}%
+                      </TableCell>
+                      <TableCell className='text-end'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          className='h-8 text-xs'
+                          onClick={() => setSelectedDoctor(doc)}
+                        >
+                          <Clock className='me-1.5 h-3.5 w-3.5' /> Jadvalni Boshqarish
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
@@ -206,7 +227,7 @@ export function DoctorsList() {
           <DialogContent className='sm:max-w-xl max-h-[85vh] overflow-y-auto'>
             <DialogHeader>
               <DialogTitle>
-                Dr. {selectedDoctor?.user?.firstName} {selectedDoctor?.user?.lastName} - Ish Jadvali va Ta'tillar
+                Dr. {selectedDoctor?.user?.firstName || selectedDoctor?.user?.first_name || ''} {selectedDoctor?.user?.lastName || selectedDoctor?.user?.last_name || ''} - Ish Jadvali va Ta'tillar
               </DialogTitle>
             </DialogHeader>
 
@@ -224,14 +245,14 @@ export function DoctorsList() {
                       Ish soatlari hali kiritilmagan.
                     </p>
                   ) : (
-                    workingHours.map((wh) => (
+                    workingHours.map((wh: any) => (
                       <div
-                        key={wh.id}
+                        key={wh.id || Math.random()}
                         className='flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs font-mono'
                       >
-                        <span className='font-semibold text-foreground'>{WEEKDAYS[wh.weekday]}</span>
+                        <span className='font-semibold text-foreground'>{WEEKDAYS[wh.weekday] || 'Kun'}</span>
                         <span className='text-muted-foreground'>
-                          {wh.startTime} - {wh.endTime}
+                          {wh.startTime || wh.start_time} - {wh.endTime || wh.end_time}
                         </span>
                       </div>
                     ))
@@ -289,14 +310,14 @@ export function DoctorsList() {
                   {timeOffs.length === 0 ? (
                     <p className='text-xs text-muted-foreground italic'>Ta'tillar ro'yxati bo'sh.</p>
                   ) : (
-                    timeOffs.map((to) => (
+                    timeOffs.map((to: any) => (
                       <div
-                        key={to.id}
+                        key={to.id || Math.random()}
                         className='flex items-center justify-between rounded-lg border bg-rose-500/10 border-rose-500/20 px-3 py-2 text-xs font-mono'
                       >
                         <div>
                           <span className='font-bold text-rose-700 dark:text-rose-400'>
-                            {to.dateStart} — {to.dateEnd}
+                            {to.dateStart || to.date_start} — {to.dateEnd || to.date_end}
                           </span>
                           {to.reason && <p className='text-[11px] text-muted-foreground font-sans'>{to.reason}</p>}
                         </div>
