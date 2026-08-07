@@ -156,24 +156,29 @@ def generate_ai_chat_response(query: str, user: Any) -> dict[str, Any]:
     if api_key:
         try:
             from google import genai
+            from google.genai import types
 
             client = genai.Client(api_key=api_key)
             prompt = f"{system_instructions}\n\nFoydalanuvchi savoli: {query}"
             
-            for model_name in ["gemini-flash-latest", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]:
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt,
-                    )
-                    if response and hasattr(response, "text") and response.text:
-                        return {
-                            "answer": response.text.strip(),
-                            "context_summary": crm_ctx,
-                            "source": "gemini-ai",
-                        }
-                except Exception as m_exc:
-                    logger.warning("Gemini model %s failed: %s", model_name, m_exc)
+            # Ultra-fast call with strict token limit and low latency config
+            try:
+                response = client.models.generate_content(
+                    model="gemini-flash-latest",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=550,
+                        temperature=0.3,
+                    ),
+                )
+                if response and hasattr(response, "text") and response.text:
+                    return {
+                        "answer": response.text.strip(),
+                        "context_summary": crm_ctx,
+                        "source": "gemini-ai",
+                    }
+            except Exception as m_exc:
+                logger.warning("Gemini primary model failed, falling back to smart CRM assistant: %s", m_exc)
         except Exception as exc:
             logger.warning("Gemini AI API call failed, using fallback assistant: %s", exc)
 
