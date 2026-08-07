@@ -1,39 +1,69 @@
 /* Custom CSS for Django Unfold Admin UI */
 
-/* Fix native select & option readability in both light and dark mode */
-select, 
-select option, 
-select optgroup {
-  background-color: #1e293b !important;
-  color: #f8fafc !important;
-}
-
-.dark select, 
-.dark select option, 
-.dark select optgroup {
+/* Fix ALL select dropdowns, options, popovers, and listboxes in Unfold Admin Dark Mode */
+.dark select,
+.dark select option,
+.dark select optgroup,
+.dark [role="listbox"],
+.dark [role="combobox"],
+.dark [x-popover],
+.dark .select2-container--default .select2-dropdown,
+.dark .select2-container--default .select2-results__option {
   background-color: #0f172a !important;
   color: #f8fafc !important;
+  border-color: #334155 !important;
 }
 
+/* Force dark background on ANY popover or dropdown container in dark mode */
+.dark [x-data] div.bg-white,
+.dark [x-data] ul.bg-white,
+.dark [x-popover].bg-white,
+.dark [role="listbox"].bg-white,
+.dark [role="listbox"],
+.dark ul.shadow-lg,
+.dark div.shadow-lg,
+.dark .shadow-md.bg-white,
+.dark .shadow-lg.bg-white,
+.dark .shadow-xl.bg-white,
+.dark div[class*="shadow"][class*="bg-white"],
+.dark ul[class*="shadow"][class*="bg-white"],
+.dark div[class*="absolute"][class*="bg-white"],
+.dark ul[class*="absolute"][class*="bg-white"],
+.dark [x-show="open"],
+.dark [x-show="show"],
+.dark [x-cloak] {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+}
+
+/* Options / Items inside dropdown listboxes in dark mode */
+.dark [role="option"],
+.dark [role="option"] span,
+.dark [role="option"] div,
+.dark li[role="option"],
+.dark ul[role="listbox"] li,
+.dark ul[role="listbox"] button,
+.dark [x-popover] button,
+.dark [x-popover] a,
+.dark [x-popover] div {
+  color: #f8fafc !important;
+}
+
+/* Highlight / Hover state for dropdown items in dark mode */
 .dark select option:hover,
 .dark select option:focus,
 .dark select option:active,
-.dark select option:checked {
+.dark select option:checked,
+.dark [role="option"]:hover,
+.dark [role="option"]:focus,
+.dark [role="option"][aria-selected="true"],
+.dark [role="option"].bg-primary-50,
+.dark [role="option"].bg-primary-100,
+.dark [role="option"].bg-gray-100,
+.dark .select2-container--default .select2-results__option--highlighted {
   background-color: #1e293b !important;
   color: #38bdf8 !important;
-}
-
-/* Light mode select options */
-html:not(.dark) select,
-html:not(.dark) select option {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-}
-
-html:not(.dark) select option:checked,
-html:not(.dark) select option:hover {
-  background-color: #f1f5f9 !important;
-  color: #0284c7 !important;
 }
 
 /* Fix Unfold Actions Dropdown */
@@ -52,7 +82,22 @@ html:not(.dark) select option:hover {
   border: 1px solid #334155 !important;
 }
 
-/* Improve button contrast in Unfold Admin */
+/* Light mode select options */
+html:not(.dark) select,
+html:not(.dark) select option,
+html:not(.dark) [role="listbox"] {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) select option:checked,
+html:not(.dark) select option:hover,
+html:not(.dark) [role="option"]:hover {
+  background-color: #f1f5f9 !important;
+  color: #0284c7 !important;
+}
+
+/* Improve button font & spacing */
 button[type="submit"], input[type="submit"] {
   font-weight: 600 !important;
 }

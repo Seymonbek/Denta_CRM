@@ -1,0 +1,45 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-07 00:00+0500\n"
+"PO-Revision-Date: 2026-08-07 00:00+0500\n"
+"Last-Translator: Seymonbek\n"
+"Language-Team: Uzbek\n"
+"Language: uz\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Add %s"
+msgstr "%s qo'shish"
+
+msgid "Select %s"
+msgstr "%s ni tanlang"
+
+msgid "Select %s to change"
+msgstr "Tahrirlash uchun %s ni tanlang"
+
+msgid "Select %s to view"
+msgstr "Ko'rish uchun %s ni tanlang"
+
+msgid "Select action"
+msgstr "Harakatni tanlang..."
+
+msgid "Save and add another"
+msgstr "Saqlash va boshqasini qo'shish"
+
+msgid "Save and continue editing"
+msgstr "Saqlash va tahrirlashda davom etish"
+
+msgid "Save"
+msgstr "Saqlash"
+
+msgid "Delete"
+msgstr "O'chirish"
+
+msgid "Change %s"
+msgstr "%s ni tahrirlash"
+
+msgid "Select value"
+msgstr "Qiymatni tanlang..."
