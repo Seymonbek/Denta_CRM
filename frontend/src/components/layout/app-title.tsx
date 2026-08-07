@@ -20,7 +20,7 @@ export function AppTitle() {
           asChild
         >
           <div className='flex items-center gap-3'>
-            <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-md'>
+            <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white font-bold text-lg shadow-md shadow-sky-500/20'>
               🦷
             </div>
             <Link
