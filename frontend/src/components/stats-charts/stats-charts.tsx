@@ -62,20 +62,22 @@ function formatShortMoney(value: number): string {
   return `${value.toLocaleString()}`
 }
 
-function getShortName(fullName: string, maxLen: number = 18): string {
+function getShortName(fullName: string): string {
   if (!fullName) return ''
-  // Clean up common long dental terms for crisp X-axis display
   let cleaned = fullName
     .replace(/\(Endodontiya\)/gi, '')
     .replace(/\(Zirconia\)/gi, '')
     .replace(/\(Therapy\)/gi, '')
     .replace(/Tish kanalini tozalash va plombirlash/gi, 'Kanal tozalash')
     .replace(/Tishni sirkoniy koronka/gi, 'Sirkoniy Koronka')
-    .replace(/Kariesni davolash va plomba/gi, 'Karies Plomba')
+    .replace(/Tsirokniy/gi, 'Sirkoniy')
+    .replace(/Kariesni davolash va ftorlash/gi, 'Ftorlash')
+    .replace(/Kariesni davolash va plomba/gi, 'Plombirlash')
+    .replace(/Tishni olib tashlash/gi, 'Ekstraksiya')
     .trim()
 
-  if (cleaned.length > maxLen) {
-    return cleaned.substring(0, maxLen) + '...'
+  if (cleaned.length > 15) {
+    return cleaned.substring(0, 15) + '..'
   }
   return cleaned
 }
@@ -107,7 +109,7 @@ export function StatsCharts({
     const percent = totalDeptRevenue > 0 ? ((rev / totalDeptRevenue) * 100).toFixed(1) : '0'
     return {
       name,
-      shortName: getShortName(name, 14),
+      shortName: getShortName(name),
       treatments: Number(d.treatments ?? d.patientCount ?? 0),
       revenue: rev,
       percent: Number(percent),
@@ -117,7 +119,7 @@ export function StatsCharts({
 
   return (
     <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-      {/* 1. Top Procedures Chart (Bar Chart with Rounded Bars & Data Labels) */}
+      {/* 1. Top Procedures Chart */}
       <div className='flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow'>
         <div className='flex items-center justify-between border-b pb-3'>
           <div className='flex items-center gap-2'>
@@ -134,14 +136,14 @@ export function StatsCharts({
           </Badge>
         </div>
 
-        <div className='h-[280px] w-full pt-2'>
+        <div className='h-[290px] w-full pt-2'>
           {procData.length === 0 ? (
             <div className='flex h-full items-center justify-center text-xs text-muted-foreground'>
               Ma'lumotlar mavjud emas
             </div>
           ) : (
             <ResponsiveContainer width='100%' height='100%'>
-              <BarChart data={procData} margin={{ top: 20, right: 15, left: -25, bottom: 25 }}>
+              <BarChart data={procData} margin={{ top: 25, right: 15, left: -20, bottom: 15 }}>
                 <defs>
                   <linearGradient id='barGradient' x1='0' y1='0' x2='0' y2='1'>
                     <stop offset='0%' stopColor='#38bdf8' stopOpacity={1} />
@@ -154,8 +156,7 @@ export function StatsCharts({
                   className='text-[10px] font-medium'
                   tickLine={false}
                   interval={0}
-                  angle={-12}
-                  textAnchor='end'
+                  dy={6}
                 />
                 <YAxis
                   className='text-[10px] font-mono'
@@ -163,18 +164,23 @@ export function StatsCharts({
                   axisLine={false}
                   allowDecimals={false}
                 />
-                <Tooltip content={<CustomProcedureTooltip />} />
+                {/* DARK HOVER CURSOR HIGHLIGHT FIX - NO MORE WHITE BOX */}
+                <Tooltip
+                  cursor={{ fill: 'rgba(255, 255, 255, 0.05)', radius: 6 }}
+                  content={<CustomProcedureTooltip />}
+                />
                 <Bar
                   dataKey='count'
                   name='Bemorlar soni'
                   fill='url(#barGradient)'
                   radius={[8, 8, 0, 0]}
-                  barSize={36}
+                  barSize={38}
                 >
                   <LabelList
                     dataKey='count'
                     position='top'
-                    className='fill-foreground text-[10px] font-bold font-mono'
+                    dy={-6}
+                    className='fill-foreground text-[11px] font-bold font-mono'
                     formatter={(val: any) => (val > 0 ? `${val} ta` : '')}
                   />
                   {procData.map((_, index) => (
@@ -187,7 +193,7 @@ export function StatsCharts({
         </div>
       </div>
 
-      {/* 2. Department Breakdown Chart (Area Chart / Donut Chart Toggle) */}
+      {/* 2. Department Breakdown Chart */}
       <div className='flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow'>
         <div className='flex items-center justify-between border-b pb-3'>
           <div className='flex items-center gap-2'>
@@ -220,14 +226,14 @@ export function StatsCharts({
           </div>
         </div>
 
-        <div className='h-[280px] w-full pt-2'>
+        <div className='h-[290px] w-full pt-2'>
           {deptData.length === 0 ? (
             <div className='flex h-full items-center justify-center text-xs text-muted-foreground'>
               Ma'lumotlar mavjud emas
             </div>
           ) : viewType === 'area' ? (
             <ResponsiveContainer width='100%' height='100%'>
-              <AreaChart data={deptData} margin={{ top: 15, right: 15, left: 10, bottom: 25 }}>
+              <AreaChart data={deptData} margin={{ top: 20, right: 15, left: 10, bottom: 15 }}>
                 <defs>
                   <linearGradient id='areaGradient' x1='0' y1='0' x2='0' y2='1'>
                     <stop offset='0%' stopColor='#10b981' stopOpacity={0.4} />
@@ -240,6 +246,7 @@ export function StatsCharts({
                   className='text-[10px] font-medium'
                   tickLine={false}
                   interval={0}
+                  dy={6}
                 />
                 <YAxis
                   className='text-[10px] font-mono'
@@ -247,7 +254,10 @@ export function StatsCharts({
                   axisLine={false}
                   tickFormatter={formatShortMoney}
                 />
-                <Tooltip content={<CustomDepartmentTooltip />} />
+                <Tooltip
+                  cursor={{ stroke: '#10b981', strokeWidth: 1.5, strokeDasharray: '4 4' }}
+                  content={<CustomDepartmentTooltip />}
+                />
                 <Area
                   type='monotone'
                   dataKey='revenue'
@@ -281,7 +291,7 @@ export function StatsCharts({
                 </ResponsiveContainer>
               </div>
 
-              <div className='w-full sm:w-1/2 flex flex-col gap-2 max-h-[220px] overflow-y-auto pe-2'>
+              <div className='w-full sm:w-1/2 flex flex-col gap-2 max-h-[230px] overflow-y-auto pe-2'>
                 {deptData.map((d, i) => (
                   <div
                     key={i}
@@ -316,19 +326,19 @@ function CustomProcedureTooltip({ active, payload }: any) {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
-      <div className='rounded-xl border bg-popover/95 backdrop-blur-md p-3 shadow-xl text-xs space-y-1.5 min-w-[200px] border-border'>
-        <div className='flex items-center gap-2 font-bold text-foreground border-b pb-1.5'>
-          <Activity className='h-3.5 w-3.5 text-primary' />
+      <div className='rounded-xl border bg-slate-900/95 backdrop-blur-md p-3 shadow-2xl text-xs space-y-1.5 min-w-[210px] border-slate-700 text-slate-100 z-50'>
+        <div className='flex items-center gap-2 font-bold text-white border-b border-slate-800 pb-1.5'>
+          <Activity className='h-3.5 w-3.5 text-sky-400' />
           <span>{data.fullName}</span>
         </div>
-        <div className='flex justify-between items-center text-muted-foreground'>
+        <div className='flex justify-between items-center text-slate-300'>
           <span>Bajarilgan muolajalar:</span>
-          <span className='font-bold font-mono text-foreground'>{data.count} ta</span>
+          <span className='font-bold font-mono text-white'>{data.count} ta</span>
         </div>
         {data.revenue > 0 && (
-          <div className='flex justify-between items-center text-muted-foreground border-t pt-1'>
+          <div className='flex justify-between items-center text-slate-300 border-t border-slate-800 pt-1'>
             <span>Jami tushum:</span>
-            <span className='font-bold font-mono text-emerald-600 dark:text-emerald-400'>
+            <span className='font-bold font-mono text-emerald-400'>
               {Number(data.revenue).toLocaleString()} so'm
             </span>
           </div>
@@ -344,21 +354,21 @@ function CustomDepartmentTooltip({ active, payload }: any) {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
-      <div className='rounded-xl border bg-popover/95 backdrop-blur-md p-3 shadow-xl text-xs space-y-1.5 min-w-[200px] border-border'>
-        <div className='flex items-center gap-2 font-bold text-foreground border-b pb-1.5'>
-          <TrendingUp className='h-3.5 w-3.5 text-emerald-500' />
+      <div className='rounded-xl border bg-slate-900/95 backdrop-blur-md p-3 shadow-2xl text-xs space-y-1.5 min-w-[210px] border-slate-700 text-slate-100 z-50'>
+        <div className='flex items-center gap-2 font-bold text-white border-b border-slate-800 pb-1.5'>
+          <TrendingUp className='h-3.5 w-3.5 text-emerald-400' />
           <span>{data.name}</span>
         </div>
-        <div className='flex justify-between items-center text-muted-foreground'>
+        <div className='flex justify-between items-center text-slate-300'>
           <span>Jami tushgan daromad:</span>
-          <span className='font-bold font-mono text-emerald-600 dark:text-emerald-400'>
+          <span className='font-bold font-mono text-emerald-400'>
             {Number(data.revenue).toLocaleString()} so'm
           </span>
         </div>
         {data.treatments > 0 && (
-          <div className='flex justify-between items-center text-muted-foreground border-t pt-1'>
+          <div className='flex justify-between items-center text-slate-300 border-t border-slate-800 pt-1'>
             <span>Bajarilgan muolajalar:</span>
-            <span className='font-bold font-mono text-foreground'>{data.treatments} ta</span>
+            <span className='font-bold font-mono text-white'>{data.treatments} ta</span>
           </div>
         )}
       </div>
