@@ -227,6 +227,10 @@ class DoctorCommissionsView(APIView):
         return Response(CommissionRecordSerializer(qs, many=True).data)
 
 
+from django.http import HttpResponse
+from apps.core.pdf_services import generate_payment_receipt_html
+
+
 class DoctorCommissionsSummaryView(APIView):
     """``GET /api/v1/doctors/{id}/commissions/summary/`` — aggregate view."""
 
@@ -261,9 +265,30 @@ class DoctorCommissionsSummaryView(APIView):
         return Response(CommissionSummarySerializer(payload).data)
 
 
+class PaymentReceiptPDFView(APIView):
+    """GET /api/v1/payments/{id}/receipt/ — returns printable HTML/PDF receipt."""
+
+    permission_classes = [PaymentPermission]
+
+    def get(self, request: Request, pk: Any, *args: Any, **kwargs: Any) -> HttpResponse:
+        payment = get_object_or_404(Payment, pk=pk, is_active=True)
+        payment_data = {
+            "id": payment.pk,
+            "amount": payment.amount,
+            "payment_method": getattr(payment, "method", "cash"),
+            "patient_name": getattr(payment.patient, "full_name", str(payment.patient)) if payment.patient else "Bemor",
+            "patient_phone": payment.patient.phone_number if payment.patient else "-",
+            "doctor_name": payment.treatment.doctor.user.get_full_name() if payment.treatment and payment.treatment.doctor else "Shifokor",
+            "paid_at": payment.paid_at.isoformat() if payment.paid_at else payment.created_at.isoformat(),
+        }
+        html_content = generate_payment_receipt_html(payment_data)
+        return HttpResponse(html_content, content_type="text/html; charset=utf-8")
+
+
 __all__ = [
     "PaymentViewSet",
     "PatientBalanceView",
     "DoctorCommissionsView",
     "DoctorCommissionsSummaryView",
+    "PaymentReceiptPDFView",
 ]

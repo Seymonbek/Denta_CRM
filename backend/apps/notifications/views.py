@@ -87,4 +87,52 @@ class NotificationViewSet(
         return super().list(request, *args, **kwargs)
 
 
-__all__ = ["NotificationViewSet"]
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+
+
+class SendTelegramReminderView(APIView):
+    """POST /api/v1/notifications/send-reminder/ — triggers Telegram reminder."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        appointment_id = request.data.get("appointmentId") or request.data.get("appointment_id")
+        message_custom = request.data.get("message")
+
+        from apps.scheduling.models import Appointment
+        from apps.notifications.services import create_notification
+        from apps.notifications.models import NotificationType, NotificationChannel
+
+        if appointment_id:
+            try:
+                appt = Appointment.objects.get(pk=appointment_id, is_active=True)
+                patient_name = getattr(appt.patient, "full_name", str(appt.patient)) if appt.patient else "Bemor"
+                doc_name = appt.doctor.user.get_full_name() if appt.doctor else "Shifokor"
+                date_str = appt.scheduled_start.strftime("%Y-%m-%d %H:%M") if appt.scheduled_start else ""
+
+                msg = message_custom or (
+                    f"🦷 <b>DentaCRM Eslatma</b>\n\n"
+                    f"Hurmatli <b>{patient_name}</b>!\n"
+                    f"Sizning <b>{date_str}</b> da <b>Dr. {doc_name}</b> qabuliga navbatingiz bor.\n\n"
+                    f"Klinikamiz sizni kutmoqda! ✨"
+                )
+
+                log = create_notification(
+                    type=NotificationType.SCHEDULING_REMINDER_2H,
+                    recipient=request.user,
+                    message=msg,
+                    channel=NotificationChannel.TELEGRAM,
+                )
+                return Response(
+                    {"success": True, "message": "Telegram eslatma muvaffaqiyatli yuborildi!", "logId": str(log.pk)},
+                    status=status.HTTP_200_OK,
+                )
+            except Appointment.DoesNotExist:
+                return Response({"error": "Qabul topilmadi."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"error": "appointmentId kiritilmadi."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+__all__ = ["NotificationViewSet", "SendTelegramReminderView"]

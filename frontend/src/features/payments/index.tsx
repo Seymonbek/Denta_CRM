@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Ban } from 'lucide-react'
+import { Plus, Ban, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   usePayments,
@@ -208,7 +208,20 @@ export function PaymentsList() {
                           <TableCell className='text-xs font-mono text-muted-foreground'>
                             {formatDateSafely(createdAt)}
                           </TableCell>
-                          <TableCell className='text-end'>
+                          <TableCell className='text-end flex items-center justify-end gap-1.5'>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='h-7 text-xs gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50'
+                              onClick={() => {
+                                const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1/'
+                                const url = `${baseUrl}payments/${p.id}/receipt/`
+                                window.open(url, '_blank')
+                              }}
+                            >
+                              <FileText className='h-3.5 w-3.5' /> Chek (PDF)
+                            </Button>
+
                             <Button
                               size='sm'
                               variant='ghost'

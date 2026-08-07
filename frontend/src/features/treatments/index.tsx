@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Camera } from 'lucide-react'
+import { Plus, Camera, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   useTreatments,
@@ -233,11 +233,24 @@ export function TreatmentsList() {
                           {t?.stage === 'completed' ? 'Yakunlangan' : 'Jarayonda'}
                         </Badge>
                       </TableCell>
-                      <TableCell className='text-end'>
+                      <TableCell className='text-end flex items-center justify-end gap-1.5'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          className='h-7 text-xs gap-1 border-blue-500/30 text-blue-600 hover:bg-blue-50'
+                          onClick={() => {
+                            const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1/'
+                            const url = `${baseUrl}treatments/${t.id}/pdf-act/`
+                            window.open(url, '_blank')
+                          }}
+                        >
+                          <FileText className='h-3.5 w-3.5' /> Dalolatnoma (PDF)
+                        </Button>
+
                         <Button
                           size='sm'
                           variant='ghost'
-                          className='h-8 text-xs'
+                          className='h-7 text-xs'
                           onClick={() => setSelectedTreatmentForPhoto(t)}
                         >
                           <Camera className='me-1.5 h-3.5 w-3.5' /> Foto

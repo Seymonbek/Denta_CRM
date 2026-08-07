@@ -295,6 +295,25 @@ class TreatmentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+    @action(detail=True, methods=["get"], url_path="pdf-act")
+    def pdf_act(self, request: Request, pk: str | None = None) -> Any:
+        treatment: Treatment = self.get_object()
+        from django.http import HttpResponse
+        from apps.core.pdf_services import generate_treatment_act_html
+
+        treatment_data = {
+            "id": treatment.pk,
+            "patient_name": getattr(treatment.patient, "full_name", str(treatment.patient)) if treatment.patient else "Bemor",
+            "doctor_name": treatment.doctor.user.get_full_name() if treatment.doctor else "Shifokor",
+            "procedure_name": treatment.procedure_type.name if treatment.procedure_type else "Muolaja",
+            "price": treatment.price,
+            "tooth_number": treatment.tooth_number or "-",
+            "notes": treatment.notes or "Muolaja muvaffaqiyatli yakunlandi.",
+            "created_at": treatment.created_at.isoformat(),
+        }
+        html_content = generate_treatment_act_html(treatment_data)
+        return HttpResponse(html_content, content_type="text/html; charset=utf-8")
+
 
 __all__ = ["TreatmentViewSet"]
 

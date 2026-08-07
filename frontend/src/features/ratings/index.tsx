@@ -70,8 +70,8 @@ export function RatingsList() {
                 leaderboard.map((entry: any, idx: number) => {
                   const rank = entry?.rank || idx + 1
                   const doctorId = entry?.doctorId || entry?.doctor?.id || String(idx)
-                  const firstName = entry?.firstName || entry?.doctor?.user?.firstName || entry?.doctor?.user?.first_name || 'Shifokor'
-                  const lastName = entry?.lastName || entry?.doctor?.user?.lastName || entry?.doctor?.user?.last_name || ''
+                  const firstName = entry?.firstName || entry?.first_name || entry?.doctor?.user?.firstName || entry?.doctor?.user?.first_name || 'Shifokor'
+                  const lastName = entry?.lastName || entry?.last_name || entry?.doctor?.user?.lastName || entry?.doctor?.user?.last_name || ''
                   const specialization = entry?.specialization || entry?.doctor?.specialization || 'Stomatolog'
                   const totalPoints = entry?.totalPoints ?? entry?.points ?? 0
                   const badgeCount = entry?.badgeCount ?? entry?.badgesCount ?? entry?.badges_count ?? 0

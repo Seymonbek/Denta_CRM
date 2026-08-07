@@ -15,6 +15,7 @@ from .views import (
     DoctorCommissionsSummaryView,
     DoctorCommissionsView,
     PatientBalanceView,
+    PaymentReceiptPDFView,
     PaymentViewSet,
 )
 
@@ -27,7 +28,13 @@ def _payment_router() -> DefaultRouter:
     return router
 
 
-payment_urlpatterns = _payment_router().urls
+payment_urlpatterns = [
+    path(
+        "<uuid:pk>/receipt/",
+        PaymentReceiptPDFView.as_view(),
+        name="payment-receipt",
+    ),
+] + _payment_router().urls
 
 # Nested action URLs — mounted at their respective prefixes in config/urls.
 patient_balance_urlpatterns = [
