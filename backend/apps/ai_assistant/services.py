@@ -273,6 +273,11 @@ def _build_rule_based_fallback(query: str, ctx: dict[str, Any]) -> str:
     q_lower = query.lower()
     inv = ctx["inventory_analytics"]
 
+    # Priority 1: If a specific patient record was searched and found in DB, return it immediately
+    patient_data = ctx.get("patient_records_search")
+    if patient_data:
+        return f"Tizim ma'lumotlar bazasida topilgan bemor ma'lumotlari:\n\n{patient_data}"
+
     if any(k in q_lower for k in ["ombor", "material", "zaxira", "kam", "tugagan", "stock"]):
         if inv["low_stock_count"] == 0:
             return (
