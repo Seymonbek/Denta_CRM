@@ -245,7 +245,7 @@ def generate_ai_chat_response(query: str, user: Any) -> dict[str, Any]:
                     model="gemini-flash-latest",
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        max_output_tokens=550,
+                        max_output_tokens=2048,
                         temperature=0.3,
                     ),
                 )
