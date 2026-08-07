@@ -27,10 +27,11 @@ class AIChatResponseSerializer(serializers.Serializer):
 class AIInventorySummarySerializer(serializers.Serializer):
     """Response payload for automated AI inventory stock summaries."""
 
-    totalMaterialsCount = serializers.IntegerField(source="total_materials_count")
-    lowStockCount = serializers.IntegerField(source="low_stock_count")
+    totalItemsCount = serializers.IntegerField(source="total_materials_count")
+    lowStockItemsCount = serializers.IntegerField(source="low_stock_count")
     outOfStockCount = serializers.IntegerField(source="out_of_stock_count")
-    lowStockItems = serializers.ListField(source="low_stock_items")
+    criticalItems = serializers.ListField(source="low_stock_items")
+    aiRecommendation = serializers.CharField(source="ai_recommendation")
 
 
 class AIPermissionConfigSerializer(serializers.ModelSerializer):

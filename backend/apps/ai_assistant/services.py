@@ -36,17 +36,29 @@ def get_inventory_analytics(include_costs: bool = False) -> dict[str, Any]:
             "id": str(item.pk),
             "name": item.name,
             "unit": item.unit,
+            "quantityInStock": str(item.quantity_in_stock),
+            "minimumThreshold": str(item.minimum_threshold),
             "quantity_in_stock": str(item.quantity_in_stock),
             "minimum_threshold": str(item.minimum_threshold),
             "is_out_of_stock": item.quantity_in_stock <= 0,
         }
         low_stock_items.append(data)
 
+    if low_stock_items:
+        items_str = ", ".join([f"{i['name']} ({i['quantityInStock']} {i['unit']})" for i in low_stock_items])
+        ai_recommendation = (
+            f"Diqqat! Omborda {len(low_stock_items)} ta kritik sarflash materiali minimal chegaradan kam qolgan: "
+            f"{items_str}. Klinika uzluksiz ishlashi uchun ushbu materiallarni zudlik bilan qayta to'ldirish tavsiya etiladi."
+        )
+    else:
+        ai_recommendation = "Barcha zaxira materiallari yetarli darajada. Sklad holati a'lo!"
+
     return {
         "total_materials_count": total_count,
         "low_stock_count": len(low_stock_items),
         "out_of_stock_count": out_of_stock_qs.count(),
         "low_stock_items": low_stock_items,
+        "ai_recommendation": ai_recommendation,
     }
 
 

@@ -370,6 +370,44 @@ export function AIAssistantPage() {
                         {aiRecommendation}
                       </div>
                     </div>
+
+                    {Array.isArray(inventorySummary?.criticalItems) && inventorySummary.criticalItems.length > 0 && (
+                      <div className='space-y-3 border-t pt-4'>
+                        <h4 className='text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5'>
+                          <AlertTriangle className='h-4 w-4' /> Shoshilinch Buyurtma Berilishi Kerak Bo'lgan Materiallar:
+                        </h4>
+                        <div className='rounded-xl border overflow-hidden'>
+                          <table className='w-full text-left text-xs'>
+                            <thead className='bg-muted/50 text-muted-foreground font-semibold border-b'>
+                              <tr>
+                                <th className='p-3'>Material Nomi</th>
+                                <th className='p-3'>Joriy Zaxira</th>
+                                <th className='p-3'>Minimal Chegara</th>
+                                <th className='p-3'>Holat</th>
+                              </tr>
+                            </thead>
+                            <tbody className='divide-y'>
+                              {inventorySummary.criticalItems.map((item: any) => (
+                                <tr key={item.id || item.name} className='hover:bg-muted/20'>
+                                  <td className='p-3 font-bold text-foreground'>{item.name}</td>
+                                  <td className='p-3 font-mono font-bold text-rose-600 dark:text-rose-400'>
+                                    {item.quantityInStock ?? item.quantity_in_stock} {item.unit}
+                                  </td>
+                                  <td className='p-3 font-mono text-muted-foreground'>
+                                    {item.minimumThreshold ?? item.minimum_threshold} {item.unit}
+                                  </td>
+                                  <td className='p-3'>
+                                    <Badge variant='destructive' className='text-[10px]'>
+                                      Kritik kam
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>
