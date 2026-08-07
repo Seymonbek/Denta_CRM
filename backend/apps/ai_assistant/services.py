@@ -59,9 +59,10 @@ def search_specific_entity_data(query: str) -> str:
     from apps.payments.models import Payment
 
     ignore_words = {
-        "bemor", "bemorlar", "haqida", "malumot", "ma'lumot", "ber", "kartasi",
+        "menga", "bemor", "bemorlar", "haqida", "malumot", "ma'lumot", "ber", "kartasi",
         "karta", "davolanish", "tarixi", "va", "telefon", "raqami", "qabuli",
-        "tashxis", "to'lov", "shifokor", "doktor", "muolaja", "to'liq"
+        "tashxis", "to'lov", "shifokor", "doktor", "muolaja", "to'liq", "bir",
+        "tizim", "hamma", "barcha", "nechta", "qachon"
     }
     words = [
         w.strip() for w in query.split()
@@ -70,11 +71,21 @@ def search_specific_entity_data(query: str) -> str:
     if not words:
         return ""
 
-    q_obj = Q()
-    for w in words:
-        q_obj |= Q(first_name__icontains=w) | Q(last_name__icontains=w) | Q(phone_number__icontains=w)
+    # Priority 1: Try strict AND match if 2+ query words provided (e.g. "Bobur Ahmedov")
+    patients = Patient.objects.none()
+    if len(words) >= 2:
+        q_and = Q()
+        for w in words:
+            q_and &= (Q(first_name__icontains=w) | Q(last_name__icontains=w) | Q(phone_number__icontains=w))
+        patients = Patient.objects.filter(q_and, is_active=True)[:5]
 
-    patients = Patient.objects.filter(q_obj, is_active=True)[:5]
+    # Priority 2: Fallback to OR match only if strict AND match returned no results
+    if not patients.exists():
+        q_or = Q()
+        for w in words:
+            q_or |= Q(first_name__icontains=w) | Q(last_name__icontains=w) | Q(phone_number__icontains=w)
+        patients = Patient.objects.filter(q_or, is_active=True)[:5]
+
     if not patients.exists():
         return ""
 
