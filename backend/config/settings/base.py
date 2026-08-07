@@ -291,6 +291,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Unfold Admin Customization
 # ---------------------------------------------------------------------------
 from django.templatetags.static import static
+from django.urls import reverse
 
 UNFOLD: dict[str, Any] = {
     "SITE_TITLE": "DentaCRM Admin",
@@ -302,6 +303,132 @@ UNFOLD: dict[str, Any] = {
     "STYLES": [
         lambda request: static("admin/css/custom_unfold.css"),
     ],
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "navigation": [
+            {
+                "title": "Boshqaruv & Rollar",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Foydalanuvchilar",
+                        "icon": "person",
+                        "link": lambda request: reverse("admin:accounts_user_changelist"),
+                    },
+                    {
+                        "title": "Bo'limlar",
+                        "icon": "domain",
+                        "link": lambda request: reverse("admin:departments_department_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Shifokorlar",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Shifokor Profillari",
+                        "icon": "medical_services",
+                        "link": lambda request: reverse("admin:doctors_doctorprofile_changelist"),
+                    },
+                    {
+                        "title": "Ish Vaqtlari",
+                        "icon": "schedule",
+                        "link": lambda request: reverse("admin:doctors_workinghours_changelist"),
+                    },
+                    {
+                        "title": "Dam Olish Kunlari",
+                        "icon": "event_busy",
+                        "link": lambda request: reverse("admin:doctors_timeoff_changelist"),
+                    },
+                    {
+                        "title": "Muolaja Turlari",
+                        "icon": "vaccines",
+                        "link": lambda request: reverse("admin:doctors_proceduretype_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Bemorlar & Qabullar",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Bemorlar Ro'yxati",
+                        "icon": "patient_list",
+                        "link": lambda request: reverse("admin:patients_patient_changelist"),
+                    },
+                    {
+                        "title": "Tashriflar & Qabullar",
+                        "icon": "calendar_month",
+                        "link": lambda request: reverse("admin:scheduling_appointment_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Davolash & Retseptlar",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Davolash Yozuvlari",
+                        "icon": "dentistry",
+                        "link": lambda request: reverse("admin:treatments_treatment_changelist"),
+                    },
+                    {
+                        "title": "Davolash Rasmlari",
+                        "icon": "photo_camera",
+                        "link": lambda request: reverse("admin:treatments_treatmentphoto_changelist"),
+                    },
+                    {
+                        "title": "Odontogram Yozuvlari",
+                        "icon": "grid_view",
+                        "link": lambda request: reverse("admin:odontogram_toothrecord_changelist"),
+                    },
+                    {
+                        "title": "Retseptlar",
+                        "icon": "prescriptions",
+                        "link": lambda request: reverse("admin:prescriptions_prescription_changelist"),
+                    },
+                    {
+                        "title": "Retsept Shablonlari",
+                        "icon": "description",
+                        "link": lambda request: reverse("admin:prescriptions_prescriptiontemplate_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Moliya & Sklad",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "To'lovlar",
+                        "icon": "payments",
+                        "link": lambda request: reverse("admin:payments_payment_changelist"),
+                    },
+                    {
+                        "title": "Komissiyalar",
+                        "icon": "account_balance_wallet",
+                        "link": lambda request: reverse("admin:payments_commissionrecord_changelist"),
+                    },
+                    {
+                        "title": "Materiallar Zaxirasi",
+                        "icon": "inventory_2",
+                        "link": lambda request: reverse("admin:inventory_material_changelist"),
+                    },
+                    {
+                        "title": "Material Sarfi",
+                        "icon": "output",
+                        "link": lambda request: reverse("admin:inventory_materialusage_changelist"),
+                    },
+                    {
+                        "title": "Material Loglari",
+                        "icon": "history",
+                        "link": lambda request: reverse("admin:inventory_materialstocklog_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
 }
 # Upload size caps (T130)
 #
