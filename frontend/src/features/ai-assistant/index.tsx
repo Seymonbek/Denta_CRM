@@ -10,6 +10,7 @@ import {
   Package,
   Shield,
   Lightbulb,
+  AlertTriangle,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
