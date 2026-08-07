@@ -124,6 +124,12 @@ def get_clinic_crm_context(user: Any) -> dict[str, Any]:
 
 def generate_ai_chat_response(query: str, user: Any) -> dict[str, Any]:
     """Generate an AI response using Google Gemini API or intelligent fallback."""
+    try:
+        import dotenv
+        dotenv.load_dotenv()
+    except Exception:
+        pass
+
     crm_ctx = get_clinic_crm_context(user)
     api_key = (
         getattr(settings, "GEMINI_API_KEY", None)
@@ -153,16 +159,21 @@ def generate_ai_chat_response(query: str, user: Any) -> dict[str, Any]:
 
             client = genai.Client(api_key=api_key)
             prompt = f"{system_instructions}\n\nFoydalanuvchi savoli: {query}"
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-            )
-            if response and hasattr(response, "text") and response.text:
-                return {
-                    "answer": response.text.strip(),
-                    "context_summary": crm_ctx,
-                    "source": "gemini-ai",
-                }
+            
+            for model_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                    )
+                    if response and hasattr(response, "text") and response.text:
+                        return {
+                            "answer": response.text.strip(),
+                            "context_summary": crm_ctx,
+                            "source": "gemini-ai",
+                        }
+                except Exception as m_exc:
+                    logger.warning("Gemini model %s failed: %s", model_name, m_exc)
         except Exception as exc:
             logger.warning("Gemini AI API call failed, using fallback assistant: %s", exc)
 
