@@ -1,5 +1,24 @@
 /* Custom CSS for Django Unfold Admin UI */
 
+/* Force dark color-scheme on root and native elements */
+html, body, select, option, optgroup, input, textarea {
+  color-scheme: dark !important;
+}
+
+select option, optgroup option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 8px !important;
+}
+
+select option:hover,
+select option:focus,
+select option:active,
+select option:checked {
+  background-color: #1e293b !important;
+  color: #38bdf8 !important;
+}
+
 /* Fix ALL select dropdowns, options, popovers, and listboxes in Unfold Admin Dark Mode */
 .dark select,
 .dark select option,
@@ -12,6 +31,7 @@
   background-color: #0f172a !important;
   color: #f8fafc !important;
   border-color: #334155 !important;
+  color-scheme: dark !important;
 }
 
 /* Force dark background on ANY popover or dropdown container in dark mode */
@@ -35,6 +55,7 @@
   background-color: #0f172a !important;
   color: #f8fafc !important;
   border: 1px solid #334155 !important;
+  color-scheme: dark !important;
 }
 
 /* Options / Items inside dropdown listboxes in dark mode */
@@ -48,6 +69,7 @@
 .dark [x-popover] a,
 .dark [x-popover] div {
   color: #f8fafc !important;
+  color-scheme: dark !important;
 }
 
 /* Highlight / Hover state for dropdown items in dark mode */
@@ -67,34 +89,16 @@
 }
 
 /* Fix Unfold Actions Dropdown */
-.actions select {
+.actions select,
+div.actions select,
+select[name="action"] {
   min-width: 220px !important;
-  background-color: #1e293b !important;
+  background-color: #0f172a !important;
   color: #f8fafc !important;
   border-radius: 0.375rem !important;
   padding: 0.5rem 1rem !important;
   border: 1px solid #334155 !important;
-}
-
-.dark .actions select {
-  background-color: #0f172a !important;
-  color: #f8fafc !important;
-  border: 1px solid #334155 !important;
-}
-
-/* Light mode select options */
-html:not(.dark) select,
-html:not(.dark) select option,
-html:not(.dark) [role="listbox"] {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-}
-
-html:not(.dark) select option:checked,
-html:not(.dark) select option:hover,
-html:not(.dark) [role="option"]:hover {
-  background-color: #f1f5f9 !important;
-  color: #0284c7 !important;
+  color-scheme: dark !important;
 }
 
 /* Improve button font & spacing */
