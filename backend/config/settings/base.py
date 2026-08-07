@@ -282,12 +282,27 @@ LOCALE_PATHS = [BASE_DIR / "locale"]
 # ---------------------------------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS: list[Path] = []
+STATICFILES_DIRS: list[Path] = [BASE_DIR / "static"]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ---------------------------------------------------------------------------
+# Unfold Admin Customization
+# ---------------------------------------------------------------------------
+from django.templatetags.static import static
+
+UNFOLD: dict[str, Any] = {
+    "SITE_TITLE": "DentaCRM Admin",
+    "SITE_HEADER": "DentaCRM Admin Paneli",
+    "SITE_SUBHEADER": "Stomatologiya CRM Boshqaruv Tizimi",
+    "SITE_URL": "http://localhost:5173/",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+    "STYLES": [
+        lambda request: static("admin/css/custom_unfold.css"),
+    ],
+}
 # Upload size caps (T130)
 #
 # DATA_UPLOAD_MAX_MEMORY_SIZE caps the total request body Django will

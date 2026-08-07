@@ -54,3 +54,14 @@
         {% endblock %}
     {% endblock %}
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const actionSelects = document.querySelectorAll('select[name="action"]');
+    actionSelects.forEach(select => {
+      if (select.options[0] && (select.options[0].text === "Select action" || select.options[0].value === "")) {
+        select.options[0].text = "Harakatni tanlang...";
+      }
+    });
+  });
+</script>

@@ -1,0 +1,58 @@
+/* Custom CSS for Django Unfold Admin UI */
+
+/* Fix native select & option readability in both light and dark mode */
+select, 
+select option, 
+select optgroup {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.dark select, 
+.dark select option, 
+.dark select optgroup {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+.dark select option:hover,
+.dark select option:focus,
+.dark select option:active,
+.dark select option:checked {
+  background-color: #1e293b !important;
+  color: #38bdf8 !important;
+}
+
+/* Light mode select options */
+html:not(.dark) select,
+html:not(.dark) select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+html:not(.dark) select option:checked,
+html:not(.dark) select option:hover {
+  background-color: #f1f5f9 !important;
+  color: #0284c7 !important;
+}
+
+/* Fix Unfold Actions Dropdown */
+.actions select {
+  min-width: 220px !important;
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-radius: 0.375rem !important;
+  padding: 0.5rem 1rem !important;
+  border: 1px solid #334155 !important;
+}
+
+.dark .actions select {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+}
+
+/* Improve button contrast in Unfold Admin */
+button[type="submit"], input[type="submit"] {
+  font-weight: 600 !important;
+}
