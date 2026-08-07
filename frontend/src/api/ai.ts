@@ -37,8 +37,14 @@ export interface AIPermissionConfig {
 }
 
 export async function postAIChatApi(message: string): Promise<AIChatResponse> {
-  const response = await apiClient.post<AIChatResponse>('ai/chat/', { message })
-  return response.data
+  const response = await apiClient.post<any>('ai/chat/', { message })
+  const data = response.data
+  return {
+    message: data.answer || data.message || '',
+    source: data.source || 'gemini-ai',
+    timestamp: new Date().toISOString(),
+    contextSummary: data.contextSummary,
+  }
 }
 
 export async function getAIInventorySummaryApi(): Promise<AIInventorySummary> {

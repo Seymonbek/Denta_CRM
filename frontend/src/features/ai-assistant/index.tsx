@@ -96,7 +96,7 @@ export function AIAssistantPage() {
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'ai',
-        text: response.message || 'Kechirasiz, javob olishda xatolik yuz berdi.',
+        text: response.message || (response as any).answer || 'Javob shakllantirilmadi.',
         timestamp: response.timestamp || new Date().toISOString(),
         source: response.source || 'gemini-ai',
       }
