@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   XCircle,
   TrendingUp,
+  AlertCircle,
+  LogOut,
 } from 'lucide-react'
 import { useDashboardReport } from '@/api/hooks/use-reports'
 import { Header } from '@/components/layout/header'
@@ -26,10 +28,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { useAuthStore } from '@/stores/auth-store'
 
 export function Dashboard() {
   const [period, setPeriod] = useState<string>('month')
-  const { data: report, isLoading } = useDashboardReport(period)
+  const { data: report, isLoading, isError, error } = useDashboardReport(period)
+  const resetAuth = useAuthStore((state) => state.reset)
 
   const topProcedures = Array.isArray(report?.topProcedures)
     ? report.topProcedures
@@ -63,6 +68,27 @@ export function Dashboard() {
       </Header>
 
       <Main>
+        {isError && (
+          <div className='mb-6 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-between gap-4 text-xs font-semibold'>
+            <div className='flex items-center gap-2'>
+              <AlertCircle className='h-5 w-5 shrink-0' />
+              <span>
+                Xatolik: {(error as any)?.response?.data?.error?.message || (error as any)?.response?.data?.detail || error?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi."}
+              </span>
+            </div>
+            <Button
+              size='sm'
+              variant='destructive'
+              className='h-8 text-xs font-bold gap-1'
+              onClick={() => {
+                resetAuth()
+                window.location.href = '/sign-in'
+              }}
+            >
+              <LogOut className='h-3.5 w-3.5' /> Qaytadan kirish
+            </Button>
+          </div>
+        )}
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
             <h1 className='text-2xl font-bold tracking-tight'>Klinika Umumiy Ko'rsatkichlari</h1>

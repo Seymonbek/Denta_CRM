@@ -68,6 +68,24 @@ class AIInventorySummaryView(APIView):
 class AIPermissionConfigViewSet(viewsets.ModelViewSet):
     """Manage dynamic AI permissions per role (Bosh Shifokor only)."""
 
-    queryset = AIPermissionConfig.objects.all().order_by("role")
     serializer_class = AIPermissionConfigSerializer
     permission_classes = [IsAuthenticated, IsBoshShifokor]
+
+    def get_queryset(self):
+        # Auto-seed default permission configs if none exist
+        if not AIPermissionConfig.objects.exists():
+            default_roles = [
+                ("administrator", True, True, True, True),
+                ("doctor", False, False, False, False),
+            ]
+            for role, fin, costs, other_docs, all_pats in default_roles:
+                AIPermissionConfig.objects.get_or_create(
+                    role=role,
+                    defaults={
+                        "can_view_financial_reports": fin,
+                        "can_view_inventory_costs": costs,
+                        "can_view_other_doctors_stats": other_docs,
+                        "can_view_all_patients": all_pats,
+                    },
+                )
+        return AIPermissionConfig.objects.all().order_by("role")

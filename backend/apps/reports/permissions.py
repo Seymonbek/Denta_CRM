@@ -11,7 +11,7 @@ from typing import Any
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 
-from apps.core.permissions import ROLE_BOSH_SHIFOKOR
+from apps.core.permissions import ROLE_ADMINISTRATOR, ROLE_BOSH_SHIFOKOR, ROLE_DOCTOR
 
 
 class IsHeadDoctor(BasePermission):
@@ -26,4 +26,28 @@ class IsHeadDoctor(BasePermission):
         return getattr(user, "role", None) == ROLE_BOSH_SHIFOKOR
 
 
-__all__ = ["IsHeadDoctor"]
+class IsDoctorOrHeadDoctor(BasePermission):
+    """Allows doctors and head doctor to access doctor performance analytics."""
+
+    message = "Faqat shifokor yoki bosh shifokor kirishi mumkin."
+
+    def has_permission(self, request: Request, view: Any) -> bool:
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+        return getattr(user, "role", None) in [ROLE_BOSH_SHIFOKOR, ROLE_DOCTOR]
+
+
+class IsAdminOrHeadDoctor(BasePermission):
+    """Allows administrator/receptionist and head doctor to access cash register analytics."""
+
+    message = "Faqat administrator yoki bosh shifokor kirishi mumkin."
+
+    def has_permission(self, request: Request, view: Any) -> bool:
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+        return getattr(user, "role", None) in [ROLE_BOSH_SHIFOKOR, ROLE_ADMINISTRATOR]
+
+
+__all__ = ["IsHeadDoctor", "IsDoctorOrHeadDoctor", "IsAdminOrHeadDoctor"]

@@ -253,23 +253,64 @@ export interface DoctorBadge {
 
 export interface DashboardReport {
   period: string
-  totalPatients: number
-  newPatientsCount: number
-  totalRevenue: string
-  totalAppointments: number
-  completedAppointments: number
-  cancelledAppointments: number
-  topProcedures: Array<{
-    procedureTypeId: string
-    procedureTypeName: string
-    count: number
-    revenue: string
+  range?: { start: string; end: string }
+  kpi?: {
+    revenue?: string | number
+    appointmentsTotal?: number
+    appointmentsCompleted?: number
+    newPatients?: number
+    lowStockCount?: number
+  }
+  totalRevenue?: string | number
+  total_revenue?: string | number
+  totalPatients?: number
+  total_patients?: number
+  newPatientsCount?: number
+  new_patients_count?: number
+  completedAppointments?: number
+  completed_appointments?: number
+  totalAppointments?: number
+  total_appointments?: number
+  cancelledAppointments?: number
+  cancelled_appointments?: number
+  appointmentsByStatus?: {
+    total?: number
+    scheduled?: number
+    confirmed?: number
+    in_progress?: number
+    completed?: number
+    cancelled?: number
+    no_show?: number
+  }
+  topProcedures?: Array<{
+    procedureTypeId?: string
+    name?: string
+    procedureTypeName?: string
+    count?: number
+    revenue?: string | number
   }>
-  departmentBreakdown: Array<{
-    departmentId: string
-    departmentName: string
-    revenue: string
-    patientCount: number
+  top_procedures?: Array<{
+    procedureTypeId?: string
+    name?: string
+    procedureTypeName?: string
+    count?: number
+    revenue?: string | number
+  }>
+  departmentBreakdown?: Array<{
+    departmentId?: string
+    name?: string
+    departmentName?: string
+    revenue?: string | number
+    treatments?: number
+    patientCount?: number
+  }>
+  department_breakdown?: Array<{
+    departmentId?: string
+    name?: string
+    departmentName?: string
+    revenue?: string | number
+    treatments?: number
+    patientCount?: number
   }>
 }
 

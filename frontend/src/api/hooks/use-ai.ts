@@ -29,8 +29,8 @@ export function useAIPermissions() {
 export function useUpdateAIPermission() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
-      updateAIPermissionConfigApi(id, enabled),
+    mutationFn: ({ id, ...payload }: { id: string } & Record<string, any>) =>
+      updateAIPermissionConfigApi(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ai', 'permissions'] })
     },

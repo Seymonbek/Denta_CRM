@@ -339,6 +339,197 @@ def departments_payload(period: Period) -> dict[str, Any]:
     }
 
 
+def doctor_my_analytics_payload(doctor_profile: Any, period: Period) -> dict[str, Any]:
+    """Calculate rich personal analytics for a specific doctor."""
+    from apps.scheduling.models import Appointment, AppointmentStatus
+    from apps.treatments.models import Treatment
+    from apps.payments.models import Payment
+
+    start, end = period_range(period)
+
+    # Doctor treatments in period
+    treatments_qs = Treatment.objects.filter(
+        doctor=doctor_profile,
+        created_at__gte=start,
+        created_at__lt=end,
+    )
+    total_treatments = treatments_qs.count()
+
+    total_revenue = (
+        treatments_qs.aggregate(total=Sum("price"))["total"] or _ZERO
+    )
+
+    # Doctor payments collected
+    doctor_patient_ids = treatments_qs.values_list("patient_id", flat=True).distinct()
+    payments_qs = Payment.objects.filter(
+        patient_id__in=doctor_patient_ids,
+        is_active=True,
+        created_at__gte=start,
+        created_at__lt=end,
+    )
+    paid_revenue = (
+        payments_qs.aggregate(total=Sum("amount"))["total"] or _ZERO
+    )
+    pending_revenue = max(_ZERO, total_revenue - paid_revenue)
+
+    # Doctor commission
+    commission_rate = getattr(doctor_profile, "commission_rate", Decimal("30.00"))
+    earned_commission = (total_revenue * Decimal(str(commission_rate))) / Decimal("100.00")
+
+    # Distinct patients treated by this doctor
+    distinct_patients_count = treatments_qs.values("patient").distinct().count()
+
+    # Procedure breakdown
+    procedure_counts = (
+        treatments_qs.values(name=F("procedure_type__name"))
+        .annotate(
+            count=Count("id"),
+            total_amount=Coalesce(
+                Sum("price"), _ZERO, output_field=DecimalField()
+            ),
+        )
+        .order_by("-count")[:10]
+    )
+    procedure_breakdown = [
+        {
+            "name": row["name"] or "Muolaja",
+            "count": row["count"],
+            "totalAmount": str(row["total_amount"]),
+        }
+        for row in procedure_counts
+    ]
+
+    # Appointments summary
+    appts_qs = Appointment.objects.filter(
+        doctor=doctor_profile,
+        scheduled_start__gte=start,
+        scheduled_start__lt=end,
+    )
+    total_appts = appts_qs.count()
+    completed_appts = appts_qs.filter(status=AppointmentStatus.COMPLETED).count()
+    scheduled_appts = appts_qs.filter(status=AppointmentStatus.SCHEDULED).count()
+    canceled_appts = appts_qs.filter(status=AppointmentStatus.CANCELLED).count()
+    cancellation_rate = round((canceled_appts / total_appts * 100), 1) if total_appts > 0 else 0.0
+
+    # Material usage & cost tracking for this doctor
+    from apps.inventory.models import MaterialUsage
+
+    mat_usages = MaterialUsage.objects.filter(
+        treatment__doctor=doctor_profile,
+        created_at__gte=start,
+        created_at__lt=end,
+    )
+    materials_used = []
+    total_material_cost = _ZERO
+    for usage in mat_usages:
+        material_price = getattr(usage.material, "unit_cost", None) or getattr(usage.material, "unit_price", None) or Decimal("0.00")
+        cost = Decimal(str(material_price)) * Decimal(str(usage.quantity_used))
+        total_material_cost += cost
+        materials_used.append({
+            "materialName": usage.material.name,
+            "quantity": str(usage.quantity_used),
+            "unit": usage.material.unit,
+            "totalCost": str(cost),
+        })
+
+    net_doctor_profit = max(_ZERO, total_revenue - total_material_cost)
+
+    return {
+        "period": period,
+        "range": {"start": _iso(start), "end": _iso(end)},
+        "doctorName": getattr(getattr(doctor_profile, "user", None), "get_full_name", lambda: "Shifokor")(),
+        "totalRevenue": str(total_revenue),
+        "paidRevenue": str(paid_revenue),
+        "pendingRevenue": str(pending_revenue),
+        "commissionRate": str(commission_rate),
+        "earnedCommission": str(earned_commission),
+        "totalPatientsTreated": distinct_patients_count,
+        "totalTreatmentsCount": total_treatments,
+        "procedureBreakdown": procedure_breakdown,
+        "appointments": {
+            "total": total_appts,
+            "completed": completed_appts,
+            "scheduled": scheduled_appts,
+            "canceled": canceled_appts,
+            "cancellationRatePercent": cancellation_rate,
+        },
+        "totalMaterialCost": str(total_material_cost),
+        "netDoctorProfit": str(net_doctor_profit),
+        "materialsUsed": materials_used,
+        "generatedAt": _iso(_tz_now()),
+    }
+
+
+def reception_analytics_payload(period: Period) -> dict[str, Any]:
+    """Calculate reception / cash register analytics."""
+    from apps.scheduling.models import Appointment, AppointmentStatus
+    from apps.payments.models import Payment
+    from apps.treatments.models import Treatment, PaymentStatus
+
+    start, end = period_range(period)
+
+    # Payments collected in period
+    payments_qs = Payment.objects.filter(
+        is_active=True,
+        created_at__gte=start,
+        created_at__lt=end,
+    )
+    total_cash_collected = payments_qs.aggregate(total=Sum("amount"))["total"] or _ZERO
+    payments_count = payments_qs.count()
+
+    by_method_qs = (
+        payments_qs.values("method")
+        .annotate(
+            total=Coalesce(Sum("amount"), _ZERO, output_field=DecimalField()),
+            count=Count("id"),
+        )
+        .order_by("-total")
+    )
+    by_method = [
+        {
+            "method": row["method"],
+            "total": str(row["total"]),
+            "count": row["count"],
+        }
+        for row in by_method_qs
+    ]
+
+    # Appointments checkin statistics
+    appts_qs = Appointment.objects.filter(
+        scheduled_start__gte=start,
+        scheduled_start__lt=end,
+    )
+    total_appts = appts_qs.count()
+    completed_appts = appts_qs.filter(status=AppointmentStatus.COMPLETED).count()
+    scheduled_appts = appts_qs.filter(status=AppointmentStatus.SCHEDULED).count()
+    canceled_appts = appts_qs.filter(status=AppointmentStatus.CANCELLED).count()
+
+    # Unpaid treatments debt tracking
+    unpaid_treatments = Treatment.objects.filter(
+        payment_status__in=[PaymentStatus.UNPAID, PaymentStatus.PARTIAL],
+        is_active=True,
+    )
+    unpaid_count = unpaid_treatments.count()
+    unpaid_total = unpaid_treatments.aggregate(total=Sum("price"))["total"] or _ZERO
+
+    return {
+        "period": period,
+        "range": {"start": _iso(start), "end": _iso(end)},
+        "totalPaymentsCollected": str(total_cash_collected),
+        "paymentsCount": payments_count,
+        "byMethod": by_method,
+        "appointments": {
+            "total": total_appts,
+            "completed": completed_appts,
+            "scheduled": scheduled_appts,
+            "canceled": canceled_appts,
+        },
+        "unpaidTreatmentsCount": unpaid_count,
+        "unpaidTreatmentsTotal": str(unpaid_total),
+        "generatedAt": _iso(_tz_now()),
+    }
+
+
 __all__ = [
     "Period",
     "VALID_PERIODS",
@@ -356,4 +547,6 @@ __all__ = [
     "revenue_payload",
     "procedures_payload",
     "departments_payload",
+    "doctor_my_analytics_payload",
+    "reception_analytics_payload",
 ]

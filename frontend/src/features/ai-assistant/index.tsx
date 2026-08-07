@@ -421,43 +421,104 @@ export function AIAssistantPage() {
               <Card className='shadow-sm'>
                 <CardHeader>
                   <CardTitle className='text-base font-bold flex items-center gap-2'>
-                    <Shield className='h-5 w-5 text-primary' /> Rollar bo'yicha AI Ruxsatlari
+                    <Shield className='h-5 w-5 text-primary' /> Rollar bo'yicha AI Ma'lumot Ruxsatlari
                   </CardTitle>
                   <CardDescription className='text-xs'>
-                    Qaysi lavozimdagi xodimlar AI yordamchisidan foydalana olishini boshqaring.
+                    Bosh Shifokor sifatida turli lavozimdagi xodimlar AI yordamchisida qaysi ma'lumotlarni ko'ra olishini boshqaring.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className='space-y-3'>
+                <CardContent className='space-y-6'>
                   {permissionsList.length === 0 ? (
-                    <div className='text-xs text-muted-foreground italic text-center py-4'>
-                      Ruxsatlar sozlamalari yuklanmoqda...
+                    <div className='text-xs text-muted-foreground italic text-center py-6'>
+                      AI ruxsatlar sozlamalari yuklanmoqda yoki ruxsatlar mavjud emas...
                     </div>
                   ) : (
                     permissionsList.map((p: any) => {
                       const roleLabel =
                         p.role === 'bosh_shifokor'
                           ? 'Bosh Shifokor'
-                          : p.role === 'admin'
-                          ? 'Administrator'
+                          : p.role === 'administrator' || p.role === 'admin'
+                          ? 'Administrator (Retseptsiya)'
                           : p.role === 'doctor'
                           ? 'Shifokor (Doctor)'
-                          : 'Retseptsiya (Reception)'
+                          : 'Xodim'
 
                       return (
                         <div
                           key={p.id || p.role}
-                          className='flex items-center justify-between rounded-xl border bg-muted/20 p-4'
+                          className='rounded-xl border bg-muted/20 p-5 space-y-4 shadow-xs'
                         >
-                          <div>
-                            <span className='font-bold text-sm'>{roleLabel}</span>
-                            <p className='text-xs text-muted-foreground font-mono'>Role code: {p.role}</p>
+                          <div className='flex items-center justify-between border-b pb-3'>
+                            <div>
+                              <div className='flex items-center gap-2'>
+                                <span className='font-bold text-sm text-foreground'>{roleLabel}</span>
+                                <Badge variant='outline' className='text-[10px] uppercase font-mono'>
+                                  {p.role}
+                                </Badge>
+                              </div>
+                              <p className='text-xs text-muted-foreground mt-0.5'>
+                                Ushbu rolga ega foydalanuvchilar uchun AI ma'lumot olish chegaralari
+                              </p>
+                            </div>
                           </div>
-                          <Switch
-                            checked={Boolean(p.enabled)}
-                            onCheckedChange={(checked) =>
-                              updatePermissionMutation.mutate({ id: p.id, enabled: checked })
-                            }
-                          />
+
+                          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs'>
+                            {/* Toggle 1: Financial Reports */}
+                            <div className='flex items-center justify-between p-3 rounded-lg border bg-card'>
+                              <div className='space-y-0.5 me-3'>
+                                <span className='font-semibold text-foreground'>💰 Moliyaviy Hisobotlar</span>
+                                <p className='text-[11px] text-muted-foreground'>Kassa tushumi va to'lovlar statistikasi</p>
+                              </div>
+                              <Switch
+                                checked={Boolean(p.canViewFinancialReports)}
+                                onCheckedChange={(checked) =>
+                                  updatePermissionMutation.mutate({ id: p.id, canViewFinancialReports: checked })
+                                }
+                              />
+                            </div>
+
+                            {/* Toggle 2: Inventory Costs */}
+                            <div className='flex items-center justify-between p-3 rounded-lg border bg-card'>
+                              <div className='space-y-0.5 me-3'>
+                                <span className='font-semibold text-foreground'>📦 Ombor Narxlari</span>
+                                <p className='text-[11px] text-muted-foreground'>Sklad qiymati va narxlash tahlillari</p>
+                              </div>
+                              <Switch
+                                checked={Boolean(p.canViewInventoryCosts)}
+                                onCheckedChange={(checked) =>
+                                  updatePermissionMutation.mutate({ id: p.id, canViewInventoryCosts: checked })
+                                }
+                              />
+                            </div>
+
+                            {/* Toggle 3: Other Doctors Stats */}
+                            <div className='flex items-center justify-between p-3 rounded-lg border bg-card'>
+                              <div className='space-y-0.5 me-3'>
+                                <span className='font-semibold text-foreground'>👨‍⚕️ Boshqa Shifokorlar Statistikasi</span>
+                                <p className='text-[11px] text-muted-foreground'>Hamkasblarining qabullari va KPI ma'lumoti</p>
+                              </div>
+                              <Switch
+                                checked={Boolean(p.canViewOtherDoctorsStats)}
+                                onCheckedChange={(checked) =>
+                                  updatePermissionMutation.mutate({ id: p.id, canViewOtherDoctorsStats: checked })
+                                }
+                              />
+                            </div>
+
+                            {/* Toggle 4: All Patients */}
+                            <div className='flex items-center justify-between p-3 rounded-lg border bg-card'>
+                              <div className='space-y-0.5 me-3'>
+                                <span className='font-semibold text-foreground'>👥 Barcha Bemorlar Kartalari</span>
+                                <p className='text-[11px] text-muted-foreground'>Klinikadagi barcha bemorlar qidiruvi va tarixi</p>
+                              </div>
+                              <Switch
+                                checked={Boolean(p.canViewAllPatients)}
+                                onCheckedChange={(checked) =>
+                                  updatePermissionMutation.mutate({ id: p.id, canViewAllPatients: checked })
+                                }
+                              />
+                            </div>
+                          </div>
                         </div>
                       )
                     })

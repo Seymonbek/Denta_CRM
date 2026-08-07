@@ -4,6 +4,8 @@ import {
   getRevenueReportApi,
   getProceduresReportApi,
   getDepartmentsReportApi,
+  getDoctorMyAnalyticsApi,
+  getReceptionAnalyticsApi,
 } from '../reports'
 
 export function useDashboardReport(period: string = 'month') {
@@ -31,5 +33,19 @@ export function useDepartmentsReport(period: string = 'month') {
   return useQuery({
     queryKey: ['reports', 'departments', period],
     queryFn: () => getDepartmentsReportApi(period),
+  })
+}
+
+export function useDoctorMyAnalytics(period: string = 'month', doctorId?: string) {
+  return useQuery({
+    queryKey: ['reports', 'doctor-my-analytics', period, doctorId || 'me'],
+    queryFn: () => getDoctorMyAnalyticsApi(period, doctorId),
+  })
+}
+
+export function useReceptionAnalytics(period: string = 'month') {
+  return useQuery({
+    queryKey: ['reports', 'reception-analytics', period],
+    queryFn: () => getReceptionAnalyticsApi(period),
   })
 }

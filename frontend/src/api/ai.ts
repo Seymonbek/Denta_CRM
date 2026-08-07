@@ -31,9 +31,11 @@ export interface AIInventorySummary {
 
 export interface AIPermissionConfig {
   id: string
-  role: 'bosh_shifokor' | 'admin' | 'doctor' | 'reception'
-  enabled: boolean
-  updatedAt: string
+  role: string
+  canViewInventoryCosts: boolean
+  canViewFinancialReports: boolean
+  canViewOtherDoctorsStats: boolean
+  canViewAllPatients: boolean
 }
 
 export async function postAIChatApi(message: string): Promise<AIChatResponse> {
@@ -53,14 +55,15 @@ export async function getAIInventorySummaryApi(): Promise<AIInventorySummary> {
 }
 
 export async function getAIPermissionConfigsApi(): Promise<AIPermissionConfig[]> {
-  const response = await apiClient.get<AIPermissionConfig[]>('ai/permissions/')
-  return response.data
+  const response = await apiClient.get<any>('ai/permissions/')
+  const results = Array.isArray(response.data) ? response.data : (response.data?.results || [])
+  return results
 }
 
 export async function updateAIPermissionConfigApi(
   id: string,
-  enabled: boolean
+  payload: Partial<AIPermissionConfig>
 ): Promise<AIPermissionConfig> {
-  const response = await apiClient.patch<AIPermissionConfig>(`ai/permissions/${id}/`, { enabled })
+  const response = await apiClient.patch<AIPermissionConfig>(`ai/permissions/${id}/`, payload)
   return response.data
 }

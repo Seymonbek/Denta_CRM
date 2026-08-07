@@ -15,8 +15,13 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .permissions import IsHeadDoctor
-from .selectors import VALID_PERIODS
+from apps.doctors.models import DoctorProfile
+from .permissions import IsAdminOrHeadDoctor, IsDoctorOrHeadDoctor, IsHeadDoctor
+from .selectors import (
+    VALID_PERIODS,
+    doctor_my_analytics_payload,
+    reception_analytics_payload,
+)
 from .services import (
     get_dashboard,
     get_departments,
@@ -131,9 +136,74 @@ class DepartmentsReportView(_BaseReportView):
         return Response(get_departments(period), status=status.HTTP_200_OK)
 
 
+class DoctorMyAnalyticsReportView(APIView):
+    """``GET /api/v1/reports/doctor-my-analytics/?period=day|week|month&doctor_id=…``."""
+
+    permission_classes = [IsDoctorOrHeadDoctor]
+    http_method_names = ["get", "head", "options"]
+
+    @extend_schema(
+        tags=["reports"],
+        parameters=[
+            _PERIOD_PARAM,
+            OpenApiParameter(
+                name="doctor_id",
+                required=False,
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Specific doctor ID (for Bosh Shifokor view).",
+            ),
+        ],
+        responses={200: OpenApiTypes.OBJECT},
+        summary="Get personal performance, earnings, commission, and material analytics for a doctor",
+    )
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        period = _period_from(request)
+        doc_profile = None
+
+        req_doc_id = request.query_params.get("doctor_id")
+        if req_doc_id:
+            doc_profile = DoctorProfile.objects.filter(pk=req_doc_id).first()
+
+        if not doc_profile and hasattr(request.user, "doctor_profile"):
+            doc_profile = request.user.doctor_profile
+
+        if not doc_profile:
+            doc_profile = DoctorProfile.objects.first()
+
+        if not doc_profile:
+            return Response(
+                {"detail": "Shifokor profili topilmadi."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        payload = doctor_my_analytics_payload(doc_profile, period)
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+class ReceptionAnalyticsReportView(APIView):
+    """``GET /api/v1/reports/reception-analytics/?period=day|week|month``."""
+
+    permission_classes = [IsAdminOrHeadDoctor]
+    http_method_names = ["get", "head", "options"]
+
+    @extend_schema(
+        tags=["reports"],
+        parameters=[_PERIOD_PARAM],
+        responses={200: OpenApiTypes.OBJECT},
+        summary="Get reception cash register, payment methods, and check-in analytics",
+    )
+    def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        period = _period_from(request)
+        payload = reception_analytics_payload(period)
+        return Response(payload, status=status.HTTP_200_OK)
+
+
 __all__ = [
     "DashboardReportView",
     "RevenueReportView",
     "ProceduresReportView",
     "DepartmentsReportView",
+    "DoctorMyAnalyticsReportView",
+    "ReceptionAnalyticsReportView",
 ]
