@@ -63,5 +63,22 @@
         select.options[0].text = "Harakatni tanlang...";
       }
     });
+
+    const updateCounter = () => {
+      const counters = document.querySelectorAll('.action-counter');
+      counters.forEach(c => {
+        const text = c.innerText;
+        if (text.includes('of') && text.includes('selected')) {
+          const parts = text.match(/(\d+)\s+of\s+(\d+)\s+selected/);
+          if (parts) {
+            c.innerText = `${parts[2]} tadan ${parts[1]} ta tanlandi`;
+          }
+        }
+      });
+    };
+
+    updateCounter();
+    document.addEventListener('change', updateCounter);
+    document.addEventListener('click', () => setTimeout(updateCounter, 50));
   });
 </script>
