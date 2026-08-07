@@ -160,7 +160,7 @@ def generate_ai_chat_response(query: str, user: Any) -> dict[str, Any]:
             client = genai.Client(api_key=api_key)
             prompt = f"{system_instructions}\n\nFoydalanuvchi savoli: {query}"
             
-            for model_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+            for model_name in ["gemini-flash-latest", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
