@@ -36,22 +36,48 @@ def _on_payment_saved(sender, instance: Payment, created: bool, **kwargs):
     if created and not instance.is_void:
         try:
             from apps.notifications.models import NotificationType
-            from apps.notifications.services import enqueue
+            from apps.notifications.services import enqueue, notify_roles
 
             patient = instance.treatment.patient
-            msg = (
-                f"Hurmatli {patient.first_name} {patient.last_name}, "
-                f"davolash muolajasi uchun {instance.amount:,.0f} so'm miqdoridagi "
-                f"to'lovingiz qabul qilindi. Rahmat!"
-            )
+            patient_name = f"{patient.first_name} {patient.last_name}"
+            amount_str = f"{instance.amount:,.0f}"
+
+            # 1. Patient Notification
+            msg_p = f"Hurmatli {patient_name}, davolash muolajasi uchun {amount_str} so'm miqdoridagi to'lovingiz qabul qilindi. Rahmat!"
             enqueue(
                 notification_type=NotificationType.PAYMENT_RECEIVED,
-                message=msg,
+                message=msg_p,
                 patient=patient,
                 context={
                     "payment_id": str(instance.pk),
                     "treatment_id": str(instance.treatment_id),
                     "amount": str(instance.amount),
+                },
+            )
+
+            # 2. Doctor Notification
+            doc_user = instance.treatment.doctor.user if instance.treatment and instance.treatment.doctor else None
+            if doc_user:
+                msg_d = f"💰 Bemoringiz {patient_name} {amount_str} so'm to'lov qildi."
+                enqueue(
+                    notification_type=NotificationType.PAYMENT_RECEIVED,
+                    message=msg_d,
+                    user=doc_user,
+                    context={
+                        "payment_id": str(instance.pk),
+                        "treatment_id": str(instance.treatment_id),
+                    },
+                )
+
+            # 3. Bosh Shifokor Multicast Notification
+            msg_bs = f"💰 Yangi to'lov qabul qilindi: {amount_str} so'm (Bemor: {patient_name})"
+            notify_roles(
+                ["bosh_shifokor"],
+                notification_type=NotificationType.PAYMENT_RECEIVED,
+                message=msg_bs,
+                context={
+                    "payment_id": str(instance.pk),
+                    "treatment_id": str(instance.treatment_id),
                 },
             )
         except Exception:  # noqa: BLE001

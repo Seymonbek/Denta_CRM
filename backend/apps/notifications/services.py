@@ -117,6 +117,33 @@ def enqueue(
     return log
 
 
+def notify_roles(
+    roles: list[str],
+    *,
+    notification_type: str,
+    message: str,
+    context: dict[str, Any] | None = None,
+) -> list[NotificationLog]:
+    """Enqueue notifications to all active users matching any of the specified roles."""
+    from apps.accounts.models import User
+    users = User.objects.filter(role__in=roles, is_active=True)
+    logs = []
+    for u in users:
+        ch = NotificationChannel.TELEGRAM if getattr(u, "telegram_chat_id", None) else NotificationChannel.IN_APP
+        try:
+            log = enqueue(
+                notification_type=notification_type,
+                message=message,
+                user=u,
+                channel=ch,
+                context=context,
+            )
+            logs.append(log)
+        except Exception as err:
+            logger.warning("notifications: failed to enqueue for user %s: %s", u.pk, err)
+    return logs
+
+
 # ---------------------------------------------------------------------------
 # mark_sent / mark_failed
 # ---------------------------------------------------------------------------

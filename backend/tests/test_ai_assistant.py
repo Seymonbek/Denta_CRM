@@ -61,6 +61,24 @@ def test_inventory_analytics_detects_low_stock(low_stock_material):
     assert any(item["name"] == "Plomba materiali A1" for item in items)
 
 
+def test_ai_chat_doctor_query(bosh_shifokor, db):
+    from apps.doctors.models import DoctorProfile
+    DoctorProfile.objects.create(
+        user=bosh_shifokor,
+        specialization="Stomatolog-Ortoped",
+    )
+    res = generate_ai_chat_response("menda doktorlar haqida to'liq malumot ber", bosh_shifokor)
+    assert "answer" in res
+    assert "Shifokorlari Ro'yxati" in res["answer"] or "👨‍⚕️" in res["answer"]
+    assert "Bosh Shifokor" in res["answer"]
+
+
+def test_ai_chat_greeting_query(bosh_shifokor):
+    res = generate_ai_chat_response("Salom", bosh_shifokor)
+    assert "Assalomu alaykum" in res["answer"]
+    assert "Bosh Shifokor" in res["answer"]
+
+
 def test_generate_ai_chat_response_rule_fallback(bosh_shifokor, low_stock_material):
     response = generate_ai_chat_response("Omborda nimalar kam qolgan?", bosh_shifokor)
     assert response["source"] in {"crm-smart-assistant", "gemini-ai"}
@@ -87,10 +105,10 @@ def test_ai_inventory_summary_api_endpoint(bosh_shifokor, low_stock_material):
 
     res = client.get("/api/v1/ai/inventory-summary/")
     assert res.status_code == status.HTTP_200_OK
-    assert res.data["lowStockCount"] >= 1
+    assert res.data["lowStockItemsCount"] >= 1
     assert any(
         item["name"] == "Plomba materiali A1"
-        for item in res.data["lowStockItems"]
+        for item in res.data["criticalItems"]
     )
 
 

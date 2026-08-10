@@ -3,14 +3,11 @@ import { AuthenticatedLayout } from '@/components/layout/authenticated-layout'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated')({
-  beforeLoad: ({ location }) => {
+  beforeLoad: () => {
     const token = useAuthStore.getState().accessToken
     if (!token) {
       throw redirect({
         to: '/sign-in',
-        search: {
-          redirect: location.href,
-        },
       })
     }
   },

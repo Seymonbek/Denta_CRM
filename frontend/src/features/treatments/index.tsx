@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { Plus, Camera, FileText } from 'lucide-react'
+import { Plus, Camera, FileText, Activity, Search } from 'lucide-react'
 import { format } from 'date-fns'
+import { MobileImageUploader } from '@/components/ui/mobile-image-uploader'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import {
   useTreatments,
   useCreateTreatment,
@@ -302,37 +304,35 @@ export function TreatmentsList() {
                 </Select>
               </div>
 
-              <div className='grid grid-cols-2 gap-3'>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Bemor *</label>
-                  <Select value={patientId} onValueChange={setPatientId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Bemor' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {patients.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.firstName || p.first_name} {p.lastName || p.last_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={patients.map((p: any) => ({
+                      value: String(p.id),
+                      label: `${p.firstName || p.first_name || ''} ${p.lastName || p.last_name || ''}`,
+                      sublabel: p.phoneNumber || p.phone_number || '',
+                    }))}
+                    value={patientId}
+                    onValueChange={setPatientId}
+                    placeholder='Bemor tanlang...'
+                    searchPlaceholder='Bemor ismi...'
+                  />
                 </div>
 
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Shifokor *</label>
-                  <Select value={doctorId} onValueChange={setDoctorId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Shifokor' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {doctors.map((d: any) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          Dr. {d.user?.firstName || d.user?.first_name || ''} {d.user?.lastName || d.user?.last_name || ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={doctors.map((d: any) => ({
+                      value: String(d.id),
+                      label: `Dr. ${d.user?.firstName || d.user?.first_name || ''} ${d.user?.lastName || d.user?.last_name || ''}`,
+                      sublabel: d.specialization || 'Stomatolog',
+                    }))}
+                    value={doctorId}
+                    onValueChange={setDoctorId}
+                    placeholder='Shifokor tanlang...'
+                    searchPlaceholder='Shifokor...'
+                  />
                 </div>
               </div>
 
@@ -442,12 +442,10 @@ export function TreatmentsList() {
               </div>
 
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>Faylni tanlang</label>
-                <Input
-                  type='file'
-                  accept='image/*'
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                  required
+                <label className='text-xs font-medium mb-1 block'>Foto Tayyorlash / Kamera</label>
+                <MobileImageUploader
+                  onFileSelect={(file) => setSelectedFile(file)}
+                  selectedFile={selectedFile}
                 />
               </div>
 

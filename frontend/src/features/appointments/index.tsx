@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Calendar, Clock, User, Stethoscope, Search } from 'lucide-react'
+import { confirmSwal } from '@/lib/sweetalert'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { format } from 'date-fns'
 import {
   useAppointments,
@@ -130,6 +132,13 @@ export function AppointmentsList() {
   }
 
   const handleCancel = async (id: string) => {
+    const isConfirmed = await confirmSwal({
+      title: "Navbatni bekor qilmoqchimisiz?",
+      text: "Ushbu navbat bekor qilinadi va bemorga SMS/Telegram habar yuboriladi.",
+      confirmButtonText: "Ha, bekor qilaman",
+    })
+    if (!isConfirmed) return
+
     try {
       await cancelAppointmentMutation.mutateAsync({ id, reason: 'Mijoz so’rovi bo’yicha' })
       toast.success('Navbat bekor qilindi.')
@@ -178,9 +187,9 @@ export function AppointmentsList() {
           </Select>
         </div>
 
-        {/* Appointments Table */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
-          <Table>
+        {/* Data Table with Mobile Horizontal Scroll */}
+        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
+          <Table className='min-w-[650px] sm:min-w-full'>
             <TableHeader>
               <TableRow className='bg-muted/30'>
                 <TableHead className='text-xs font-semibold'>Bemor</TableHead>
@@ -264,24 +273,23 @@ export function AppointmentsList() {
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Bemor *</label>
-                  <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Bemor tanlang' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {patients.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.firstName || p.first_name} {p.lastName || p.last_name} ({p.phoneNumber || p.phone_number})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={patients.map((p: any) => ({
+                      value: String(p.id),
+                      label: `${p.firstName || p.first_name || ''} ${p.lastName || p.last_name || ''}`,
+                      sublabel: p.phoneNumber || p.phone_number || '',
+                    }))}
+                    value={selectedPatientId}
+                    onValueChange={setSelectedPatientId}
+                    placeholder='Bemor tanlang...'
+                    searchPlaceholder='Bemor ism yoki tel...'
+                  />
                 </div>
 
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Bo'lim *</label>
                   <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
-                    <SelectTrigger>
+                    <SelectTrigger className='text-xs h-9'>
                       <SelectValue placeholder='Bo’lim tanlang' />
                     </SelectTrigger>
                     <SelectContent>
@@ -298,18 +306,17 @@ export function AppointmentsList() {
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Shifokor *</label>
-                  <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Shifokor tanlang' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {doctors.map((doc: any) => (
-                        <SelectItem key={doc.id} value={doc.id}>
-                          Dr. {doc.user?.firstName || doc.user?.first_name || ''} {doc.user?.lastName || doc.user?.last_name || ''} ({doc.specialization})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={doctors.map((doc: any) => ({
+                      value: String(doc.id),
+                      label: `Dr. ${doc.user?.firstName || doc.user?.first_name || ''} ${doc.user?.lastName || doc.user?.last_name || ''}`,
+                      sublabel: doc.specialization || 'Stomatolog',
+                    }))}
+                    value={selectedDoctorId}
+                    onValueChange={setSelectedDoctorId}
+                    placeholder='Shifokor tanlang...'
+                    searchPlaceholder='Shifokor ismini yozing...'
+                  />
                 </div>
 
                 <div className='space-y-1'>

@@ -134,7 +134,7 @@ def doctor(doctor_user, department):
 def other_doctor(other_doctor_user, department):
     profile = DoctorProfile.objects.create(
         user=other_doctor_user,
-        specialization="Boshqa",
+        specialization="Ortoped",
         commission_basis=CommissionBasis.FROM_TOTAL,
         default_commission_rate=Decimal("30.00"),
     )
@@ -606,6 +606,16 @@ def test_reminder_2hour_window(patient, doctor, department, administrator):
     now = timezone.now()
     start = now + timedelta(hours=2)
     end = start + timedelta(minutes=30)
+    start_local = timezone.localtime(start)
+    end_local = timezone.localtime(end)
+    WorkingHours.objects.update_or_create(
+        doctor=doctor,
+        weekday=start_local.weekday(),
+        defaults={
+            "start_time": time(0, 0),
+            "end_time": time(23, 59, 59),
+        },
+    )
     create_appointment(
         patient=patient,
         doctor=doctor,

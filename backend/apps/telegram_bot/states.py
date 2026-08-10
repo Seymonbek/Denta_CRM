@@ -1,10 +1,9 @@
-"""FSM states for the staff Telegram bot flows."""
+"""FSM States for Telegram bot flows (Phone auth, Appointment booking, AI chat mode)."""
 from __future__ import annotations
 
 try:
     from aiogram.fsm.state import State, StatesGroup
-except Exception:  # pragma: no cover - aiogram absent in some test envs
-    # Fallback dummies so importing this module never crashes.
+except Exception:  # pragma: no cover - aiogram absent in test envs
     class _StateStub:
         pass
 
@@ -15,10 +14,23 @@ except Exception:  # pragma: no cover - aiogram absent in some test envs
 
 
 class PhoneVerification(StatesGroup):
-    """Multi-step flow: user shares phone → OTP → link chat_id."""
+    """Multi-step flow: user shares phone → link chat_id."""
 
     waiting_for_phone = State()
-    waiting_for_otp = State()
 
 
-__all__ = ["PhoneVerification"]
+class BookingFlow(StatesGroup):
+    """Interactive FSM for patient booking appointment."""
+
+    selecting_doctor = State()
+    selecting_date = State()
+    selecting_slot = State()
+
+
+class AIChatState(StatesGroup):
+    """Interactive continuous AI assistant chat mode."""
+
+    in_chat = State()
+
+
+__all__ = ["PhoneVerification", "BookingFlow", "AIChatState"]

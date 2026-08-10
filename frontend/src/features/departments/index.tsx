@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Plus, Building2, Trash2, Edit2 } from 'lucide-react'
+import { Plus, Building2, Trash2, Edit2, Search } from 'lucide-react'
+import { confirmSwal } from '@/lib/sweetalert'
 import {
   useDepartments,
   useCreateDepartment,
@@ -36,6 +37,7 @@ export function DepartmentsList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingDept, setEditingDept] = useState<Department | null>(null)
 
+  const [searchTerm, setSearchTerm] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
 
@@ -45,6 +47,11 @@ export function DepartmentsList() {
     : Array.isArray(departmentsData)
     ? departmentsData
     : []
+
+  const filteredDepartments = departments.filter((d: any) => {
+    const text = (d.name || '') + (d.description || '')
+    return text.toLowerCase().includes(searchTerm.toLowerCase())
+  })
 
   const createDeptMutation = useCreateDepartment()
   const updateDeptMutation = useUpdateDepartment()
@@ -89,7 +96,13 @@ export function DepartmentsList() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Haqiqatdan ham ushbu bo'limni o'chirmoqchimisiz?")) return
+    const isConfirmed = await confirmSwal({
+      title: "Bo'limni o'chirmoqchimisiz?",
+      text: "Ushbu bo'lim o'chiriladi va unga biriktirilgan ma'lumotlar yangilanadi.",
+      confirmButtonText: "Ha, o'chiraman",
+    })
+    if (!isConfirmed) return
+
     try {
       await deleteDeptMutation.mutateAsync(id)
       toast.success("Bo'lim o'chirildi.")
@@ -102,7 +115,8 @@ export function DepartmentsList() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>🏥 Bo'limlar Boshqaruvi</span>
+          <Building2 className='h-5 w-5 text-primary' />
+          <span>Bo'limlar Boshqaruvi</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -111,14 +125,27 @@ export function DepartmentsList() {
       <Main>
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>Klinika Bo'limlari</h1>
-            <p className='text-xs text-muted-foreground'>
+            <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
+              <Building2 className='h-6 w-6 text-primary' /> Klinika Bo'limlari
+            </h1>
+            <p className='text-xs text-muted-foreground mt-1'>
               Terapiya, Ortopediya, Jarrohlik va boshqa bo'limlar hamda ularning tavsifi.
             </p>
           </div>
-          <Button onClick={handleOpenCreate} className='shadow'>
-            <Plus className='me-2 h-4 w-4' /> Yangi Bo'lim Qo'shish
+          <Button onClick={handleOpenCreate} className='shadow text-xs font-bold gap-1.5'>
+            <Plus className='h-4 w-4' /> Yangi Bo'lim Qo'shish
           </Button>
+        </div>
+
+        {/* Search Toolbar */}
+        <div className='mb-4 relative w-full sm:w-80'>
+          <Search className='absolute left-3 top-2.5 h-4 w-4 text-muted-foreground' />
+          <Input
+            placeholder="Bo'lim nomi bo'yicha qidiruv..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className='ps-9 text-xs h-9'
+          />
         </div>
 
         {/* Table */}

@@ -85,7 +85,7 @@ def reset_bot() -> None:
     _bot_instance = None
 
 
-def send_message_sync(*, chat_id: int, text: str) -> int | None:
+def send_message_sync(*, chat_id: int, text: str, reply_markup: Any = None) -> int | None:
     """Send a message synchronously; returns the Telegram ``message_id``.
 
     Wraps the async Aiogram call in :func:`asyncio.run`. Safe to call
@@ -94,7 +94,8 @@ def send_message_sync(*, chat_id: int, text: str) -> int | None:
     bot = get_bot()
 
     async def _send() -> int | None:
-        result = await bot.send_message(chat_id=chat_id, text=text)
+        kwargs = {"reply_markup": reply_markup} if reply_markup else {}
+        result = await bot.send_message(chat_id=chat_id, text=text, **kwargs)
         return getattr(result, "message_id", None)
 
     try:

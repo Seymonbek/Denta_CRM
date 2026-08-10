@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, CalendarX, Plus } from 'lucide-react'
+import { Clock, CalendarX, Plus, Stethoscope, Search } from 'lucide-react'
 import {
   useDoctors,
   useWorkingHours,
@@ -50,12 +50,18 @@ const WEEKDAYS = [
 ]
 
 export function DoctorsList() {
+  const [searchTerm, setSearchTerm] = useState('')
   const { data: doctorsData = [], isLoading } = useDoctors()
-  const doctors = Array.isArray(doctorsData?.results)
+  const doctorsList = Array.isArray(doctorsData?.results)
     ? doctorsData.results
     : Array.isArray(doctorsData)
     ? doctorsData
     : []
+
+  const filteredDoctors = doctorsList.filter((doc: any) => {
+    const name = (doc?.user?.firstName || doc?.user?.first_name || '') + ' ' + (doc?.user?.lastName || doc?.user?.last_name || '') + ' ' + (doc?.specialization || '')
+    return name.toLowerCase().includes(searchTerm.toLowerCase())
+  })
 
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorProfile | null>(null)
 
@@ -115,7 +121,8 @@ export function DoctorsList() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>👨‍⚕️ Shifokorlar Ro'yxati</span>
+          <Stethoscope className='h-5 w-5 text-primary' />
+          <span>Shifokorlar Ro'yxati</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -124,16 +131,29 @@ export function DoctorsList() {
       <Main>
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>Klinika Shifokorlari</h1>
-            <p className='text-xs text-muted-foreground'>
+            <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
+              <Stethoscope className='h-6 w-6 text-primary' /> Klinika Shifokorlari
+            </h1>
+            <p className='text-xs text-muted-foreground mt-1'>
               Shifokorlar profili, mutaxassislik, komissiya stavkalari va ish jadvallari.
             </p>
           </div>
         </div>
 
-        {/* Doctors Table */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
-          <Table>
+        {/* Search Toolbar */}
+        <div className='mb-4 relative w-full sm:w-80'>
+          <Search className='absolute left-3 top-2.5 h-4 w-4 text-muted-foreground' />
+          <Input
+            placeholder="Shifokor ismi yoki mutaxassislik..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className='ps-9 text-xs h-9'
+          />
+        </div>
+
+        {/* Doctors Table with Mobile Responsive Horizontal Scroll */}
+        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
+          <Table className='min-w-[650px] sm:min-w-full'>
             <TableHeader>
               <TableRow className='bg-muted/30'>
                 <TableHead className='text-xs font-semibold'>Shifokor Ismi</TableHead>
@@ -151,14 +171,14 @@ export function DoctorsList() {
                     Shifokorlar yuklanmoqda...
                   </TableCell>
                 </TableRow>
-              ) : doctors.length === 0 ? (
+              ) : filteredDoctors.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className='text-center py-8 text-xs text-muted-foreground'>
-                    Shifokorlar topilmadi.
+                    Hech qanday shifokor topilmadi.
                   </TableCell>
                 </TableRow>
               ) : (
-                doctors.map((doc: any) => {
+                filteredDoctors.map((doc: any) => {
                   const firstName = doc?.user?.firstName || doc?.user?.first_name || 'Shifokor'
                   const lastName = doc?.user?.lastName || doc?.user?.last_name || ''
                   const phoneNumber = doc?.user?.phoneNumber || doc?.user?.phone_number || ''

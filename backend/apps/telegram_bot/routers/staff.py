@@ -1,263 +1,426 @@
-"""Staff bot routes — links a User's telegram_chat_id to their account.
-
-Flow:
-
-1. Staff sends ``/start`` → bot asks for phone number via one-time
-   keyboard.
-2. Staff shares contact → bot creates an OTP tied to the matching User.
-3. Staff sends ``/link <otp-code>`` → bot links ``telegram_chat_id`` to
-   the User and confirms.
-
-All handlers use synchronous ORM inside :func:`sync_to_async` so the
-router remains fully async-compatible.
-"""
+"""Staff Telegram Bot Router — Role-based menus for Doctors & Admins, Interactive AI Chat Mode, Stock & Finance reports."""
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from asgiref.sync import sync_to_async
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
 try:
     from aiogram import F, Router
-    from aiogram.filters import Command
+    from aiogram.filters import Command, StateFilter
+    from aiogram.fsm.context import FSMContext
     from aiogram.types import Message
 except Exception:  # pragma: no cover - aiogram absent
     F = None  # type: ignore[assignment,misc]
     Router = None  # type: ignore[assignment,misc]
     Command = None  # type: ignore[assignment,misc]
+    StateFilter = None  # type: ignore[assignment,misc]
     Message = object  # type: ignore[assignment,misc]
+    FSMContext = Any  # type: ignore[misc]
 
-from ..keyboards import remove_keyboard, share_phone_keyboard  # noqa: E402
-from ..states import PhoneVerification  # noqa: E402
+from ..helpers import (  # noqa: E402
+    format_appointments_list,
+    format_daily_financial_summary,
+    format_stock_report,
+    get_chat_identity,
+)
+from ..keyboards import (  # noqa: E402
+    admin_main_keyboard,
+    ai_mode_keyboard,
+    doctor_main_keyboard,
+    remove_keyboard,
+    share_phone_keyboard,
+)
+from ..states import AIChatState, PhoneVerification  # noqa: E402
 
 
 def build_router():
-    """Return a configured aiogram :class:`Router` for staff handlers.
-
-    Returns ``None`` when aiogram is not installed so the function is
-    safe to import from environments that only need the sender helpers.
-    """
+    """Return configured Router for staff (doctor/admin) handlers."""
     if Router is None:
         return None
     router = Router(name="staff")
 
-    @router.message(Command("start"))
-    async def on_start(message: Message, state) -> None:  # type: ignore[valid-type]
-        await state.set_state(PhoneVerification.waiting_for_phone)
+    # -----------------------------------------------------------------------
+    # Helper to send role keyboard
+    # -----------------------------------------------------------------------
+    async def _send_role_main_menu(message: Message, role: str, name: str) -> None:
+        role_titles = {
+            "bosh_shifokor": "👨‍⚕️ Bosh Shifokor",
+            "doctor": "🩺 Shifokor",
+            "administrator": "👔 Administrator",
+        }
+        title = role_titles.get(role, "Xodim")
+        kb = admin_main_keyboard() if role in ["bosh_shifokor", "administrator"] else doctor_main_keyboard()
+
         await message.answer(
-            "Assalomu alaykum! DentaCRM xodimlar bot'ida ro'yxatdan o'tish "
-            "uchun telefon raqamingizni ulashing.",
-            reply_markup=share_phone_keyboard(),
+            f"Assalomu alaykum, <b>{name}</b> ({title})!\n\nDentaCRM xodimlar paneliga xush kelibsiz.",
+            reply_markup=kb,
+            parse_mode="HTML",
         )
 
-    @router.message(F.contact)  # type: ignore[union-attr]
-    async def on_contact(message: Message, state) -> None:  # type: ignore[valid-type]
+    # -----------------------------------------------------------------------
+    # /start & Phone linking
+    # -----------------------------------------------------------------------
+    @router.message(Command("start"))
+    async def on_start(message: Message, state: FSMContext) -> None:
+        await state.clear()
+        chat_id = getattr(message.chat, "id", None)
+        identity = await sync_to_async(get_chat_identity)(chat_id)
+
+        if identity["type"] == "staff":
+            await _send_role_main_menu(message, identity["role"], identity["name"])
+        else:
+            await state.set_state(PhoneVerification.waiting_for_phone)
+            await message.answer(
+                "Assalomu alaykum! DentaCRM xodimlar bot'ida ro'yxatdan o'tish "
+                "uchun telefon raqamingizni ulashing.",
+                reply_markup=share_phone_keyboard(),
+                parse_mode="HTML",
+            )
+
+    @router.message(F.contact)
+    async def on_contact(message: Message, state: FSMContext) -> None:
         contact = message.contact
         phone_raw = getattr(contact, "phone_number", "") or ""
         chat_id = getattr(message.chat, "id", None)
 
-        result = await sync_to_async(_start_otp_link)(phone_raw, chat_id)
-        if result.get("status") == "not_found":
+        result = await sync_to_async(_link_staff_chat)(phone_raw, chat_id)
+        result = await sync_to_async(_link_staff_chat, thread_sensitive=False)(phone_raw, chat_id)
+        if result["status"] == "ok":
+            await state.clear()
+            await _send_role_main_menu(message, result["role"], result["name"])
+        else:
             await message.answer(
-                "Bu raqam bilan foydalanuvchi topilmadi. Iltimos, administrator bilan bog'laning.",
+                "⚠️ Ushbu raqam bilan xodim topilmadi.\nIltimos, administrator bilan bog'laning.",
                 reply_markup=remove_keyboard(),
             )
-            await state.clear()
-            return
 
-        await state.update_data(user_id=result["user_id"])
-        await state.set_state(PhoneVerification.waiting_for_otp)
-        await message.answer(
-            "Telefonga OTP kod yubordik. Iltimos, ``/link <kod>`` ko'rinishida yuboring.",
-            reply_markup=remove_keyboard(),
-        )
-
-    @router.message(Command("link"))
-    async def on_link(message: Message, state) -> None:  # type: ignore[valid-type]
-        text = (message.text or "").strip()
-        parts = text.split(maxsplit=1)
-        if len(parts) < 2:
-            await message.answer("Foydalanish: /link <OTP-kod>")
-            return
-
-        code = parts[1].strip()
-        data = await state.get_data()
-        user_id = data.get("user_id")
-        chat_id = getattr(message.chat, "id", None)
-
-        result = await sync_to_async(_confirm_otp_link)(user_id, code, chat_id)
-        if result["status"] == "ok":
-            await message.answer(
-                f"Ro'yxatdan o'tdingiz! Xush kelibsiz, {result['name']}."
-            )
-        elif result["status"] == "expired":
-            await message.answer("OTP muddati o'tgan. /start bilan qayta boshlang.")
-        elif result["status"] == "invalid":
-            await message.answer("Kod noto'g'ri. Qayta urinib ko'ring.")
-        else:
-            await message.answer("Xatolik yuz berdi. Administrator bilan bog'laning.")
-        await state.clear()
-
-    @router.message(Command("stock"))
-    async def on_stock(message: Message) -> None:
-        chat_id = getattr(message.chat, "id", None)
-        text = await sync_to_async(_get_telegram_stock_report)(chat_id)
-        await message.answer(text)
-
+    # -----------------------------------------------------------------------
+    # Menu Actions: Appointments & Stock
+    # -----------------------------------------------------------------------
     @router.message(Command("appointments"))
+    @router.message(F.text.in_(["📋 Bugungi Navbatlar", "📋 Barcha Navbatlar"]))
     async def on_appointments(message: Message) -> None:
         chat_id = getattr(message.chat, "id", None)
-        text = await sync_to_async(_get_telegram_appointments_report)(chat_id)
-        await message.answer(text)
+        text = await sync_to_async(_get_telegram_appointments_report_html, thread_sensitive=False)(chat_id)
+        identity = await sync_to_async(get_chat_identity, thread_sensitive=False)(chat_id)
+        kb = admin_main_keyboard() if identity.get("role") in ["bosh_shifokor", "administrator"] else doctor_main_keyboard()
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
-    @router.message(Command("ai"))
-    async def on_ai_query(message: Message) -> None:
+    @router.message(Command("stock"))
+    @router.message(F.text.in_(["📦 Ombor Holati", "📦 Ombor Qoldig'i"]))
+    async def on_stock(message: Message) -> None:
         chat_id = getattr(message.chat, "id", None)
+        text = await sync_to_async(_get_telegram_stock_report_html, thread_sensitive=False)(chat_id)
+        identity = await sync_to_async(get_chat_identity, thread_sensitive=False)(chat_id)
+        kb = admin_main_keyboard() if identity.get("role") in ["bosh_shifokor", "administrator"] else doctor_main_keyboard()
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+    @router.message(F.text & (F.text.contains("Tushum") | F.text.contains("Reyting")))
+    async def on_financial_report(message: Message) -> None:
+        chat_id = getattr(message.chat, "id", None)
+        text_raw = (message.text or "")
+        if "Oylik" in text_raw or "Reyting" in text_raw:
+            text = await sync_to_async(_get_telegram_monthly_financial_html, thread_sensitive=False)(chat_id)
+        else:
+            text = await sync_to_async(_get_telegram_daily_financial_html, thread_sensitive=False)(chat_id)
+        await message.answer(text, reply_markup=admin_main_keyboard(), parse_mode="HTML")
+
+    # -----------------------------------------------------------------------
+    # Doctor Inline Appointment Status Callbacks
+    # -----------------------------------------------------------------------
+    @router.callback_query(F.data.startswith("doc_app_progress:"))
+    async def on_doc_set_in_progress(callback: CallbackQuery) -> None:
+        await callback.answer("Jarayonga o'tkazildi.")
+        app_id = callback.data.split(":")[1]
+        ok = await sync_to_async(_update_appointment_status, thread_sensitive=False)(app_id, "in_progress")
+        if ok:
+            await callback.message.edit_text(f"🩺 Navbat <b>Jarayonda</b> holatiga o'tkazildi. (ID: #{app_id})", parse_mode="HTML")
+        else:
+            await callback.message.edit_text("⚠️ Navbat topilmadi.")
+
+    @router.callback_query(F.data.startswith("doc_app_noshow:"))
+    async def on_doc_set_no_show(callback: CallbackQuery) -> None:
+        await callback.answer("Kelmadi sifatida belgilandi.")
+        app_id = callback.data.split(":")[1]
+        ok = await sync_to_async(_update_appointment_status, thread_sensitive=False)(app_id, "no_show")
+        if ok:
+            await callback.message.edit_text(f"⚠️ Navbat <b>Kelmadi</b> sifatida belgilandi. (ID: #{app_id})", parse_mode="HTML")
+        else:
+            await callback.message.edit_text("⚠️ Navbat topilmadi.")
+
+    @router.callback_query(F.data.startswith("doc_app_complete:"))
+    async def on_doc_set_complete(callback: CallbackQuery) -> None:
+        await callback.answer("Yakunlandi.")
+        app_id = callback.data.split(":")[1]
+        ok = await sync_to_async(_update_appointment_status, thread_sensitive=False)(app_id, "completed")
+        if ok:
+            await callback.message.edit_text(f"✔️ Navbat muvaffaqiyatli <b>Yakunlandi</b>! (ID: #{app_id})", parse_mode="HTML")
+        else:
+            await callback.message.edit_text("⚠️ Navbat topilmadi.")
+
+    @router.message(F.text == "⚙️ Akkaunt")
+    async def on_account_info(message: Message) -> None:
+        chat_id = getattr(message.chat, "id", None)
+        identity = await sync_to_async(get_chat_identity, thread_sensitive=False)(chat_id)
+        if identity["type"] != "staff":
+            await message.answer("Akkaunt ulanmagan.", reply_markup=share_phone_keyboard())
+            return
+        
+        user = identity["object"]
+        text = (
+            f"<b>⚙️ Akkaunt Ma'lumotlari</b>\n\n"
+            f"👤 <b>F.I.SH:</b> {user.get_full_name()}\n"
+            f"📞 <b>Telefon:</b> {user.phone_number}\n"
+            f"📌 <b>Rol:</b> {user.get_role_display()}\n"
+            f"💬 <b>Telegram ID:</b> <code>{user.telegram_chat_id}</code>"
+        )
+        kb = admin_main_keyboard() if identity.get("role") in ["bosh_shifokor", "administrator"] else doctor_main_keyboard()
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+    # -----------------------------------------------------------------------
+    # Interactive AI Assistant Chat Mode (FSM)
+    # -----------------------------------------------------------------------
+    @router.message(Command("ai"))
+    @router.message(F.text == "🤖 AI Yordamchi")
+    async def start_ai_chat_mode(message: Message, state: FSMContext) -> None:
         text_raw = (message.text or "").strip()
+        chat_id = getattr(message.chat, "id", None)
+
+        if text_raw in ["🤖 AI Yordamchi", "/ai"]:
+            await state.set_state(AIChatState.in_chat)
+            await message.answer(
+                "🤖 <b>AI Yordamchi Chat Rejimi Faollashtirildi!</b>\n\n"
+                "Klinika ombori, bemorlar, navbatlar va moliya bo'yicha har qanday savolingizni yozing.\n"
+                "<i>(Tugatish uchun quyidagi '❌ AI Chat Rejimini Yakunlash' tugmasini bosing)</i>",
+                reply_markup=ai_mode_keyboard(),
+                parse_mode="HTML",
+            )
+            return
+
         parts = text_raw.split(maxsplit=1)
-        query = parts[1].strip() if len(parts) > 1 else "Ombor holati haqida ma'lumot bering"
-        answer = await sync_to_async(_process_telegram_ai_query)(chat_id, query)
-        await message.answer(answer)
+        if len(parts) > 1 and parts[0].lower() in ["/ai", "ai"]:
+            query = parts[1].strip()
+            answer = await sync_to_async(_process_telegram_ai_query, thread_sensitive=False)(chat_id, query)
+            await message.answer(answer, parse_mode="HTML")
+            return
+
+        await state.set_state(AIChatState.in_chat)
+        await message.answer(
+            "🤖 <b>AI Yordamchi Chat Rejimi Faollashtirildi!</b>\n\n"
+            "Klinika ombori, bemorlar, navbatlar va moliya bo'yicha har qanday savolingizni yozing.\n"
+            "<i>(Tugatish uchun quyidagi '❌ AI Chat Rejimini Yakunlash' tugmasini bosing)</i>",
+            reply_markup=ai_mode_keyboard(),
+            parse_mode="HTML",
+        )
+
+    @router.message(F.text == "❌ AI Chat Rejimini Yakunlash", StateFilter(AIChatState.in_chat))
+    async def exit_ai_chat_mode(message: Message, state: FSMContext) -> None:
+        await state.clear()
+        chat_id = getattr(message.chat, "id", None)
+        identity = await sync_to_async(get_chat_identity, thread_sensitive=False)(chat_id)
+        kb = admin_main_keyboard() if identity.get("role") in ["bosh_shifokor", "administrator"] else doctor_main_keyboard()
+        await message.answer("AI Chat rejimi yakunlandi. Asosiy menyuga qaytdingiz.", reply_markup=kb)
+
+    @router.message(F.text, StateFilter(AIChatState.in_chat))
+    async def on_ai_continuous_query(message: Message) -> None:
+        text_raw = (message.text or "").strip()
+        if text_raw.startswith("/"):
+            return
+        chat_id = getattr(message.chat, "id", None)
+
+        # Show typing status feel
+        answer = await sync_to_async(_process_telegram_ai_query, thread_sensitive=False)(chat_id, text_raw)
+        await message.answer(answer, reply_markup=ai_mode_keyboard(), parse_mode="HTML")
+
+    # -----------------------------------------------------------------------
+    # Text fallback for Phone Verification
+    # -----------------------------------------------------------------------
+    @router.message(F.text, StateFilter(PhoneVerification.waiting_for_phone))
+    async def on_text_phone(message: Message, state: FSMContext) -> None:
+        text_raw = (message.text or "").strip()
+        if text_raw.startswith("/"):
+            return
+        digits = "".join(ch for ch in text_raw if ch.isdigit())
+        if len(digits) < 9:
+            await message.answer(
+                "Iltimos, telefon raqamingizni to'liq kiriting (masalan: +998901234567).",
+                reply_markup=share_phone_keyboard(),
+            )
+            return
+
+        chat_id = getattr(message.chat, "id", None)
+        result = await sync_to_async(_link_staff_chat, thread_sensitive=False)(text_raw, chat_id)
+        if result["status"] == "ok":
+            await state.clear()
+            await _send_role_main_menu(message, result["role"], result["name"])
+        else:
+            await message.answer(
+                "⚠️ Ushbu raqam bilan xodim topilmadi.\nIltimos, administrator bilan bog'laning.",
+                reply_markup=remove_keyboard(),
+            )
 
     return router
 
 
 # ---------------------------------------------------------------------------
-# Sync helpers wrapped by ``sync_to_async`` above
+# Sync Helpers for ORM Operations with Caching
 # ---------------------------------------------------------------------------
-def _start_otp_link(phone_raw: str, chat_id: int | None) -> dict:
-    """Create an OTP for a User matching ``phone_raw``. Returns status dict."""
-    from apps.accounts.models import OTPCode, User, generate_otp_code
-
-    try:
-        user = User.objects.get(phone_number__endswith=_normalise_phone(phone_raw))
-    except User.DoesNotExist:
-        logger.info("telegram_bot: staff phone %s did not match any user", phone_raw)
-        return {"status": "not_found"}
-
-    code = generate_otp_code(6)
-    OTPCode.objects.create(user=user, code=code, purpose=OTPCode.Purpose.LOGIN)
-    logger.info(
-        "telegram_bot: OTP %s generated for user=%s chat=%s (dev mock)",
-        code,
-        user.pk,
-        chat_id,
-    )
-    return {"status": "ok", "user_id": str(user.pk), "otp": code}
-
-
-def _confirm_otp_link(user_id: str | None, code: str, chat_id: int | None) -> dict:
-    from django.utils import timezone
-
-    from apps.accounts.models import OTPCode, User
-
-    if not user_id or not code:
-        return {"status": "invalid"}
-    try:
-        user = User.objects.get(pk=user_id)
-    except User.DoesNotExist:
-        return {"status": "invalid"}
-
-    otp = (
-        OTPCode.objects.filter(
-            user=user,
-            code=code,
-            is_used=False,
-            purpose=OTPCode.Purpose.LOGIN,
-        )
-        .order_by("-id")
-        .first()
-    )
-    if otp is None:
-        return {"status": "invalid"}
-    if otp.expires_at and otp.expires_at < timezone.now():
-        return {"status": "expired"}
-
-    otp.is_used = True
-    otp.save(update_fields=["is_used"])
-    if chat_id:
-        user.telegram_chat_id = chat_id
-        user.save(update_fields=["telegram_chat_id"])
-    return {"status": "ok", "name": user.full_name}
-
-
 def _normalise_phone(raw: str) -> str:
-    """Strip separators; return last 9-10 digits for ``endswith`` matching."""
-    digits = "".join(ch for ch in (raw or "") if ch.isdigit())
+    digits = "".join(ch for ch in raw if ch.isdigit())
     return digits[-9:] if len(digits) >= 9 else digits
 
 
-def _get_telegram_stock_report(chat_id: int | None) -> str:
-    """Return a formatted Telegram message of current inventory stock alerts."""
-    from apps.ai_assistant.services import get_inventory_analytics
+def _link_staff_chat(phone_raw: str, chat_id: int | None) -> dict[str, Any]:
+    from apps.accounts.models import User
 
-    analytics = get_inventory_analytics()
-    low_count = analytics["low_stock_count"]
-    out_count = analytics["out_of_stock_count"]
-    total = analytics["total_materials_count"]
+    try:
+        user = User.objects.get(phone_number__endswith=_normalise_phone(phone_raw), is_active=True)
+    except User.DoesNotExist:
+        return {"status": "not_found"}
 
-    if low_count == 0 and out_count == 0:
-        return f"✅ Ombor holati a'lo: barcha {total} ta material yetarli miqdorda mavjud."
-
-    lines = [f"⚠️ <b>Ombor zaxirasi bo'yicha ogohlantirish:</b>", f"• Jami materiallar: {total} ta", f"• Kam qolgan: {low_count} ta", f"• Tugagan: {out_count} ta\n"]
-    for item in analytics["low_stock_items"]:
-        status_icon = "❌" if item["is_out_of_stock"] else "⚠️"
-        lines.append(
-            f"{status_icon} <b>{item['name']}</b>: {item['quantity_in_stock']} {item['unit']} (minimal: {item['minimum_threshold']})"
-        )
-
-    return "\n".join(lines)
+    if chat_id:
+        user.telegram_chat_id = chat_id
+        user.save(update_fields=["telegram_chat_id"])
+    return {"status": "ok", "name": user.get_full_name() or user.phone_number, "role": user.role}
 
 
-def _get_telegram_appointments_report(chat_id: int | None) -> str:
-    """Return today's appointments report for the staff member."""
-    from django.utils import timezone
+def _get_telegram_appointments_report_html(chat_id: int | None) -> str:
     from apps.accounts.models import User
     from apps.scheduling.models import Appointment
 
-    if not chat_id:
-        return "Tizimga ulangan akkaunt topilmadi. /start bilan ro'yxatdan o'ting."
+    user = User.objects.filter(telegram_chat_id=chat_id, is_active=True).first()
+    if not user:
+        return "Xodim akkaunti topilmadi."
 
-    try:
-        user = User.objects.get(telegram_chat_id=chat_id)
-    except User.DoesNotExist:
-        return "Tizimga ulangan akkaunt topilmadi. /start bilan ro'yxatdan o'ting."
+    today = timezone.now().date()
+    qs = Appointment.objects.filter(is_active=True, scheduled_start__date=today).select_related("doctor__user", "patient")
 
-    today = timezone.localdate()
-    appts = Appointment.objects.filter(scheduled_start__date=today)
-    if user.role == User.Role.DOCTOR:
-        appts = appts.filter(doctor__user=user)
+    if user.role == "doctor":
+        qs = qs.filter(doctor__user=user)
+        title = f"📋 Bugungi Navbatlaringiz ({today.strftime('%d.%m.%Y')})"
+    else:
+        title = f"📋 Klinikaning Bugungi Barcha Navbatlari ({today.strftime('%d.%m.%Y')})"
 
-    count = appts.count()
-    if count == 0:
-        return f"📅 Bugun ({today}) hech qanday navbat mavjud emas."
+    return format_appointments_list(list(qs.order_by("scheduled_start")), title=title)
 
-    lines = [f"📅 <b>Bugungi navbatlar ro'yxati ({count} ta):</b>\n"]
-    for appt in appts[:10]:
-        time_str = timezone.localtime(appt.scheduled_start).strftime("%H:%M")
-        pat_name = appt.patient.full_name if appt.patient else "Bemor"
-        lines.append(f"• <b>{time_str}</b> — {pat_name} [{appt.get_status_display()}]")
 
-    return "\n".join(lines)
+def _get_telegram_stock_report_html(chat_id: int | None) -> str:
+    from django.core.cache import cache
+    cache_key = "tg_stock_report_html"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    from apps.inventory.models import Material
+
+    materials = list(Material.objects.filter(is_active=True).order_by("quantity_in_stock"))
+    result = format_stock_report(materials)
+    cache.set(cache_key, result, timeout=15)
+    return result
+
+
+def _get_telegram_daily_financial_html(chat_id: int | None) -> str:
+    from django.core.cache import cache
+    cache_key = f"tg_financial_report_html_{chat_id}"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    from django.db.models import Sum
+
+    from apps.accounts.models import User
+    from apps.payments.models import Payment
+
+    user = User.objects.filter(telegram_chat_id=chat_id, is_active=True).first()
+    if not user or user.role not in ["bosh_shifokor", "administrator"]:
+        return "⚠️ Bu hisobotni faqat Bosh Shifokor va Administratorlar ko'ra oladi."
+
+    today = timezone.now().date()
+    payments = Payment.objects.filter(is_active=True, created_at__date=today)
+    total_income = payments.aggregate(sum=Sum("amount"))["sum"] or 0
+    result = format_daily_financial_summary({
+        "total_income": float(total_income),
+        "payments_count": payments.count(),
+    })
+    cache.set(cache_key, result, timeout=15)
+    return result
 
 
 def _process_telegram_ai_query(chat_id: int | None, query: str) -> str:
-    """Process an AI query for the staff member using CRM context."""
     from apps.accounts.models import User
     from apps.ai_assistant.services import generate_ai_chat_response
 
-    if not chat_id:
-        return "Tizimga ulangan akkaunt topilmadi. /start bilan ro'yxatdan o'ting."
+    user = User.objects.filter(telegram_chat_id=chat_id, is_active=True).first()
+    if not user:
+        return "🤖 AI yordamchisidan foydalanish uchun akkauntingiz ulangan bo'lishi kerak."
 
     try:
-        user = User.objects.get(telegram_chat_id=chat_id)
-    except User.DoesNotExist:
-        return "Tizimga ulangan akkaunt topilmadi. /start bilan ro'yxatdan o'ting."
+        result = generate_ai_chat_response(query=query, user=user)
+        answer = result.get("answer", "Javob tayyorlashda xatolik yuz berdi.")
+        source = result.get("source", "ai")
+        source_label = "💡 <i>AI Tahlil</i>" if source in ["gemini-ai", "ai"] else "🔍 <i>DB Qidiruv</i>"
+        return f"🤖 <b>AI Yordamchi Javobi:</b>\n\n{answer}\n\n{source_label}"
+    except Exception as err:
+        logger.exception("telegram_bot: error processing AI query")
+        return f"⚠️ AI servisida xatolik yuz berdi: {err}"
 
-    res = generate_ai_chat_response(query=query, user=user)
-    return res["answer"]
+
+def _update_appointment_status(appointment_id: str, new_status: str) -> bool:
+    from apps.scheduling.models import Appointment
+
+    try:
+        app = Appointment.objects.get(pk=appointment_id)
+        app.status = new_status
+        app.save(update_fields=["status"])
+        return True
+    except Appointment.DoesNotExist:
+        return False
 
 
-__all__ = ["build_router"]
+def _get_telegram_monthly_financial_html(chat_id: int | None) -> str:
+    from django.db.models import Count, Sum
+    from apps.accounts.models import User
+    from apps.payments.models import Payment
+
+    user = User.objects.filter(telegram_chat_id=chat_id, is_active=True).first()
+    if not user or user.role not in ["bosh_shifokor", "administrator"]:
+        return "⚠️ Bu hisobotni faqat Bosh Shifokor ko'ra oladi."
+
+    now = timezone.now()
+    start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    payments = Payment.objects.filter(is_active=True, created_at__gte=start_month)
+
+    total_income = payments.aggregate(sum=Sum("amount"))["sum"] or 0
+    count = payments.count()
+
+    doc_breakdown = (
+        payments.values("treatment__doctor__user__first_name", "treatment__doctor__user__last_name")
+        .annotate(total=Sum("amount"), cnt=Count("id"))
+        .order_by("-total")[:5]
+    )
+
+    lines = [
+        f"<b>📊 Oylik Tushum va Shifokorlar Reytingi</b>",
+        f"Oydan: <b>01.{now.strftime('%m.%Y')}</b> — Bugungacha\n",
+        f"💰 <b>Jami Oylik Tushum:</b> <code>{total_income:,.0f} so'm</code>",
+        f"💳 <b>Jami To'lovlar Soni:</b> <b>{count}</b> ta\n",
+        f"<b>👨‍⚕️ Shifokorlar Tushum Reytingi:</b>",
+    ]
+
+    for idx, doc in enumerate(doc_breakdown, start=1):
+        fn = doc.get("treatment__doctor__user__first_name") or ""
+        ln = doc.get("treatment__doctor__user__last_name") or ""
+        name = f"{fn} {ln}".strip() or "Shifokor"
+        tot = doc.get("total", 0)
+        cnt = doc.get("cnt", 0)
+        lines.append(f"{idx}. <b>Dr. {name}</b> — <code>{tot:,.0f} so'm</code> ({cnt} ta muolaja)")
+
+    if not doc_breakdown:
+        lines.append("<i>Hali bu oyda to'lovlar kiritilmagan.</i>")
+
+    return "\n".join(lines)

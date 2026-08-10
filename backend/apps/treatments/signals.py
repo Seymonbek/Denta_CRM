@@ -54,4 +54,41 @@ def _on_photo_saved(sender, instance: TreatmentPhoto, created: bool, **kwargs):
         )
 
 
-__all__ = ["_on_photo_saved"]
+__all__ = ["_on_photo_saved", "_on_treatment_saved"]
+
+
+@receiver(post_save, sender="treatments.Treatment", dispatch_uid="treatments.treatment.notify_on_create")
+def _on_treatment_saved(sender, instance, created: bool, **kwargs):
+    if not created:
+        return
+
+    try:
+        from apps.notifications.models import NotificationType
+        from apps.notifications.services import enqueue, notify_roles
+
+        patient = instance.patient
+        patient_name = f"{patient.first_name} {patient.last_name}"
+        proc_name = instance.procedure_type.name if instance.procedure_type else "Muolaja"
+        doc_user = instance.doctor.user if instance.doctor else None
+        doc_name = doc_user.get_full_name() if doc_user else "Shifokor"
+        price_str = f"{instance.price:,.0f}"
+
+        # 1. Patient Notification
+        msg_p = f"Hurmatli {patient_name}, sizga '{proc_name}' muolajasi kiritildi. Shifokor: Dr. {doc_name}."
+        enqueue(
+            notification_type=NotificationType.GENERIC,
+            message=msg_p,
+            patient=patient,
+            context={"treatment_id": str(instance.pk)},
+        )
+
+        # 2. Bosh Shifokor Notification
+        msg_bs = f"🦷 Dr. {doc_name} bemor {patient_name}ga '{proc_name}' muolajasini kiritdi (Narxi: {price_str} so'm)"
+        notify_roles(
+            ["bosh_shifokor"],
+            notification_type=NotificationType.GENERIC,
+            message=msg_bs,
+            context={"treatment_id": str(instance.pk)},
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("treatments: failed to send treatment notification for %s", instance.pk)

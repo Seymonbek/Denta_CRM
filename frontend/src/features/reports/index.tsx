@@ -35,6 +35,8 @@ import {
   Award,
   AlertCircle,
   UserCheck,
+  BarChart3,
+  Stethoscope,
 } from 'lucide-react'
 
 export function ReportsList() {
@@ -82,7 +84,8 @@ export function ReportsList() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>📊 Hisobotlar va Analitika</span>
+          <BarChart3 className='h-5 w-5 text-primary' />
+          <span>Hisobotlar va Analitika</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -92,12 +95,13 @@ export function ReportsList() {
         {/* Header Controls */}
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>
+            <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
+              <BarChart3 className='h-6 w-6 text-primary' />
               {isDoctor
-                ? '🩺 Shifokor Shaxsiy Analitika va Daromad Paneli'
+                ? 'Shifokor Shaxsiy Analitika va Daromad Paneli'
                 : isReception
-                ? '💳 Kassa va Qabullar Analitikasi'
-                : '📊 Klinika Umumiy Analitika va Boshqaruv Paneli'}
+                ? 'Kassa va Qabullar Analitikasi'
+                : 'Klinika Umumiy Analitika va Boshqaruv Paneli'}
             </h1>
             <p className='text-xs text-muted-foreground'>
               Sana oralig’i va davrlar bo’yicha real-vaqt rejimida hisobotlar va tahlillar.
@@ -167,76 +171,94 @@ export function ReportsList() {
               </div>
             ) : (
               <>
-                {/* 4 Stat Cards */}
-                <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
+                {/* 5 Stat Cards Grid */}
+                <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3'>
                   {/* Card 1: Total Revenue */}
                   <Card className='shadow-xs border-emerald-500/20 bg-emerald-500/5'>
-                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0'>
+                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
                       <CardTitle className='text-xs font-semibold text-muted-foreground'>
-                        Jami Bajarilgan Ishlar
+                        Jami Tushum
                       </CardTitle>
                       <DollarSign className='h-4 w-4 text-emerald-600 dark:text-emerald-400' />
                     </CardHeader>
-                    <CardContent>
-                      <div className='text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400'>
+                    <CardContent className='p-3 pt-0'>
+                      <div className='text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400'>
                         {Number(doctorAnalytics?.totalRevenue || 0).toLocaleString()} so'm
                       </div>
-                      <p className='text-[11px] text-muted-foreground mt-1'>
+                      <p className='text-[10px] text-muted-foreground mt-1'>
                         To'langan: {Number(doctorAnalytics?.paidRevenue || 0).toLocaleString()} so'm
                       </p>
                     </CardContent>
                   </Card>
 
-                  {/* Card 2: Earned Commission */}
+                  {/* Card 2: Material Expense */}
+                  <Card className='shadow-xs border-rose-500/20 bg-rose-500/5'>
+                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
+                      <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                        Material Sarfi (Chiqim)
+                      </CardTitle>
+                      <Package className='h-4 w-4 text-rose-600 dark:text-rose-400' />
+                    </CardHeader>
+                    <CardContent className='p-3 pt-0'>
+                      <div className='text-xl font-bold font-mono text-rose-600 dark:text-rose-400'>
+                        {Number(doctorAnalytics?.totalMaterialCost || 0).toLocaleString()} so'm
+                      </div>
+                      <p className='text-[10px] text-muted-foreground mt-1'>
+                        Ishlatilgan materiallar tannarxi
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Card 3: Earned Commission / Net Earnings */}
                   <Card className='shadow-xs border-blue-500/20 bg-blue-500/5'>
-                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0'>
+                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
                       <CardTitle className='text-xs font-semibold text-muted-foreground'>
                         Sof Ish Haqi (Komissiya)
                       </CardTitle>
                       <TrendingUp className='h-4 w-4 text-blue-600 dark:text-blue-400' />
                     </CardHeader>
-                    <CardContent>
-                      <div className='text-2xl font-bold font-mono text-blue-600 dark:text-blue-400'>
+                    <CardContent className='p-3 pt-0'>
+                      <div className='text-xl font-bold font-mono text-blue-600 dark:text-blue-400'>
                         {Number(doctorAnalytics?.earnedCommission || 0).toLocaleString()} so'm
                       </div>
-                      <p className='text-[11px] text-muted-foreground mt-1'>
-                        Qarzdorlik: {Number(doctorAnalytics?.pendingRevenue || 0).toLocaleString()} so'm
+                      <p className='text-[10px] text-muted-foreground mt-1'>
+                        Ulashish stavkasi: {doctorAnalytics?.commissionRate || '30'}%
                       </p>
                     </CardContent>
                   </Card>
 
-                  {/* Card 3: Patients Treated */}
+                  {/* Card 4: Patients & Treatments */}
                   <Card className='shadow-xs border-purple-500/20 bg-purple-500/5'>
-                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0'>
+                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
                       <CardTitle className='text-xs font-semibold text-muted-foreground'>
                         Davolangan Bemorlar
                       </CardTitle>
                       <Users className='h-4 w-4 text-purple-600 dark:text-purple-400' />
                     </CardHeader>
-                    <CardContent>
-                      <div className='text-2xl font-bold font-mono text-purple-600 dark:text-purple-400'>
+                    <CardContent className='p-3 pt-0'>
+                      <div className='text-xl font-bold font-mono text-purple-600 dark:text-purple-400'>
                         {doctorAnalytics?.totalPatientsTreated || 0} ta bemor
                       </div>
-                      <p className='text-[11px] text-muted-foreground mt-1'>
+                      <p className='text-[10px] text-muted-foreground mt-1'>
                         Jami muolajalar: {doctorAnalytics?.totalTreatmentsCount || 0} ta
                       </p>
                     </CardContent>
                   </Card>
 
-                  {/* Card 4: Appointments Success Rate */}
+                  {/* Card 5: Appointments & Cancelled Value */}
                   <Card className='shadow-xs border-amber-500/20 bg-amber-500/5'>
-                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0'>
+                    <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
                       <CardTitle className='text-xs font-semibold text-muted-foreground'>
                         Muvaffaqiyatli Qabullar
                       </CardTitle>
                       <CheckCircle2 className='h-4 w-4 text-amber-600 dark:text-amber-400' />
                     </CardHeader>
-                    <CardContent>
-                      <div className='text-2xl font-bold font-mono text-amber-600 dark:text-amber-400'>
+                    <CardContent className='p-3 pt-0'>
+                      <div className='text-xl font-bold font-mono text-amber-600 dark:text-amber-400'>
                         {doctorAnalytics?.appointments?.completed || 0} / {doctorAnalytics?.appointments?.total || 0}
                       </div>
-                      <p className='text-[11px] text-muted-foreground mt-1'>
-                        Bekor qilish foizi: {doctorAnalytics?.appointments?.cancellationRatePercent || 0}%
+                      <p className='text-[10px] text-muted-foreground mt-1'>
+                        Bekor bo'lgan: {doctorAnalytics?.appointments?.canceled || 0} ta ({doctorAnalytics?.appointments?.cancellationRatePercent || 0}%)
                       </p>
                     </CardContent>
                   </Card>

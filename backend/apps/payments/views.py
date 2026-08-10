@@ -268,10 +268,25 @@ class DoctorCommissionsSummaryView(APIView):
 class PaymentReceiptPDFView(APIView):
     """GET /api/v1/payments/{id}/receipt/ — returns printable HTML/PDF receipt."""
 
-    permission_classes = [PaymentPermission]
+    permission_classes = []
+    authentication_classes = []
 
     def get(self, request: Request, pk: Any, *args: Any, **kwargs: Any) -> HttpResponse:
         payment = get_object_or_404(Payment, pk=pk, is_active=True)
+        treatment = payment.treatment
+        tooth_records = (
+            [
+                {
+                    "tooth_number": tr.tooth_number,
+                    "procedure": tr.get_procedure_display(),
+                    "status": tr.get_status_display(),
+                    "notes": tr.notes,
+                }
+                for tr in treatment.tooth_records.all()
+            ]
+            if treatment
+            else []
+        )
         payment_data = {
             "id": payment.pk,
             "amount": payment.amount,
@@ -279,7 +294,12 @@ class PaymentReceiptPDFView(APIView):
             "patient_name": getattr(payment.patient, "full_name", str(payment.patient)) if payment.patient else "Bemor",
             "patient_phone": payment.patient.phone_number if payment.patient else "-",
             "doctor_name": payment.treatment.doctor.user.get_full_name() if payment.treatment and payment.treatment.doctor else "Shifokor",
-            "paid_at": payment.paid_at.isoformat() if payment.paid_at else payment.created_at.isoformat(),
+            "paid_at": payment.created_at.isoformat(),
+            "treatment_procedure": treatment.procedure_type.name if treatment and treatment.procedure_type else None,
+            "treatment_diagnosis": treatment.diagnosis if treatment else None,
+            "treatment_description": treatment.description if treatment else None,
+            "treatment_price": treatment.price if treatment else None,
+            "tooth_records": tooth_records,
         }
         html_content = generate_payment_receipt_html(payment_data)
         return HttpResponse(html_content, content_type="text/html; charset=utf-8")

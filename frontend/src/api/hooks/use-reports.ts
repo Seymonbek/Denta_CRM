@@ -8,10 +8,11 @@ import {
   getReceptionAnalyticsApi,
 } from '../reports'
 
-export function useDashboardReport(period: string = 'month') {
+export function useDashboardReport(period: string = 'month', options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['reports', 'dashboard', period],
     queryFn: () => getDashboardReportApi(period),
+    enabled: options?.enabled ?? true,
   })
 }
 

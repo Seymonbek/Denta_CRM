@@ -1,4 +1,4 @@
-import { Send, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Send, CheckCircle2, AlertCircle, Bell } from 'lucide-react'
 import { format } from 'date-fns'
 import { useNotifications } from '@/api/hooks/use-notifications'
 import { Header } from '@/components/layout/header'
@@ -27,7 +27,8 @@ export function NotificationsList() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>🔔 Bildirishnomalar Logi</span>
+          <Bell className='h-5 w-5 text-primary' />
+          <span>Bildirishnomalar Logi</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -35,15 +36,17 @@ export function NotificationsList() {
 
       <Main>
         <div className='mb-6'>
-          <h1 className='text-2xl font-bold tracking-tight'>Tizim Bildirishnomalari Logi</h1>
-          <p className='text-xs text-muted-foreground'>
+          <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
+            <Bell className='h-6 w-6 text-primary' /> Tizim Bildirishnomalari Logi
+          </h1>
+          <p className='text-xs text-muted-foreground mt-1'>
             Telegram bot orqali yuborilgan eslatmalar, retseptlar va low-stock xabarlari.
           </p>
         </div>
 
-        {/* Notifications Table */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
-          <Table>
+        {/* Notifications Table with Mobile Responsive Horizontal Scroll */}
+        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
+          <Table className='min-w-[600px] sm:min-w-full'>
             <TableHeader>
               <TableRow className='bg-muted/30'>
                 <TableHead className='text-xs font-semibold'>Xabar Mazmuni</TableHead>

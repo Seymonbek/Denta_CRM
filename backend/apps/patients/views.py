@@ -18,8 +18,7 @@ Endpoints (PROJECT_BRIEF § "Patients"):
 """
 from __future__ import annotations
 
-from typing import Any
-
+from django.db import models
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import filters, status, viewsets
@@ -82,9 +81,21 @@ class PatientViewSet(viewsets.ModelViewSet):
             else active_patients()
         )
 
+        if role == "doctor":
+            profile = getattr(request.user, "doctor_profile", None)
+            if profile is not None and not getattr(profile, "can_view_other_doctors", False):
+                base = base.filter(
+                    models.Q(appointments__doctor=profile) | models.Q(treatments__doctor=profile)
+                ).distinct()
+
         query = request.query_params.get("search")
         if query:
             return search_patients(
+                query,
+                include_inactive=(
+                    include_inactive and role == "bosh_shifokor"
+                ),
+            ).filter(pk__in=base.values("pk")) if role == "doctor" else search_patients(
                 query,
                 include_inactive=(
                     include_inactive and role == "bosh_shifokor"

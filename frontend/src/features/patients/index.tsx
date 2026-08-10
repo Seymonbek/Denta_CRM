@@ -135,9 +135,9 @@ export function PatientsList() {
           </Select>
         </div>
 
-        {/* Data Table */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
-          <Table>
+        {/* Data Table with Mobile Responsive Horizontal Scroll */}
+        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
+          <Table className='min-w-[600px] sm:min-w-full'>
             <TableHeader>
               <TableRow className='bg-muted/30'>
                 <TableHead className='text-xs font-semibold'>Bemor Ismi</TableHead>
@@ -174,14 +174,14 @@ export function PatientsList() {
                     <TableRow key={patient?.id || Math.random()} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
                         <div className='flex items-center gap-2'>
-                          <div className='flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs'>
+                          <div className='flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs shrink-0'>
                             {pFirstName[0] || 'B'}
                           </div>
-                          <span>{pFirstName} {pLastName}</span>
+                          <span className='truncate'>{pFirstName} {pLastName}</span>
                         </div>
                       </TableCell>
-                      <TableCell className='text-xs font-mono'>{pPhone}</TableCell>
-                      <TableCell className='text-xs'>
+                      <TableCell className='text-xs font-mono whitespace-nowrap'>{pPhone}</TableCell>
+                      <TableCell className='text-xs whitespace-nowrap'>
                         <Badge variant='outline' className='text-[10px] uppercase'>
                           {pGender === 'male' ? 'Erkak' : pGender === 'female' ? 'Ayol' : 'Noma’lum'}
                         </Badge>
@@ -189,10 +189,10 @@ export function PatientsList() {
                       <TableCell className='text-xs text-muted-foreground truncate max-w-[150px]'>
                         {pAddress}
                       </TableCell>
-                      <TableCell className='text-xs text-muted-foreground font-mono'>
+                      <TableCell className='text-xs text-muted-foreground font-mono whitespace-nowrap'>
                         {formatDateSafely(pCreatedAt)}
                       </TableCell>
-                      <TableCell className='text-end'>
+                      <TableCell className='text-end whitespace-nowrap'>
                         <Button asChild size='sm' variant='ghost' className='h-8 text-xs'>
                           <Link to='/patients/$id' params={{ id: patient.id }}>
                             Karta <ArrowRight className='ms-1.5 h-3.5 w-3.5' />
@@ -207,9 +207,25 @@ export function PatientsList() {
           </Table>
         </div>
 
-        {/* Create Patient Modal */}
+        {/* Responsive Pagination Bar */}
+        <div className='mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground'>
+          <div>
+            Jami: <span className='font-bold text-foreground'>{patients.length}</span> ta bemor ro'yxatda
+          </div>
+          <div className='flex items-center gap-2'>
+            <Button size='sm' variant='outline' disabled className='h-8 text-xs font-medium'>
+              ◄ Oldingi
+            </Button>
+            <span className='font-mono text-xs px-2'>Sahifa 1 / 1</span>
+            <Button size='sm' variant='outline' disabled className='h-8 text-xs font-medium'>
+              Keyingi ►
+            </Button>
+          </div>
+        </div>
+
+        {/* Create Patient Modal with Mobile Soft Keyboard Scrollability */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className='sm:max-w-md'>
+          <DialogContent className='sm:max-w-md max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full rounded-2xl'>
             <DialogHeader>
               <DialogTitle>Yangi Bemor Ro'yxatga Olish</DialogTitle>
             </DialogHeader>

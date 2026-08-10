@@ -22,6 +22,53 @@ def generate_payment_receipt_html(payment_data: dict[str, Any]) -> str:
     patient_phone = payment_data.get("patient_phone", "-")
     doctor_name = payment_data.get("doctor_name", "Shifokor")
     date_str = payment_data.get("paid_at", payment_data.get("created_at", ""))[:19].replace("T", " ")
+    treatment_procedure = payment_data.get("treatment_procedure")
+    treatment_diagnosis = payment_data.get("treatment_diagnosis")
+    treatment_description = payment_data.get("treatment_description")
+    treatment_price = payment_data.get("treatment_price")
+    tooth_records = payment_data.get("tooth_records", []) or []
+
+    treatment_html = ""
+    if treatment_procedure or tooth_records:
+        rows_html = ""
+        if tooth_records:
+            rows_html = "\n".join(
+                f"""                <tr>
+                    <td style="text-align: center;"><strong>{r.get('tooth_number', '-')}</strong></td>
+                    <td>{r.get('procedure', '-')}</td>
+                    <td>{r.get('status', '-')}</td>
+                    <td>{r.get('notes', '') or '-'}</td>
+                </tr>"""
+                for r in tooth_records
+            )
+        diagnosis_line = f"<strong style='display: block; color: #0f172a;'>Tashxis:</strong> <span>{treatment_diagnosis}</span>" if treatment_diagnosis else ""
+        description_line = f"<strong style='display: block; color: #0f172a; margin-top: 6px;'>Tavsif:</strong> <span>{treatment_description}</span>" if treatment_description else ""
+        treatment_html = f"""
+        <div style="border-top: 1px dashed #e2e8f0; padding-top: 14px; margin-bottom: 16px;">
+            <strong style="display: block; color: #0f172a; font-size: 13px; margin-bottom: 8px;">Bajarilgan Muolaja: {treatment_procedure}</strong>
+            {diagnosis_line}
+            {description_line}
+            {f"""
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px;">
+                <thead>
+                    <tr>
+                        <th style="border: 1px solid #e2e8f0; padding: 8px; background: #f8fafc; text-align: center;">Tish №</th>
+                        <th style="border: 1px solid #e2e8f0; padding: 8px; background: #f8fafc; text-align: left;">Muolaja</th>
+                        <th style="border: 1px solid #e2e8f0; padding: 8px; background: #f8fafc; text-align: left;">Holat</th>
+                        <th style="border: 1px solid #e2e8f0; padding: 8px; background: #f8fafc; text-align: left;">Izoh</th>
+                    </tr>
+                </thead>
+                <tbody>
+{rows_html}
+                </tbody>
+            </table>""" if rows_html else ""}
+        </div>"""
+    elif treatment_price is not None:
+        treatment_html = f"""
+        <div style="border-top: 1px dashed #e2e8f0; padding-top: 14px; margin-bottom: 16px; font-size: 13px;">
+            <strong style="display: block; color: #0f172a;">Bajarilgan Muolaja: {treatment_procedure}</strong>
+            <span style="color: #334155;">{treatment_diagnosis or ''}</span>
+        </div>"""
 
     return f"""<!DOCTYPE html>
 <html lang="uz">
@@ -114,6 +161,7 @@ def generate_payment_receipt_html(payment_data: dict[str, Any]) -> str:
             <div class="details-row"><strong>Shifokor:</strong> <span>{doctor_name}</span></div>
             <div class="details-row"><strong>To'lov shakli:</strong> <span>{method_label}</span></div>
         </div>
+        {treatment_html}
         <div class="amount-box">
             <div class="label">Qabul Qilingan Summa</div>
             <div class="value">{amount:,.2f} so'm</div>
@@ -134,9 +182,75 @@ def generate_treatment_act_html(treatment_data: dict[str, Any]) -> str:
     doctor_name = treatment_data.get("doctor_name", "Shifokor")
     procedure_name = treatment_data.get("procedure_name", "Muolaja")
     price = Decimal(str(treatment_data.get("price", "0.00")))
+    diagnosis = treatment_data.get("diagnosis", "-")
+    description = treatment_data.get("description", "")
     tooth_number = treatment_data.get("tooth_number", "-")
     notes = treatment_data.get("notes", "Muolaja muvaffaqiyatli yakunlandi.")
+    tooth_records = treatment_data.get("tooth_records", []) or []
     date_str = treatment_data.get("created_at", "")[:19].replace("T", " ")
+
+    if tooth_records:
+        rows_html = "\n".join(
+            f"""                <tr>
+                    <td style="text-align: center;"><strong>{r.get('tooth_number', '-')}</strong></td>
+                    <td>{r.get('procedure', '-')}</td>
+                    <td>{r.get('status', '-')}</td>
+                    <td>{r.get('notes', '') or '-'}</td>
+                </tr>"""
+            for r in tooth_records
+        )
+        table_html = f"""
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align: center; width: 70px;">Tish №</th>
+                    <th>Bajarilgan Muolaja</th>
+                    <th>Holati</th>
+                    <th>Izoh</th>
+                </tr>
+            </thead>
+            <tbody>
+{rows_html}
+            </tbody>
+        </table>"""
+    else:
+        table_html = f"""
+        <table>
+            <thead>
+                <tr>
+                    <th>Bajarilgan Muolaja Nomi</th>
+                    <th style="text-align: center;">Tish №</th>
+                    <th style="text-align: right;">Qiymati</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>{procedure_name}</strong><br><small style="color: #64748b;">{notes}</small></td>
+                    <td style="text-align: center;"><strong>{tooth_number}</strong></td>
+                    <td style="text-align: right;"><strong>{price:,.2f} so'm</strong></td>
+                </tr>
+            </tbody>
+        </table>"""
+
+    diagnosis_html = (
+        f"""
+        <div class="info-item">
+            <strong>TASHXIS</strong>
+            <span>{diagnosis}</span>
+        </div>"""
+        if diagnosis != "-"
+        else ""
+    )
+
+    description_html = (
+        f"""
+        <div style="margin-bottom: 24px; font-size: 13px; color: #334155; background: #f8fafc; border-radius: 8px; padding: 10px 14px;">
+            <strong style="color: #475569; display: block; font-size: 11px; margin-bottom: 2px;">DAVOLASH TAVSIFI</strong>
+            {description}
+        </div>"""
+        if description
+        else ""
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="uz">
@@ -237,24 +351,16 @@ def generate_treatment_act_html(treatment_data: dict[str, Any]) -> str:
                 <strong>SHIFOKOR</strong>
                 <span>{doctor_name}</span>
             </div>
+            {diagnosis_html}
         </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Bajarilgan Muolaja Nomi</th>
-                    <th style="text-align: center;">Tish №</th>
-                    <th style="text-align: right;">Qiymati</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>{procedure_name}</strong><br><small style="color: #64748b;">{notes}</small></td>
-                    <td style="text-align: center;"><strong>{tooth_number}</strong></td>
-                    <td style="text-align: right;"><strong>{price:,.2f} so'm</strong></td>
-                </tr>
-            </tbody>
-        </table>
+        {description_html}
+
+        {table_html}
+
+        <div style="margin-bottom: 24px; font-size: 13px; color: #334155;">
+            <strong>Umumiy qiymati:</strong> <span style="font-weight: 600;">{price:,.2f} so'm</span>
+        </div>
 
         <div class="signatures">
             <div class="signature-block">

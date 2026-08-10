@@ -24,10 +24,25 @@ export function GeneralError({
         </p>
         {!minimal && (
           <div className='mt-6 flex gap-4'>
-            <Button variant='outline' onClick={() => history.go(-1)}>
+            <Button
+              variant='outline'
+              onClick={() => {
+                if (window.history.length > 1) {
+                  window.history.back()
+                } else {
+                  window.location.href = '/'
+                }
+              }}
+            >
               Go Back
             </Button>
-            <Button onClick={() => navigate({ to: '/' })}>Back to Home</Button>
+            <Button
+              onClick={() => {
+                window.location.href = '/'
+              }}
+            >
+              Back to Home
+            </Button>
           </div>
         )}
       </div>

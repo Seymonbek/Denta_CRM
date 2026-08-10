@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Plus, Ban, FileText } from 'lucide-react'
+import { Plus, Ban, FileText, Wallet, Search, CreditCard } from 'lucide-react'
+import { confirmSwal } from '@/lib/sweetalert'
 import { format } from 'date-fns'
 import {
   usePayments,
@@ -122,7 +123,13 @@ export function PaymentsList() {
   }
 
   const handleVoid = async (id: string) => {
-    if (!confirm("Ushbu to'lovni bekor qilmoqchimisiz?")) return
+    const isConfirmed = await confirmSwal({
+      title: "To'lovni bekor qilmoqchimisiz?",
+      text: "Ushbu to'lov bekor qilinadi va kassa balansidan ayiriladi.",
+      confirmButtonText: "Ha, bekor qilaman",
+    })
+    if (!isConfirmed) return
+
     try {
       await voidPaymentMutation.mutateAsync({ id, reason: 'Xato kiritilgan' })
       toast.success("To'lov bekor qilindi.")
@@ -160,10 +167,10 @@ export function PaymentsList() {
             <TabsTrigger value='commissions'>Shifokorlar Komissiyasi</TabsTrigger>
           </TabsList>
 
-          {/* Payments Table */}
+          {/* Payments Table with Mobile Responsive Horizontal Scroll */}
           <TabsContent value='payments'>
-            <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
-              <Table>
+            <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
+              <Table className='min-w-[600px] sm:min-w-full'>
                 <TableHeader>
                   <TableRow className='bg-muted/30'>
                     <TableHead className='text-xs font-semibold'>Bemor</TableHead>

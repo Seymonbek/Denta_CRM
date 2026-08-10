@@ -29,9 +29,8 @@ export async function createPaymentApi(
   return response.data
 }
 
-export async function voidPaymentApi(id: string, reason?: string): Promise<Payment> {
-  const response = await apiClient.post<Payment>(`payments/${id}/void/`, { reason })
-  return response.data
+export async function voidPaymentApi(id: string, reason?: string): Promise<void> {
+  await apiClient.delete(`payments/${id}/`, { data: { reason } })
 }
 
 export async function getDoctorCommissionsApi(

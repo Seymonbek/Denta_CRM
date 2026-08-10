@@ -8,8 +8,11 @@ import {
   TrendingUp,
   AlertCircle,
   LogOut,
+  Package,
+  DollarSign,
+  Activity,
 } from 'lucide-react'
-import { useDashboardReport } from '@/api/hooks/use-reports'
+import { useDashboardReport, useDoctorMyAnalytics } from '@/api/hooks/use-reports'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -33,7 +36,15 @@ import { useAuthStore } from '@/stores/auth-store'
 
 export function Dashboard() {
   const [period, setPeriod] = useState<string>('month')
-  const { data: report, isLoading, isError, error } = useDashboardReport(period)
+  const authUser = useAuthStore((state) => state.user)
+  const isHeadDoctor = authUser?.role === 'bosh_shifokor'
+  const isAdministrator = authUser?.role === 'administrator'
+  const isDoctor = authUser?.role === 'doctor'
+
+  const { data: report, isLoading, isError, error } = useDashboardReport(period, {
+    enabled: isHeadDoctor,
+  })
+  const { data: doctorAnalytics, isLoading: isDocAnalyticsLoading } = useDoctorMyAnalytics(period)
   const resetAuth = useAuthStore((state) => state.reset)
 
   const topProcedures = Array.isArray(report?.topProcedures)
@@ -61,14 +72,14 @@ export function Dashboard() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>📊 KPI Dashboard</span>
+          <span>📊 {isHeadDoctor ? 'KPI Dashboard' : 'Shifokor Boshqaruv Paneli'}</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
       </Header>
 
       <Main>
-        {isError && (
+        {isHeadDoctor && isError && (
           <div className='mb-6 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-between gap-4 text-xs font-semibold'>
             <div className='flex items-center gap-2'>
               <AlertCircle className='h-5 w-5 shrink-0' />
@@ -89,106 +100,211 @@ export function Dashboard() {
             </Button>
           </div>
         )}
+
+        {(isAdministrator || isDoctor) && (
+          <div className='mb-6 p-6 rounded-2xl border border-primary/20 bg-primary/5 text-card-foreground flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm'>
+            <div>
+              <h2 className='text-xl font-bold tracking-tight'>
+                Xush kelibsiz, {authUser?.first_name || authUser?.phone_number}! ({isAdministrator ? 'Administrator' : 'Shifokor'})
+              </h2>
+              <p className='text-xs text-muted-foreground mt-1'>
+                {isAdministrator
+                  ? "Bemorlarni ro'yxatga olish, navbatlarni boshqarish hamda kassa to'lovlarini chap menyu orqali amalgash oshiring."
+                  : "Bugungi shaxsiy navbatlaringiz, bemorlaringiz tish kartalari va daromadingiz statistikasi."}
+              </p>
+            </div>
+            <div className='flex items-center gap-2 shrink-0'>
+              <Button size='sm' onClick={() => (window.location.href = '/appointments')}>
+                📋 Navbatlarim
+              </Button>
+              <Button size='sm' variant='outline' onClick={() => (window.location.href = '/patients')}>
+                👤 Bemorlarim
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>Klinika Umumiy Ko'rsatkichlari</h1>
+            <h1 className='text-2xl font-bold tracking-tight'>
+              {isHeadDoctor ? "Klinika Umumiy Ko'rsatkichlari" : isDoctor ? "Shaxsiy Ko'rsatkichlar va Statistika" : "Tezkor Boshqaruv"}
+            </h1>
             <p className='text-xs text-muted-foreground'>
-              Real vaqtdagi moliyaviy, bemor va navbatlar statistikasi.
+              {isHeadDoctor
+                ? 'Real vaqtdagi moliyaviy, bemor va navbatlar statistikasi.'
+                : isDoctor
+                ? "Shaxsiy bajargan muolajalaringiz, tushum, material sarfi va ish haqingiz."
+                : 'Klinikadagi tezkor ish jarayonlari va menyu bo\'limlari.'}
             </p>
           </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-xs font-medium text-muted-foreground'>Davr:</span>
+          {(isHeadDoctor || isDoctor) && (
             <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className='w-36 text-xs'>
-                <SelectValue />
+              <SelectTrigger className='w-[160px] h-9 text-xs font-semibold'>
+                <SelectValue placeholder='Davrni tanlang' />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='day'>Bugun (Kunlik)</SelectItem>
+                <SelectItem value='day'>Bugun</SelectItem>
                 <SelectItem value='week'>Shu hafta</SelectItem>
                 <SelectItem value='month'>Shu oy</SelectItem>
               </SelectContent>
             </Select>
+          )}
+        </div>
+
+        {/* Doctor Personal Stat Cards */}
+        {isDoctor && (
+          <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6'>
+            <Card className='shadow-sm border-emerald-500/20 bg-emerald-500/5 hover:shadow transition-shadow'>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                  Jami Bajarilgan Ishlar (Tushum)
+                </CardTitle>
+                <DollarSign className='h-4 w-4 text-emerald-500' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold text-emerald-600 dark:text-emerald-400'>
+                  {isDocAnalyticsLoading ? '...' : `${Number(doctorAnalytics?.totalRevenue || 0).toLocaleString()} so'm`}
+                </div>
+                <p className='text-[11px] text-muted-foreground mt-1'>
+                  To'langan: {Number(doctorAnalytics?.paidRevenue || 0).toLocaleString()} so'm
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className='shadow-sm border-rose-500/20 bg-rose-500/5 hover:shadow transition-shadow'>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                  Material Sarfi (Chiqim)
+                </CardTitle>
+                <Package className='h-4 w-4 text-rose-500' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold text-rose-600 dark:text-rose-400'>
+                  {isDocAnalyticsLoading ? '...' : `${Number(doctorAnalytics?.totalMaterialCost || 0).toLocaleString()} so'm`}
+                </div>
+                <p className='text-[11px] text-muted-foreground mt-1'>
+                  Muolajalarga ketgan materiallar
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className='shadow-sm border-blue-500/20 bg-blue-500/5 hover:shadow transition-shadow'>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                  Sof Ish Haqi (Komissiya)
+                </CardTitle>
+                <TrendingUp className='h-4 w-4 text-blue-500' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold text-blue-600 dark:text-blue-400'>
+                  {isDocAnalyticsLoading ? '...' : `${Number(doctorAnalytics?.earnedCommission || 0).toLocaleString()} so'm`}
+                </div>
+                <p className='text-[11px] text-muted-foreground mt-1'>
+                  Komissiya stavkasi: {doctorAnalytics?.commissionRate || '30'}%
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className='shadow-sm border-purple-500/20 bg-purple-500/5 hover:shadow transition-shadow'>
+              <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                  Davolangan Bemorlar
+                </CardTitle>
+                <Users className='h-4 w-4 text-purple-500' />
+              </CardHeader>
+              <CardContent>
+                <div className='text-2xl font-bold text-purple-600 dark:text-purple-400'>
+                  {isDocAnalyticsLoading ? '...' : `${doctorAnalytics?.totalPatientsTreated || 0} ta bemor`}
+                </div>
+                <p className='text-[11px] text-muted-foreground mt-1'>
+                  Jami muolajalar: {doctorAnalytics?.totalTreatmentsCount || 0} ta
+                </p>
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        )}
 
-        {/* KPI Cards */}
-        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6'>
-          <Card className='shadow-sm hover:shadow transition-shadow'>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-xs font-medium text-muted-foreground'>
-                Umumiy Daromad
-              </CardTitle>
-              <CreditCard className='h-4 w-4 text-emerald-500' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold text-emerald-600 dark:text-emerald-400'>
-                {isLoading
-                  ? '...'
-                  : `${Number(totalRevenue).toLocaleString()} so'm`}
-              </div>
-              <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
-                <TrendingUp className='h-3 w-3 text-emerald-500' /> Tushgan barcha to'lovlar
-              </p>
-            </CardContent>
-          </Card>
+        {/* KPI Cards & Charts for Bosh Shifokor */}
+        {isHeadDoctor && (
+          <>
+            <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6'>
+              <Card className='shadow-sm hover:shadow transition-shadow'>
+                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                  <CardTitle className='text-xs font-medium text-muted-foreground'>
+                    Umumiy Daromad
+                  </CardTitle>
+                  <CreditCard className='h-4 w-4 text-emerald-500' />
+                </CardHeader>
+                <CardContent>
+                  <div className='text-2xl font-bold text-emerald-600 dark:text-emerald-400'>
+                    {isLoading
+                      ? '...'
+                      : `${Number(totalRevenue).toLocaleString()} so'm`}
+                  </div>
+                  <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
+                    <TrendingUp className='h-3 w-3 text-emerald-500' /> Tushgan barcha to'lovlar
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card className='shadow-sm hover:shadow transition-shadow'>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-xs font-medium text-muted-foreground'>
-                Jami Bemorlar
-              </CardTitle>
-              <Users className='h-4 w-4 text-blue-500' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold'>
-                {isLoading ? '...' : totalPatients} ta
-              </div>
-              <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
-                <UserPlus className='h-3 w-3 text-blue-500' /> +{newPatientsCount} ta yangi
-              </p>
-            </CardContent>
-          </Card>
+              <Card className='shadow-sm hover:shadow transition-shadow'>
+                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                  <CardTitle className='text-xs font-medium text-muted-foreground'>
+                    Jami Bemorlar
+                  </CardTitle>
+                  <Users className='h-4 w-4 text-blue-500' />
+                </CardHeader>
+                <CardContent>
+                  <div className='text-2xl font-bold'>
+                    {isLoading ? '...' : totalPatients} ta
+                  </div>
+                  <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
+                    <UserPlus className='h-3 w-3 text-blue-500' /> +{newPatientsCount} ta yangi
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card className='shadow-sm hover:shadow transition-shadow'>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-xs font-medium text-muted-foreground'>
-                Bajarilgan Navbatlar
-              </CardTitle>
-              <CheckCircle2 className='h-4 w-4 text-emerald-500' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold'>
-                {isLoading ? '...' : `${completedAppts} / ${totalAppts}`}
-              </div>
-              <p className='text-[11px] text-muted-foreground mt-1'>
-                Muvaffaqiyatli yakunlangan
-              </p>
-            </CardContent>
-          </Card>
+              <Card className='shadow-sm hover:shadow transition-shadow'>
+                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                  <CardTitle className='text-xs font-medium text-muted-foreground'>
+                    Bajarilgan Navbatlar
+                  </CardTitle>
+                  <CheckCircle2 className='h-4 w-4 text-emerald-500' />
+                </CardHeader>
+                <CardContent>
+                  <div className='text-2xl font-bold'>
+                    {isLoading ? '...' : `${completedAppts} / ${totalAppts}`}
+                  </div>
+                  <p className='text-[11px] text-muted-foreground mt-1'>
+                    Muvaffaqiyatli yakunlangan
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card className='shadow-sm hover:shadow transition-shadow'>
-            <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-xs font-medium text-muted-foreground'>
-                Bekor Qilingan Navbatlar
-              </CardTitle>
-              <XCircle className='h-4 w-4 text-rose-500' />
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold text-rose-600 dark:text-rose-400'>
-                {isLoading ? '...' : cancelledAppts} ta
-              </div>
-              <p className='text-[11px] text-muted-foreground mt-1'>
-                Mijoz bekor qilgan
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+              <Card className='shadow-sm hover:shadow transition-shadow'>
+                <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+                  <CardTitle className='text-xs font-medium text-muted-foreground'>
+                    Bekor Qilingan Navbatlar
+                  </CardTitle>
+                  <XCircle className='h-4 w-4 text-rose-500' />
+                </CardHeader>
+                <CardContent>
+                  <div className='text-2xl font-bold text-rose-600 dark:text-rose-400'>
+                    {isLoading ? '...' : cancelledAppts} ta
+                  </div>
+                  <p className='text-[11px] text-muted-foreground mt-1'>
+                    Mijoz bekor qilgan
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
 
-        {/* Charts */}
-        <StatsCharts
-          topProcedures={topProcedures}
-          departmentBreakdown={departmentBreakdown}
-        />
+            <StatsCharts
+              topProcedures={topProcedures}
+              departmentBreakdown={departmentBreakdown}
+            />
+          </>
+        )}
       </Main>
     </>
   )

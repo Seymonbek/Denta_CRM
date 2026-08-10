@@ -158,18 +158,21 @@ class DoctorMyAnalyticsReportView(APIView):
         summary="Get personal performance, earnings, commission, and material analytics for a doctor",
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        period = _period_from(request)
+        role = getattr(request.user, "role", None)
         doc_profile = None
 
-        req_doc_id = request.query_params.get("doctor_id")
-        if req_doc_id:
-            doc_profile = DoctorProfile.objects.filter(pk=req_doc_id).first()
+        if role == "doctor" and not getattr(getattr(request.user, "doctor_profile", None), "can_view_other_doctors", False):
+            doc_profile = getattr(request.user, "doctor_profile", None)
+        else:
+            req_doc_id = request.query_params.get("doctor_id")
+            if req_doc_id:
+                doc_profile = DoctorProfile.objects.filter(pk=req_doc_id).first()
 
-        if not doc_profile and hasattr(request.user, "doctor_profile"):
-            doc_profile = request.user.doctor_profile
+            if not doc_profile and hasattr(request.user, "doctor_profile"):
+                doc_profile = request.user.doctor_profile
 
-        if not doc_profile:
-            doc_profile = DoctorProfile.objects.first()
+            if not doc_profile:
+                doc_profile = DoctorProfile.objects.first()
 
         if not doc_profile:
             return Response(
@@ -177,6 +180,7 @@ class DoctorMyAnalyticsReportView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        period = _period_from(request)
         payload = doctor_my_analytics_payload(doc_profile, period)
         return Response(payload, status=status.HTTP_200_OK)
 

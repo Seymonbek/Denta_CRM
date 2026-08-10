@@ -138,8 +138,30 @@ def search_specific_entity_data(query: str) -> str:
     return "\n\n".join(results)
 
 
+# Module-level singleton for GenAI client reuse
+_genai_client_instance: Any = None
+_genai_client_key: str | None = None
+
+
+def get_genai_client(api_key: str) -> Any:
+    """Return a reusable GenAI client instance to eliminate SSL handshake overhead."""
+    global _genai_client_instance, _genai_client_key
+    if _genai_client_instance is not None and _genai_client_key == api_key:
+        return _genai_client_instance
+
+    try:
+        from google import genai
+        _genai_client_instance = genai.Client(api_key=api_key)
+        _genai_client_key = api_key
+        return _genai_client_instance
+    except Exception as err:
+        logger.warning("Could not initialize google.genai client: %s", err)
+        return None
+
+
 def get_clinic_crm_context(user: Any, query: str = "") -> dict[str, Any]:
-    """Gather role-aware CRM context for the AI prompt builder, honoring dynamic permissions."""
+    """Gather role-aware CRM context for the AI prompt builder, honoring dynamic permissions with caching."""
+    from django.core.cache import cache
     from apps.core.permissions import ROLE_ADMINISTRATOR, ROLE_BOSH_SHIFOKOR, ROLE_DOCTOR
     from apps.patients.models import Patient
     from apps.scheduling.models import Appointment, AppointmentStatus
@@ -147,68 +169,71 @@ def get_clinic_crm_context(user: Any, query: str = "") -> dict[str, Any]:
 
     role = getattr(user, "role", None)
     today = timezone.localdate()
+    cache_key = f"ai_crm_context_{user.pk}_{today}"
 
-    # Determine dynamic permissions
-    can_costs = True
-    can_finance = True
-    can_other_doctors = True
-    can_all_patients = True
+    cached_base = cache.get(cache_key)
+    if not cached_base:
+        can_costs = True
+        can_finance = True
+        can_other_doctors = True
+        can_all_patients = True
 
-    if role != ROLE_BOSH_SHIFOKOR:
-        perm_cfg = AIPermissionConfig.objects.filter(role=role).first()
-        if perm_cfg:
-            can_costs = perm_cfg.can_view_inventory_costs
-            can_finance = perm_cfg.can_view_financial_reports
-            can_other_doctors = perm_cfg.can_view_other_doctors_stats
-            can_all_patients = perm_cfg.can_view_all_patients
+        if role != ROLE_BOSH_SHIFOKOR:
+            perm_cfg = AIPermissionConfig.objects.filter(role=role).first()
+            if perm_cfg:
+                can_costs = perm_cfg.can_view_inventory_costs
+                can_finance = perm_cfg.can_view_financial_reports
+                can_other_doctors = perm_cfg.can_view_other_doctors_stats
+                can_all_patients = perm_cfg.can_view_all_patients
+            else:
+                can_costs = False
+                can_finance = False
+                can_other_doctors = False
+                can_all_patients = False
+
+        inv = get_inventory_analytics(include_costs=can_costs)
+        today_appts = Appointment.objects.filter(scheduled_start__date=today)
+        if role == ROLE_DOCTOR and not can_other_doctors:
+            today_appts = today_appts.filter(doctor__user=user)
+
+        appts_count = today_appts.count()
+        completed_count = today_appts.filter(status=AppointmentStatus.COMPLETED).count()
+        scheduled_count = today_appts.filter(status=AppointmentStatus.SCHEDULED).count()
+
+        if can_all_patients or role == ROLE_BOSH_SHIFOKOR or role == ROLE_ADMINISTRATOR:
+            patients_count = Patient.objects.filter(is_active=True).count()
         else:
-            can_costs = False
-            can_finance = False
-            can_other_doctors = False
-            can_all_patients = False
+            patients_count = "Faqat biriktirilgan bemorlar"
 
-    inv = get_inventory_analytics(include_costs=can_costs)
-    context: dict[str, Any] = {
-        "user_name": getattr(user, "get_full_name", lambda: "Foydalanuvchi")(),
-        "user_role": role,
-        "inventory_analytics": inv,
-        "date": str(today),
-    }
+        today_income_sum = None
+        if can_finance or role == ROLE_BOSH_SHIFOKOR:
+            from apps.payments.models import Payment
+            today_income = (
+                Payment.objects.filter(
+                    is_active=True,
+                    created_at__date=today,
+                ).aggregate(total=Sum("amount"))["total"]
+                or Decimal("0.00")
+            )
+            today_income_sum = str(today_income)
 
-    # Appointments summary
-    today_appts = Appointment.objects.filter(scheduled_start__date=today)
-    if role == ROLE_DOCTOR and not can_other_doctors:
-        today_appts = today_appts.filter(doctor__user=user)
+        cached_base = {
+            "user_name": getattr(user, "get_full_name", lambda: "Foydalanuvchi")(),
+            "user_role": role,
+            "inventory_analytics": inv,
+            "date": str(today),
+            "today_appointments_count": appts_count,
+            "today_completed_count": completed_count,
+            "today_scheduled_count": scheduled_count,
+            "total_patients_count": patients_count,
+            "today_income_sum": today_income_sum,
+            "can_all_patients": can_all_patients,
+        }
+        cache.set(cache_key, cached_base, timeout=10)
 
-    context["today_appointments_count"] = today_appts.count()
-    context["today_completed_count"] = today_appts.filter(
-        status=AppointmentStatus.COMPLETED
-    ).count()
-    context["today_scheduled_count"] = today_appts.filter(
-        status=AppointmentStatus.SCHEDULED
-    ).count()
-
-    # Patients count
-    if can_all_patients or role == ROLE_BOSH_SHIFOKOR or role == ROLE_ADMINISTRATOR:
-        context["total_patients_count"] = Patient.objects.filter(is_active=True).count()
-    else:
-        context["total_patients_count"] = "Faqat biriktirilgan bemorlar"
-
-    # Financial summary
-    if can_finance or role == ROLE_BOSH_SHIFOKOR:
-        from apps.payments.models import Payment
-
-        today_income = (
-            Payment.objects.filter(
-                is_active=True,
-                created_at__date=today,
-            ).aggregate(total=Sum("amount"))["total"]
-            or Decimal("0.00")
-        )
-        context["today_income_sum"] = str(today_income)
-
+    context = dict(cached_base)
     # Dynamic patient lookup if query asks about specific persons
-    if query and (can_all_patients or role in [ROLE_BOSH_SHIFOKOR, ROLE_ADMINISTRATOR]):
+    if query and (context.get("can_all_patients") or role in [ROLE_BOSH_SHIFOKOR, ROLE_ADMINISTRATOR]):
         context["patient_records_search"] = search_specific_entity_data(query)
 
     return context
@@ -240,13 +265,22 @@ def generate_ai_chat_response(query: str, user: Any) -> dict[str, Any]:
         if patient_records_str else ""
     )
 
+    from apps.doctors.models import DoctorProfile
+    doctors = DoctorProfile.objects.filter(is_active=True)[:10]
+    doctors_str_list = []
+    for d in doctors:
+        d_name = d.user.get_full_name() if d.user else "Shifokor"
+        d_spec = d.specialization or "Stomatolog"
+        doctors_str_list.append(f"👨‍⚕️ {d_name} ({d_spec})")
+    doctors_summary_str = ", ".join(doctors_str_list) if doctors_str_list else "Shifokorlar ro'yxati kiritilmagan"
+
     system_instructions = (
         "Siz DentaCRM klinika boshqaruv tizimining aqlli AI assistantisiz. "
         "Foydalanuvchi Bosh Shifokor yoki xodim hisoblanadi.\n"
-        "Foydalanuvchi so'ragan bemor ma'lumotlari mavjud bo'lsa, ularni aniq, to'liq, telefon raqami, "
-        "muolajalar va qabullari bilan taqdim eting. Generalizatsiya qilmang.\n"
+        "Foydalanuvchi so'ragan bemor va shifokor ma'lumotlari mavjud bo'lsa, ularni aniq, to'liq taqdim eting.\n"
         f"Joriy sana: {crm_ctx['date']}\n"
         f"Foydalanuvchi: {crm_ctx['user_name']} ({crm_ctx['user_role']})\n"
+        f"Klinika Shifokorlari Ro'yxati ({len(doctors_str_list)} ta): {doctors_summary_str}\n"
         f"Omborda kam qolgan materiallar ({inv['low_stock_count']} ta): {low_stock_str}\n"
         f"Bugungi navbatlar soni: {crm_ctx['today_appointments_count']} ta "
         f"(Yakunlangan: {crm_ctx['today_completed_count']}, Rejalashtirilgan: {crm_ctx['today_scheduled_count']})\n"
@@ -255,33 +289,38 @@ def generate_ai_chat_response(query: str, user: Any) -> dict[str, Any]:
     )
 
     if api_key:
-        try:
-            from google import genai
-            from google.genai import types
-
-            client = genai.Client(api_key=api_key)
+        client = get_genai_client(api_key)
+        if client:
             prompt = f"{system_instructions}\n\nFoydalanuvchi savoli: {query}"
-            
-            # Ultra-fast call with strict token limit and low latency config
-            try:
-                response = client.models.generate_content(
-                    model="gemini-flash-latest",
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        max_output_tokens=2048,
-                        temperature=0.3,
-                    ),
-                )
-                if response and hasattr(response, "text") and response.text:
-                    return {
-                        "answer": response.text.strip(),
-                        "context_summary": crm_ctx,
-                        "source": "gemini-ai",
-                    }
-            except Exception as m_exc:
-                logger.warning("Gemini primary model failed, falling back to smart CRM assistant: %s", m_exc)
-        except Exception as exc:
-            logger.warning("Gemini AI API call failed, using fallback assistant: %s", exc)
+            from google.genai import types
+            import concurrent.futures
+
+            # Try fastest models with strict 3-second timeout protection
+            for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]:
+                try:
+                    def _call_model():
+                        return client.models.generate_content(
+                            model=model_name,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                max_output_tokens=1024,
+                                temperature=0.3,
+                            ),
+                        )
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(_call_model)
+                        response = future.result(timeout=3.0)
+
+                    if response and hasattr(response, "text") and response.text:
+                        return {
+                            "answer": response.text.strip(),
+                            "context_summary": crm_ctx,
+                            "source": "gemini-ai",
+                        }
+                except Exception as m_exc:
+                    logger.debug("Model %s call failed or timed out: %s", model_name, m_exc)
+                    continue
 
     fallback_answer = _build_rule_based_fallback(query, crm_ctx)
     return {
@@ -292,52 +331,111 @@ def generate_ai_chat_response(query: str, user: Any) -> dict[str, Any]:
 
 
 def _build_rule_based_fallback(query: str, ctx: dict[str, Any]) -> str:
-    """Provide structured smart fallback responses based on CRM data."""
+    """Provide structured, rich, and accurate responses directly from CRM DB."""
     q_lower = query.lower()
     inv = ctx["inventory_analytics"]
 
-    # Priority 1: If a specific patient record was searched and found in DB, return it immediately
+    # 1. Doctor / Shifokorlar query
+    if any(k in q_lower for k in ["doktor", "shifokor", "vrach", "mutaxassis", "doctor"]):
+        from apps.doctors.models import DoctorProfile
+        from apps.scheduling.models import Appointment
+
+        today = timezone.localdate()
+        doctors = DoctorProfile.objects.filter(is_active=True).select_related("user").prefetch_related("departments")
+        if not doctors.exists():
+            return "Hozirda klinikada faol shifokorlar topilmadi."
+
+        doc_lines = []
+        for d in doctors:
+            name = d.user.get_full_name() or d.user.phone_number if d.user else "Shifokor"
+            phone = d.user.phone_number if d.user else "-"
+            dept_names = ", ".join([dept.name for dept in d.departments.all()]) or "Umumiy"
+            appts_count = Appointment.objects.filter(doctor=d, scheduled_start__date=today, is_active=True).count()
+            doc_lines.append(
+                f"👨‍⚕️ <b>{name}</b> ({d.specialization or 'Stomatolog'})\n"
+                f"   • Bo'lim: {dept_names}\n"
+                f"   • Telefon: {phone}\n"
+                f"   • Bugungi qabullar: <b>{appts_count}</b> ta"
+            )
+
+        return (
+            f"<b>📋 Klinika Shifokorlari Ro'yxati (Jami: {len(doctors)} ta):</b>\n\n"
+            + "\n\n".join(doc_lines)
+        )
+
+    # 2. Greeting / Salomlashuv
+    if any(k in q_lower for k in ["salom", "assalom", "privet", "hello", "hi"]):
+        return (
+            f"Assalomu alaykum, <b>{ctx['user_name']}</b>! DentaCRM AI Yordamchisiga xush kelibsiz. 😊\n\n"
+            f"📊 <b>Klinika Bugungi Qisqacha Holati:</b>\n"
+            f"• Bugungi navbatlar: <b>{ctx['today_appointments_count']}</b> ta\n"
+            f"• Omborda kam qolgan materiallar: <b>{inv['low_stock_count']}</b> ta\n"
+            f"• Jami bemorlar: <b>{ctx['total_patients_count']}</b> ta\n\n"
+            f"Quyidagi mavzulardan biri bo'yicha savol berishingiz mumkin:\n"
+            f"1. 👨‍⚕️ <i>'Shifokorlar haqida ma'lumot ber'</i>\n"
+            f"2. 📦 <i>'Ombor qoldig'i qanday?'</i>\n"
+            f"3. 👤 <i>'Bemor [Ism] haqida ma'lumot'</i>\n"
+            f"4. 💰 <i>'Bugungi kassa tushumi'</i>"
+        )
+
+    # 3. Patient specific DB search or general patient info
     patient_data = ctx.get("patient_records_search")
     if patient_data:
-        return f"Tizim ma'lumotlar bazasida topilgan bemor ma'lumotlari:\n\n{patient_data}"
+        return f"<b>🔎 Ma'lumotlar bazasidan topilgan bemor ma'lumoti:</b>\n\n{patient_data}"
 
+    if any(k in q_lower for k in ["bemor", "bemorlar", "patient"]):
+        from apps.patients.models import Patient
+        recent_patients = Patient.objects.filter(is_active=True).order_by("-created_at")[:5]
+        p_lines = [f"• <b>{p.first_name} {p.last_name}</b> ({p.phone_number})" for p in recent_patients]
+        return (
+            f"<b>📋 Bemorlar Ro'yxati (Jami: {ctx['total_patients_count']}):</b>\n\n"
+            f"Bugun va so'nggi ro'yxatdan o'tgan bemorlar:\n"
+            + "\n".join(p_lines) + "\n\n"
+            f"<i>Muayyan bemor ma'lumotlarini olish uchun ism-sharifini yozing (masalan: 'Ali Valiyev').</i>"
+        )
+
+    # 4. Inventory / Ombor query
     if any(k in q_lower for k in ["ombor", "material", "zaxira", "kam", "tugagan", "stock"]):
         if inv["low_stock_count"] == 0:
-            return (
-                "Omborda barcha materiallar etarli miqdorda mavjud. "
-                "Kam qolgan yoki tugagan materiallar aniqlanmadi."
-            )
+            return "📦 Omborda barcha materiallar yetarli miqdorda mavjud. Sklad holati a'lo!"
         items_desc = "\n".join(
             [
-                f"• {item['name']}: {item['quantity_in_stock']} {item['unit']} (minimal: {item['minimum_threshold']})"
+                f"• <b>{item['name']}</b>: <code>{item['quantity_in_stock']} {item['unit']}</code> (minimal: {item['minimum_threshold']})"
                 for item in inv["low_stock_items"]
             ]
         )
         return (
-            f"Omborda {inv['low_stock_count']} ta material minimal chegaradan kam qolgan:\n\n"
+            f"<b>📦 Omborda {inv['low_stock_count']} ta material kam qolgan:</b>\n\n"
             f"{items_desc}\n\n"
-            "Iltimos, ushbu materiallarni qayta to'ldirish uchun mas'ul xodimga xabar bering."
+            "<i>Iltimos, ushbu materiallarni to'ldirish uchun mas'ul xodimga xabar bering.</i>"
         )
 
-    if any(k in q_lower for k in ["navbat", "bemor", "bemorlar", "bugun", "appointment"]):
+    # 5. Appointments / Navbatlar query
+    if any(k in q_lower for k in ["navbat", "qabul", "bugun", "appointment"]):
         return (
-            f"Bugun ({ctx['date']}) jami {ctx['today_appointments_count']} ta navbat bor.\n"
-            f"• Yakunlangan: {ctx['today_completed_count']} ta\n"
-            f"• Kutilayotgan: {ctx['today_scheduled_count']} ta\n"
-            f"Tizimda bemorlar ma'lumoti: {ctx['total_patients_count']}."
+            f"<b>📅 Bugungi Navbatlar Statistikasi ({ctx['date']}):</b>\n\n"
+            f"• Jami navbatlar: <b>{ctx['today_appointments_count']}</b> ta\n"
+            f"• Yakunlangan: <b>{ctx['today_completed_count']}</b> ta\n"
+            f"• Rejalashtirilgan: <b>{ctx['today_scheduled_count']}</b> ta"
         )
 
-    if any(k in q_lower for k in ["moliya", "tushum", "puli", "daromad", "payment"]):
+    # 6. Finance / Moliya query
+    if any(k in q_lower for k in ["moliya", "tushum", "puli", "daromad", "payment", "kassa"]):
         income = ctx.get("today_income_sum")
         if income is None:
-            return "Kechirasiz, sizda moliyaviy hisobotlarni ko'rish uchun ruxsat mavjud emas."
-        return (
-            f"Bugungi ({ctx['date']}) jami qabul qilingan to'lovlar summasi: {income} so'm."
-        )
+            return "⚠️ Kechirasiz, sizda moliyaviy hisobotlarni ko'rish uchun ruxsat mavjud emas."
+        return f"<b>💰 Bugungi ({ctx['date']}) Jami Tushum:</b> <code>{income} so'm</code>"
+
+    # Default fallback — try entity search or structured summary
+    entity_result = search_specific_entity_data(query)
+    if entity_result:
+        return f"<b>🔎 Qidiruv bo'yicha topilgan ma'lumot:</b>\n\n{entity_result}"
 
     return (
-        f"Assalomu alaykum, {ctx['user_name']}! "
-        f"Omborda {inv['low_stock_count']} ta material kam qolgan. "
-        f"Bugun {ctx['today_appointments_count']} ta navbat rejalashtirilgan. "
-        "Ombor, navbatlar yoki moliya bo'yicha batafsil ma'lumot olishingiz mumkin."
+        f"Assalomu alaykum, <b>{ctx['user_name']}</b>!\n\n"
+        f"Savolingiz bo'yicha aniq ma'lumot topilmadi. Siz quyidagi mavzular bo'yicha so'rashingiz mumkin:\n"
+        f"• <b>Shifokorlar:</b> <i>'Klinika shifokorlari haqida ma'lumot'</i>\n"
+        f"• <b>Ombor:</b> <i>'Omborda nimalar kam qoldi?'</i>\n"
+        f"• <b>Bemor:</b> <i>'Bemor Ism Sharif haqida'</i>\n"
+        f"• <b>Navbatlar:</b> <i>'Bugungi navbatlar statistikasi'</i>"
     )

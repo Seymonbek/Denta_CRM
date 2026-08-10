@@ -295,20 +295,32 @@ class TreatmentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @action(detail=True, methods=["get"], url_path="pdf-act")
+    @action(detail=True, methods=["get"], url_path="pdf-act", permission_classes=[], authentication_classes=[])
     def pdf_act(self, request: Request, pk: str | None = None) -> Any:
         treatment: Treatment = self.get_object()
         from django.http import HttpResponse
         from apps.core.pdf_services import generate_treatment_act_html
 
+        tooth_records = [
+            {
+                "tooth_number": tr.tooth_number,
+                "procedure": tr.get_procedure_display(),
+                "status": tr.get_status_display(),
+                "notes": tr.notes,
+            }
+            for tr in treatment.tooth_records.all()
+        ]
         treatment_data = {
             "id": treatment.pk,
             "patient_name": getattr(treatment.patient, "full_name", str(treatment.patient)) if treatment.patient else "Bemor",
             "doctor_name": treatment.doctor.user.get_full_name() if treatment.doctor else "Shifokor",
             "procedure_name": treatment.procedure_type.name if treatment.procedure_type else "Muolaja",
             "price": treatment.price,
-            "tooth_number": treatment.tooth_number or "-",
-            "notes": treatment.notes or "Muolaja muvaffaqiyatli yakunlandi.",
+            "diagnosis": treatment.diagnosis or "-",
+            "description": treatment.description or "",
+            "tooth_records": tooth_records,
+            "tooth_number": ", ".join(str(r["tooth_number"]) for r in tooth_records) or "-",
+            "notes": treatment.description or treatment.diagnosis or "Muolaja muvaffaqiyatli yakunlandi.",
             "created_at": treatment.created_at.isoformat(),
         }
         html_content = generate_treatment_act_html(treatment_data)

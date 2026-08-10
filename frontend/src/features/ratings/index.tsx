@@ -27,7 +27,8 @@ export function RatingsList() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>🏆 Shifokorlar Reytingi va Nishonlar</span>
+          <Trophy className='h-5 w-5 text-amber-500' />
+          <span>Shifokorlar Reytingi va Nishonlar</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -35,15 +36,17 @@ export function RatingsList() {
 
       <Main>
         <div className='mb-6'>
-          <h1 className='text-2xl font-bold tracking-tight'>Klinika Shifokorlari Leaderboardi</h1>
-          <p className='text-xs text-muted-foreground'>
+          <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
+            <Trophy className='h-6 w-6 text-amber-500' /> Klinika Shifokorlari Leaderboardi
+          </h1>
+          <p className='text-xs text-muted-foreground mt-1'>
             Faollik ballari, muolajalar va bemorlar minnatdorchilik nishonlari.
           </p>
         </div>
 
-        {/* Leaderboard Table */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
-          <Table>
+        {/* Leaderboard Table with Mobile Responsive Horizontal Scroll */}
+        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
+          <Table className='min-w-[600px] sm:min-w-full'>
             <TableHeader>
               <TableRow className='bg-muted/30'>
                 <TableHead className='text-xs font-semibold w-16 text-center'>O'rin</TableHead>

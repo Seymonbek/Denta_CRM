@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Package, AlertTriangle, Plus, RefreshCw } from 'lucide-react'
+import { Package, AlertTriangle, Plus, RefreshCw, Search } from 'lucide-react'
 import {
   useMaterials,
   useCreateMaterial,
@@ -42,6 +42,9 @@ export function InventoryList() {
   const [restockMaterial, setRestockMaterial] = useState<Material | null>(null)
   const [restockAmount, setRestockAmount] = useState('')
 
+  const [searchTerm, setSearchTerm] = useState('')
+  const [stockFilter, setStockFilter] = useState<'all' | 'low'>('all')
+
   // Form State
   const [name, setName] = useState('')
   const [unit, setUnit] = useState<MaterialUnit>('piece')
@@ -50,11 +53,21 @@ export function InventoryList() {
   const [unitCost, setUnitCost] = useState('')
 
   const { data: materialsData = [], isLoading } = useMaterials()
-  const materials = Array.isArray(materialsData?.results)
+  const materialsList = Array.isArray(materialsData?.results)
     ? materialsData.results
     : Array.isArray(materialsData)
     ? materialsData
     : []
+
+  const filteredMaterials = materialsList.filter((m: any) => {
+    const nameMatch = (m?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    const stockNum = parseFloat(m?.quantityInStock || m?.quantity_in_stock || '0')
+    const thresholdNum = parseFloat(m?.minimumThreshold || m?.minimum_threshold || '0')
+    const isLow = stockNum <= thresholdNum
+
+    if (stockFilter === 'low' && !isLow) return false
+    return nameMatch
+  })
 
   const createMaterialMutation = useCreateMaterial()
   const restockMutation = useRestockMaterial()
@@ -106,7 +119,8 @@ export function InventoryList() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>📦 Sklad (Materiallar Monitoringi)</span>
+          <Package className='h-5 w-5 text-primary' />
+          <span>Sklad (Materiallar Monitoringi)</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -115,19 +129,43 @@ export function InventoryList() {
       <Main>
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>Materiallar Zaxirasi</h1>
-            <p className='text-xs text-muted-foreground'>
+            <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
+              <Package className='h-6 w-6 text-primary' /> Materiallar Zaxirasi
+            </h1>
+            <p className='text-xs text-muted-foreground mt-1'>
               Stomatologik sarflash materiallari, minimal chegara xabardorligi va restock.
             </p>
           </div>
-          <Button onClick={() => setIsCreateModalOpen(true)} className='shadow'>
-            <Plus className='me-2 h-4 w-4' /> Yangi Material Qo'shish
+          <Button onClick={() => setIsCreateModalOpen(true)} className='shadow text-xs font-bold gap-1.5'>
+            <Plus className='h-4 w-4' /> Yangi Material Qo'shish
           </Button>
         </div>
 
-        {/* Materials Table */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
-          <Table>
+        {/* Filter Toolbar */}
+        <div className='mb-4 flex flex-col sm:flex-row items-center gap-3'>
+          <div className='relative flex-1 w-full'>
+            <Search className='absolute left-3 top-2.5 h-4 w-4 text-muted-foreground' />
+            <Input
+              placeholder="Material nomi bo'yicha qidiruv..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='ps-9 text-xs h-9'
+            />
+          </div>
+          <Select value={stockFilter} onValueChange={(val: any) => setStockFilter(val)}>
+            <SelectTrigger className='w-full sm:w-48 text-xs h-9'>
+              <SelectValue placeholder='Zaxira Holati' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>Barcha Materiallar</SelectItem>
+              <SelectItem value='low'>Kam Qolganlar (Low Stock)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Materials Table with Mobile Responsive Horizontal Scroll */}
+        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
+          <Table className='min-w-[650px] sm:min-w-full'>
             <TableHeader>
               <TableRow className='bg-muted/30'>
                 <TableHead className='text-xs font-semibold'>Material Nomi</TableHead>
@@ -146,14 +184,14 @@ export function InventoryList() {
                     Materiallar yuklanmoqda...
                   </TableCell>
                 </TableRow>
-              ) : materials.length === 0 ? (
+              ) : filteredMaterials.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className='text-center py-8 text-xs text-muted-foreground'>
-                    Materiallar topilmadi.
+                    Hech qanday material topilmadi.
                   </TableCell>
                 </TableRow>
               ) : (
-                materials.map((m: any) => {
+                filteredMaterials.map((m: any) => {
                   const stockNum = parseFloat(m?.quantityInStock || m?.quantity_in_stock || '0')
                   const thresholdNum = parseFloat(m?.minimumThreshold || m?.minimum_threshold || '0')
                   const costNum = m?.unitCost || m?.unit_cost

@@ -133,7 +133,7 @@ export function AIAssistantPage() {
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
           <Sparkles className='h-5 w-5 text-primary animate-pulse' />
-          <span>🤖 DentaCRM AI Smart Assistant</span>
+          <span>DentaCRM AI Smart Assistant</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
