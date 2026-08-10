@@ -467,9 +467,19 @@ def compute_available_slots(
     if duration <= 0:
         duration = DEFAULT_SLOT_MINUTES
 
-    shifts = WorkingHours.objects.filter(
-        doctor=doctor, weekday=day.weekday()
-    ).order_by("start_time")
+    shifts = list(
+        WorkingHours.objects.filter(
+            doctor=doctor, weekday=day.weekday()
+        ).order_by("start_time")
+    )
+
+    if not shifts and not WorkingHours.objects.filter(doctor=doctor).exists():
+        # Fallback to standard clinic working hours (Dushanba-Shanba 09:00-18:00) if no schedule configured yet
+        if day.weekday() != Weekday.SUNDAY:
+            class _DefaultShift:
+                start_time = time(9, 0)
+                end_time = time(18, 0)
+            shifts = [_DefaultShift()]
 
     booked = _normalise_booked_ranges(booked_ranges)
 

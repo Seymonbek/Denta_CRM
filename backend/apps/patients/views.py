@@ -60,7 +60,7 @@ class PatientViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ["is_active", "gender"]
     ordering_fields = ["last_name", "first_name", "created_at"]
-    ordering = ["last_name", "first_name"]
+    ordering = ["-created_at"]
     lookup_field = "pk"
 
     # Sub-resource views (history / odontogram) can be read by any
@@ -85,7 +85,9 @@ class PatientViewSet(viewsets.ModelViewSet):
             profile = getattr(request.user, "doctor_profile", None)
             if profile is not None and not getattr(profile, "can_view_other_doctors", False):
                 base = base.filter(
-                    models.Q(appointments__doctor=profile) | models.Q(treatments__doctor=profile)
+                    models.Q(appointment__doctor=profile)
+                    | models.Q(treatment__doctor=profile)
+                    | models.Q(created_by=request.user)
                 ).distinct()
 
         query = request.query_params.get("search")
@@ -101,7 +103,7 @@ class PatientViewSet(viewsets.ModelViewSet):
                     include_inactive and role == "bosh_shifokor"
                 ),
             )
-        return base.order_by("last_name", "first_name")
+        return base.order_by("-created_at")
 
     # ------------------------------------------------------------------
     # Schema tweaks

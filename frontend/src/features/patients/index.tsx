@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Plus, Search, ArrowRight } from 'lucide-react'
 import { usePatients, useCreatePatient } from '@/api/hooks/use-patients'
@@ -33,11 +33,22 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 
 export function PatientsList() {
+  const authUser = useAuthStore((state) => state.user)
+  const canAddPatient = authUser?.role === 'administrator' || authUser?.role === 'bosh_shifokor'
+  const isDoctor = authUser?.role === 'doctor'
+
   const [searchTerm, setSearchTerm] = useState('')
   const [genderFilter, setGenderFilter] = useState<string>('')
+  const [page, setPage] = useState(1)
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, genderFilter])
 
   // Form State
   const [firstName, setFirstName] = useState('')
@@ -50,6 +61,7 @@ export function PatientsList() {
   const { data, isLoading } = usePatients({
     search: searchTerm || undefined,
     gender: genderFilter && genderFilter !== 'all' ? genderFilter : undefined,
+    page,
   })
 
   const createPatientMutation = useCreatePatient()
@@ -59,6 +71,10 @@ export function PatientsList() {
     : Array.isArray(data)
     ? data
     : []
+
+  const totalCount = data?.count ?? patients.length
+  const pageSize = 20
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   const handleCreatePatient = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,7 +101,16 @@ export function PatientsList() {
       setAddress('')
       setNotes('')
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Bemor qo’shishda xatolik yuz berdi.')
+      const data = err?.response?.data
+      const errorMsg =
+        data?.phone_number?.[0] ||
+        data?.first_name?.[0] ||
+        data?.last_name?.[0] ||
+        data?.error?.message ||
+        data?.detail ||
+        (typeof data === 'string' ? data : null) ||
+        'Bemor qo’shishda xatolik yuz berdi.'
+      toast.error(errorMsg)
     }
   }
 
@@ -102,14 +127,20 @@ export function PatientsList() {
       <Main>
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>Klinika Bemorlari</h1>
+            <h1 className='text-2xl font-bold tracking-tight'>
+              {isDoctor ? "Mening Bemorlarim" : "Klinika Bemorlari"}
+            </h1>
             <p className='text-xs text-muted-foreground'>
-              Ro'yxatdan o'tgan barcha bemorlar va ularning tibbiy kartalari.
+              {isDoctor
+                ? "Sizga biriktirilgan va siz davolagan bemorlar ro'yxati hamda ularning tish kartalari."
+                : "Ro'yxatdan o'tgan barcha bemorlar va ularning tibbiy kartalari."}
             </p>
           </div>
-          <Button onClick={() => setIsModalOpen(true)} className='shadow'>
-            <Plus className='me-2 h-4 w-4' /> Yangi Bemor Ro'yxatga Olish
-          </Button>
+          {canAddPatient && (
+            <Button onClick={() => setIsModalOpen(true)} className='shadow'>
+              <Plus className='me-2 h-4 w-4' /> Yangi Bemor Ro'yxatga Olish
+            </Button>
+          )}
         </div>
 
         {/* Filter Toolbar */}
@@ -207,17 +238,31 @@ export function PatientsList() {
           </Table>
         </div>
 
-        {/* Responsive Pagination Bar */}
+        {/* Dynamic Pagination Bar */}
         <div className='mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground'>
           <div>
-            Jami: <span className='font-bold text-foreground'>{patients.length}</span> ta bemor ro'yxatda
+            Jami: <span className='font-bold text-foreground'>{totalCount}</span> ta bemor ro'yxatda
           </div>
           <div className='flex items-center gap-2'>
-            <Button size='sm' variant='outline' disabled className='h-8 text-xs font-medium'>
+            <Button
+              size='sm'
+              variant='outline'
+              disabled={page <= 1 || isLoading}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              className='h-8 text-xs font-medium'
+            >
               ◄ Oldingi
             </Button>
-            <span className='font-mono text-xs px-2'>Sahifa 1 / 1</span>
-            <Button size='sm' variant='outline' disabled className='h-8 text-xs font-medium'>
+            <span className='font-mono text-xs px-2'>
+              Sahifa {page} / {totalPages}
+            </span>
+            <Button
+              size='sm'
+              variant='outline'
+              disabled={page >= totalPages || isLoading}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              className='h-8 text-xs font-medium'
+            >
               Keyingi ►
             </Button>
           </div>

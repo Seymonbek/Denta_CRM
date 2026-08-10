@@ -11,6 +11,7 @@ import {
   Package,
   DollarSign,
   Activity,
+  Calendar,
 } from 'lucide-react'
 import { useDashboardReport, useDoctorMyAnalytics } from '@/api/hooks/use-reports'
 import { Header } from '@/components/layout/header'
@@ -72,7 +73,7 @@ export function Dashboard() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>📊 {isHeadDoctor ? 'KPI Dashboard' : 'Shifokor Boshqaruv Paneli'}</span>
+          <span>📊 {isHeadDoctor ? 'KPI Dashboard' : isAdministrator ? 'Administrator Boshqaruv Paneli' : 'Shifokor Boshqaruv Paneli'}</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -113,13 +114,29 @@ export function Dashboard() {
                   : "Bugungi shaxsiy navbatlaringiz, bemorlaringiz tish kartalari va daromadingiz statistikasi."}
               </p>
             </div>
-            <div className='flex items-center gap-2 shrink-0'>
-              <Button size='sm' onClick={() => (window.location.href = '/appointments')}>
-                📋 Navbatlarim
-              </Button>
-              <Button size='sm' variant='outline' onClick={() => (window.location.href = '/patients')}>
-                👤 Bemorlarim
-              </Button>
+            <div className='flex flex-wrap items-center gap-2 shrink-0'>
+              {isAdministrator ? (
+                <>
+                  <Button size='sm' onClick={() => (window.location.href = '/patients')}>
+                    <UserPlus className='h-3.5 w-3.5 mr-1.5' /> Yangi Bemor Ro'yxatga Olish
+                  </Button>
+                  <Button size='sm' variant='outline' onClick={() => (window.location.href = '/appointments')}>
+                    <Calendar className='h-3.5 w-3.5 mr-1.5' /> Navbat Yozish
+                  </Button>
+                  <Button size='sm' variant='secondary' onClick={() => (window.location.href = '/payments')}>
+                    <CreditCard className='h-3.5 w-3.5 mr-1.5' /> Kassa & To'lovlar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size='sm' onClick={() => (window.location.href = '/appointments')}>
+                    📋 Navbatlarim
+                  </Button>
+                  <Button size='sm' variant='outline' onClick={() => (window.location.href = '/patients')}>
+                    👤 Bemorlarim
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -127,14 +144,14 @@ export function Dashboard() {
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
             <h1 className='text-2xl font-bold tracking-tight'>
-              {isHeadDoctor ? "Klinika Umumiy Ko'rsatkichlari" : isDoctor ? "Shaxsiy Ko'rsatkichlar va Statistika" : "Tezkor Boshqaruv"}
+              {isHeadDoctor ? "Klinika Umumiy Ko'rsatkichlari" : isDoctor ? "Shaxsiy Ko'rsatkichlar va Statistika" : "Tezkor Boshqaruv va Bemorlar Qabuli"}
             </h1>
             <p className='text-xs text-muted-foreground'>
               {isHeadDoctor
                 ? 'Real vaqtdagi moliyaviy, bemor va navbatlar statistikasi.'
                 : isDoctor
                 ? "Shaxsiy bajargan muolajalaringiz, tushum, material sarfi va ish haqingiz."
-                : 'Klinikadagi tezkor ish jarayonlari va menyu bo\'limlari.'}
+                : 'Klinikaga bemor kelganda bajariladigan asosiy tezkor jarayonlar.'}
             </p>
           </div>
           {(isHeadDoctor || isDoctor) && (
@@ -150,6 +167,59 @@ export function Dashboard() {
             </Select>
           )}
         </div>
+
+        {/* Administrator Quick Action Cards */}
+        {isAdministrator && (
+          <div className='grid gap-4 sm:grid-cols-3 mb-6'>
+            <Card className='shadow-sm border-blue-500/20 bg-blue-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => (window.location.href = '/patients')}>
+              <CardHeader className='pb-2'>
+                <CardTitle className='text-sm font-bold flex items-center gap-2 text-blue-600 dark:text-blue-400'>
+                  <UserPlus className='h-5 w-5' /> 1. Bemor Ro'yxatga Olish
+                </CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-2'>
+                <p className='text-xs text-muted-foreground'>
+                  Klinikaga yangi kelgan bemor ma'lumotlarini (F.I.SH, Telefon, Jinsi) tizimga kiritish va shaxsiy karta ochish.
+                </p>
+                <Button size='sm' className='w-full text-xs font-bold gap-1 mt-2'>
+                  <UserPlus className='h-3.5 w-3.5' /> Bemor Qo'shish (/patients)
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className='shadow-sm border-emerald-500/20 bg-emerald-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => (window.location.href = '/appointments')}>
+              <CardHeader className='pb-2'>
+                <CardTitle className='text-sm font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400'>
+                  <Calendar className='h-5 w-5' /> 2. Navbat Yozish & Qabul
+                </CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-2'>
+                <p className='text-xs text-muted-foreground'>
+                  Bemorni tanlangan shifokor qabuliga navbatga kiritish yoki kelgan bemor holatini "Kutmoqda" ga o'tkazish.
+                </p>
+                <Button size='sm' variant='outline' className='w-full text-xs font-bold gap-1 mt-2 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'>
+                  <Calendar className='h-3.5 w-3.5' /> Navbatlar Jadvali (/appointments)
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className='shadow-sm border-purple-500/20 bg-purple-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => (window.location.href = '/payments')}>
+              <CardHeader className='pb-2'>
+                <CardTitle className='text-sm font-bold flex items-center gap-2 text-purple-600 dark:text-purple-400'>
+                  <CreditCard className='h-5 w-5' /> 3. To'lov Qabul Qilish (Kassa)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-2'>
+                <p className='text-xs text-muted-foreground'>
+                  Muolajasi yakunlangan bemor to'lovini naqd, karta yoki Click/Payme orqali qabul qilish hamda chek berish.
+                </p>
+                <Button size='sm' variant='secondary' className='w-full text-xs font-bold gap-1 mt-2'>
+                  <CreditCard className='h-3.5 w-3.5' /> Kassa & To'lovlar (/payments)
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Doctor Personal Stat Cards */}
         {isDoctor && (
