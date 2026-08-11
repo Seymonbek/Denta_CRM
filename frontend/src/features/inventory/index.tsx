@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/get-error-message'
 
 export function InventoryList() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -93,8 +94,8 @@ export function InventoryList() {
       setQuantityInStock('')
       setMinimumThreshold('')
       setUnitCost('')
-    } catch {
-      toast.error('Material yaratishda xatolik.')
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, 'Material yaratishda xatolik.'))
     }
   }
 
@@ -110,8 +111,8 @@ export function InventoryList() {
       toast.success('Zaxira to’ldirildi!')
       setRestockMaterial(null)
       setRestockAmount('')
-    } catch {
-      toast.error('Zaxira to’ldirishda xatolik.')
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, 'Zaxira to’ldirishda xatolik.'))
     }
   }
 

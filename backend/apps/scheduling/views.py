@@ -53,7 +53,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     permission_classes = [AppointmentPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     ordering_fields = ["scheduled_start", "created_at"]
-    ordering = ["-scheduled_start"]
+    ordering = ["-created_at"]
     lookup_field = "pk"
 
     def get_queryset(self):

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Plus, Ban, FileText, Wallet, Search, CreditCard } from 'lucide-react'
+import { Plus, Ban, FileText, Wallet, Search, CreditCard, AlertCircle } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { confirmSwal } from '@/lib/sweetalert'
 import { format } from 'date-fns'
 import {
@@ -77,6 +78,13 @@ export function PaymentsList() {
     ? treatmentsData
     : []
 
+  const { data: pendingTreatmentsData } = useTreatments({ stage: 'completed', payment_status: 'unpaid' })
+  const pendingTreatments = Array.isArray(pendingTreatmentsData?.results)
+    ? pendingTreatmentsData.results
+    : Array.isArray(pendingTreatmentsData)
+    ? pendingTreatmentsData
+    : []
+
   const { data: patientsData } = usePatients({ page_size: 100 })
   const patients = Array.isArray(patientsData?.results)
     ? patientsData.results
@@ -94,6 +102,18 @@ export function PaymentsList() {
 
   const createPaymentMutation = useCreatePayment()
   const voidPaymentMutation = useVoidPayment()
+
+  // Merge pending and all treatments for the dropdown so selected item displays correctly
+  const allModalTreatments = [...pendingTreatments, ...treatments].filter(
+    (t, index, self) => index === self.findIndex((t2) => t2.id === t.id)
+  )
+
+  const openPaymentModal = (tId: string, pId: string, amt: string) => {
+    setTreatmentId(tId)
+    setPatientId(pId)
+    setAmount(amt)
+    setIsModalOpen(true)
+  }
 
   const handleCreatePayment = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -117,6 +137,8 @@ export function PaymentsList() {
       toast.success('To’lov muvaffaqiyatli qabul qilindi!')
       setIsModalOpen(false)
       setAmount('')
+      setTreatmentId('')
+      setPatientId('')
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || 'To’lovni amalga oshirishda xatolik.')
     }
@@ -156,10 +178,61 @@ export function PaymentsList() {
               Mijozlardan to'lov qabul qilish (Idempotent), to'lovlar tarixi va shifokorlar komissiyasi.
             </p>
           </div>
-          <Button onClick={() => setIsModalOpen(true)} className='shadow'>
-            <Plus className='me-2 h-4 w-4' /> To'lov Qabul Qilish
+          <Button onClick={() => openPaymentModal('', '', '')} className='shadow'>
+            <Plus className='me-2 h-4 w-4' /> Boshqa To'lov Qabul Qilish
           </Button>
         </div>
+
+        {/* Pending Payments Section */}
+        {pendingTreatments.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 mb-3 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" /> To'lov Kutilmoqda ({pendingTreatments.length})
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {pendingTreatments.map((pt: any) => {
+                const pName = pt.patientName || pt.patient_name || (pt.patient && typeof pt.patient === 'object' ? `${pt.patient.firstName || pt.patient.first_name || ''} ${pt.patient.lastName || pt.patient.last_name || ''}`.trim() : pt.patient) || 'Bemor'
+                const doctorName = pt.doctorName || pt.doctor_name || (pt.doctor && typeof pt.doctor === 'object' ? pt.doctor.user?.first_name : '') || 'Shifokor'
+                const pId = pt.patient && typeof pt.patient === 'object' ? pt.patient.id : pt.patient
+                
+                return (
+                  <div key={pt.id} className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <Link
+                            to='/patients/$id'
+                            params={{ id: String(pId) }}
+                            className="font-bold text-sm text-primary hover:underline"
+                          >
+                            {pName}
+                        </Link>
+                        <Badge variant="outline" className="text-[10px] bg-white dark:bg-black/20 text-amber-600 border-amber-200">
+                          To'lanmagan
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-1 mb-3">
+                        <p>Shifokor: Dr. {doctorName}</p>
+                        <p>Muolaja: {pt.procedureTypeName || pt.procedure_type_name || 'Umumiy'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-amber-200/50 dark:border-amber-900/50 pt-3">
+                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        {Number(pt.price || 0).toLocaleString()} so'm
+                      </span>
+                      <Button 
+                        size="sm" 
+                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                        onClick={() => openPaymentModal(pt.id, pId, pt.price || '')}
+                      >
+                        <CreditCard className="w-3.5 h-3.5 mr-1" /> To'lash
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <Tabs defaultValue='payments' className='space-y-4'>
           <TabsList>
@@ -195,14 +268,20 @@ export function PaymentsList() {
                     </TableRow>
                   ) : (
                     payments.map((p: any) => {
-                      const patientName = p?.patientName || p?.patient_name || (typeof p?.patient === 'object' ? `${p.patient.firstName || p.patient.first_name || ''} ${p.patient.lastName || p.patient.last_name || ''}`.trim() : p?.patient) || 'Bemor'
+                      const patientName = p?.patientName || p?.patient_name || (p?.patient && p.patient && typeof p.patient === 'object' ? `${p.patient.firstName || p.patient.first_name || ''} ${p.patient.lastName || p.patient.last_name || ''}`.trim() : p?.patient) || 'Bemor'
                       const pMethod = p?.method || 'cash'
                       const createdAt = p?.createdAt || p?.created_at || ''
 
                       return (
                         <TableRow key={p?.id || Math.random()} className='hover:bg-muted/20'>
                           <TableCell className='font-medium text-xs'>
-                            {patientName}
+                            <Link
+                                to='/patients/$id'
+                                params={{ id: String(p?.patient?.id || p?.patient_id || p?.patient) }}
+                                className='text-primary hover:underline font-bold'
+                              >
+                                {patientName}
+                              </Link>
                           </TableCell>
                           <TableCell className='text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400'>
                             +{Number(p?.amount || 0).toLocaleString()} so'm
@@ -300,7 +379,7 @@ export function PaymentsList() {
                       </TableRow>
                     ) : (
                       commissions.map((c: any) => {
-                        const doctorName = c?.doctorName || c?.doctor_name || (typeof c?.doctor === 'object' ? `${c.doctor.user?.firstName || c.doctor.user?.first_name || ''} ${c.doctor.user?.lastName || c.doctor.user?.last_name || ''}`.trim() : c?.doctor) || 'Shifokor'
+                        const doctorName = c?.doctorName || c?.doctor_name || (c?.doctor && typeof c.doctor === 'object' ? `${c.doctor.user?.firstName || c.doctor.user?.first_name || ''} ${c.doctor.user?.lastName || c.doctor.user?.last_name || ''}`.trim() : c?.doctor) || 'Shifokor'
                         const calcAt = c?.calculatedAt || c?.calculated_at || ''
 
                         return (
@@ -342,7 +421,7 @@ export function PaymentsList() {
                   value={treatmentId}
                   onValueChange={(val) => {
                     setTreatmentId(val)
-                    const tr = treatments.find((t: any) => t.id === val)
+                    const tr = allModalTreatments.find((t: any) => t.id === val)
                     if (tr) {
                       setPatientId(typeof tr.patient === 'object' ? tr.patient.id : tr.patient)
                       setAmount(tr.price || '')
@@ -353,7 +432,7 @@ export function PaymentsList() {
                     <SelectValue placeholder='Davolash ishini tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {treatments.map((t: any) => (
+                    {allModalTreatments.map((t: any) => (
                       <SelectItem key={t.id} value={t.id}>
                         {t.patientName || t.patient_name || 'Bemor'} - {t.procedureTypeName || t.procedure_type_name || 'Muolaja'} ({Number(t.price || 0).toLocaleString()} so'm)
                       </SelectItem>

@@ -219,6 +219,30 @@ def record_payment(
     # Refresh treatment state — signal also does this but keeping the
     # call here means the return value already reflects the new status.
     _refresh_payment_status(treatment)
+
+    # Enqueue Telegram notification for the patient if possible
+    if payment.patient and payment.patient.telegram_chat_id:
+        try:
+            from apps.notifications.services import enqueue
+            from apps.notifications.models import NotificationType, NotificationChannel
+            from django.utils.dateformat import format as date_format
+            from django.utils import timezone
+
+            date_str = date_format(timezone.localtime(payment.created_at), "d.m.Y H:i")
+            msg = f"🧾 To'lov qabul qilindi (Elektron Chek)\n\n💰 Summa: {payment.amount:,.0f} so'm\n💳 Usul: {payment.get_method_display()}\n📅 Sana: {date_str}"
+
+            enqueue(
+                user=None,
+                patient=payment.patient,
+                type=NotificationType.PAYMENT_RECEIVED,
+                channel=NotificationChannel.TELEGRAM,
+                message=msg,
+                context={"payment_id": str(payment.pk)},
+            )
+        except Exception as notify_exc:
+            import logging
+            logging.getLogger(__name__).warning("Failed to enqueue payment notification: %s", notify_exc)
+
     return payment
 
 

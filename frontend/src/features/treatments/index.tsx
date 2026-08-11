@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Plus, Camera, FileText, Activity, Search } from 'lucide-react'
+import { Plus, Camera, FileText, Activity, Search, CreditCard } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { format } from 'date-fns'
 import { MobileImageUploader } from '@/components/ui/mobile-image-uploader'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -45,6 +46,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/get-error-message'
 
 export function TreatmentsList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -115,8 +117,8 @@ export function TreatmentsList() {
       })
       toast.success('Davolash yozuvi yaratildi!')
       setIsModalOpen(false)
-    } catch {
-      toast.error('Yaratishda xatolik yuz berdi.')
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, 'Yaratishda xatolik yuz berdi.'))
     }
   }
 
@@ -136,8 +138,8 @@ export function TreatmentsList() {
       toast.success('Fotosurat yuklandi!')
       setSelectedTreatmentForPhoto(null)
       setSelectedFile(null)
-    } catch {
-      toast.error('Rasm yuklashda xatolik.')
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, 'Rasm yuklashda xatolik.'))
     }
   }
 
@@ -193,14 +195,20 @@ export function TreatmentsList() {
                 </TableRow>
               ) : (
                 treatments.map((t: any) => {
-                  const patientName = t?.patientName || t?.patient_name || (typeof t?.patient === 'object' ? `${t.patient.firstName || t.patient.first_name || ''} ${t.patient.lastName || t.patient.last_name || ''}`.trim() : t?.patient) || 'Bemor'
-                  const doctorName = t?.doctorName || t?.doctor_name || (typeof t?.doctor === 'object' ? `${t.doctor.user?.firstName || t.doctor.user?.first_name || ''} ${t.doctor.user?.lastName || t.doctor.user?.last_name || ''}`.trim() : t?.doctor) || 'Shifokor'
-                  const procedureTypeName = t?.procedureTypeName || t?.procedure_type_name || (typeof t?.procedureType === 'object' ? t.procedureType.name : t?.procedureType) || ''
+                  const patientName = t?.patientName || t?.patient_name || (t?.patient && typeof t.patient === 'object' ? `${t.patient.firstName || t.patient.first_name || ''} ${t.patient.lastName || t.patient.last_name || ''}`.trim() : t?.patient) || 'Bemor'
+                  const doctorName = t?.doctorName || t?.doctor_name || (t?.doctor && typeof t.doctor === 'object' ? `${t.doctor.user?.firstName || t.doctor.user?.first_name || ''} ${t.doctor.user?.lastName || t.doctor.user?.last_name || ''}`.trim() : t?.doctor) || 'Shifokor'
+                  const procedureTypeName = t?.procedureTypeName || t?.procedure_type_name || (t?.procedureType && typeof t.procedureType === 'object' ? t.procedureType.name : t?.procedureType) || ''
 
                   return (
                     <TableRow key={t?.id || Math.random()} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
-                        {patientName}
+                        <Link
+                          to='/patients/$id'
+                          params={{ id: String(t?.patient?.id || t?.patient_id || t?.patient) }}
+                          className='text-primary hover:underline font-bold'
+                        >
+                          {patientName}
+                        </Link>
                       </TableCell>
                       <TableCell className='text-xs text-muted-foreground'>
                         {doctorName}
@@ -236,6 +244,18 @@ export function TreatmentsList() {
                         </Badge>
                       </TableCell>
                       <TableCell className='text-end flex items-center justify-end gap-1.5'>
+                        {(t?.paymentStatus !== 'paid' && t?.payment_status !== 'paid') && (
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            className='h-7 text-xs gap-1 border-purple-500/30 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                            asChild
+                          >
+                            <Link to='/payments' search={{ treatmentId: t.id }}>
+                              <CreditCard className='h-3.5 w-3.5' /> Kassa
+                            </Link>
+                          </Button>
+                        )}
                         <Button
                           size='sm'
                           variant='outline'

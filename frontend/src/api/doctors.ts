@@ -39,7 +39,14 @@ export async function createWorkingHoursApi(
   doctorId: string,
   data: { weekday: number; startTime: string; endTime: string }
 ): Promise<WorkingHours> {
-  const response = await apiClient.post<WorkingHours>(`doctors/${doctorId}/working-hours/`, data)
+  const payload = {
+    weekday: data.weekday,
+    start_time: data.startTime,
+    end_time: data.endTime,
+    startTime: data.startTime,
+    endTime: data.endTime,
+  }
+  const response = await apiClient.post<WorkingHours>(`doctors/${doctorId}/working-hours/`, payload)
   return response.data
 }
 
@@ -60,9 +67,28 @@ export async function createTimeOffApi(
   return response.data
 }
 
-export async function getAvailableSlotsApi(doctorId: string, date: string): Promise<AvailableSlot[]> {
-  const response = await apiClient.get<AvailableSlot[]>(`doctors/${doctorId}/available-slots/`, {
-    params: { date },
+export async function deleteTimeOffApi(doctorId: string, entryId: string): Promise<void> {
+  await apiClient.delete(`doctors/${doctorId}/time-off/${entryId}/`)
+}
+
+export async function getAvailableSlotsApi(
+  doctorId: string,
+  date: string,
+  slotMinutes?: number,
+  procedureTypeId?: string
+): Promise<AvailableSlot[]> {
+  const response = await apiClient.get<any>(`doctors/${doctorId}/available-slots/`, {
+    params: {
+      date,
+      ...(slotMinutes ? { slot_minutes: slotMinutes } : {}),
+      ...(procedureTypeId ? { procedure_type: procedureTypeId } : {}),
+    },
   })
-  return response.data
+  if (Array.isArray(response.data)) {
+    return response.data
+  }
+  if (response.data && Array.isArray(response.data.slots)) {
+    return response.data.slots
+  }
+  return []
 }

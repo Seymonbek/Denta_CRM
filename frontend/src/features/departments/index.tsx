@@ -32,6 +32,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/get-error-message'
 
 export function DepartmentsList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -91,7 +92,7 @@ export function DepartmentsList() {
       }
       setIsModalOpen(false)
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Amalni bajarishda xatolik.')
+      toast.error(getErrorMessage(err, 'Amalni bajarishda xatolik.'))
     }
   }
 
@@ -106,8 +107,8 @@ export function DepartmentsList() {
     try {
       await deleteDeptMutation.mutateAsync(id)
       toast.success("Bo'lim o'chirildi.")
-    } catch {
-      toast.error("O'chirishda xatolik.")
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, "O'chirishda xatolik."))
     }
   }
 

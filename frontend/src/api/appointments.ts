@@ -7,8 +7,11 @@ export async function getAppointmentsApi(params?: {
   status?: string
   date?: string
   page?: number
+  page_size?: number
 }): Promise<PaginatedResponse<Appointment>> {
-  const response = await apiClient.get<PaginatedResponse<Appointment>>('appointments/', { params })
+  const response = await apiClient.get<PaginatedResponse<Appointment>>('appointments/', {
+    params: { page_size: 100, ...params },
+  })
   return response.data
 }
 

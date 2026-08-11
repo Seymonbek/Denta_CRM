@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { Plus, Calendar, Clock, User, Stethoscope, Search } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Plus, Calendar, Clock, User, Stethoscope, Search, FileText } from 'lucide-react'
 import { confirmSwal } from '@/lib/sweetalert'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { format } from 'date-fns'
 import {
   useAppointments,
   useCreateAppointment,
+  useUpdateAppointment,
   useCancelAppointment,
 } from '@/api/hooks/use-appointments'
 import { useDoctors, useAvailableSlots } from '@/api/hooks/use-doctors'
@@ -43,6 +45,8 @@ import {
 } from '@/components/ui/select'
 import { ScheduleCalendar } from '@/components/schedule-calendar/schedule-calendar'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/get-error-message'
+import { useAuthStore } from '@/stores/auth-store'
 
 const STATUS_BADGES: Record<string, { label: string; variant: 'default' | 'outline' | 'destructive' | 'secondary' }> = {
   scheduled: { label: 'Rejalashtirilgan', variant: 'outline' },
@@ -54,6 +58,10 @@ const STATUS_BADGES: Record<string, { label: string; variant: 'default' | 'outli
 }
 
 export function AppointmentsList() {
+  const authUser = useAuthStore((state) => state.user)
+  const isDoctor = authUser?.role === 'doctor'
+  const canCreateAppointment = authUser?.role === 'administrator' || authUser?.role === 'bosh_shifokor'
+
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -94,14 +102,79 @@ export function AppointmentsList() {
     ? format(bookingDate, 'yyyy-MM-dd')
     : format(new Date(), 'yyyy-MM-dd')
 
+  const selectedProcedure = procedureTypes.find((p: any) => p.id === selectedProcedureTypeId)
+  const procedureDuration = selectedProcedure?.defaultDurationMinutes || selectedProcedure?.default_duration_minutes || undefined
+
   const { data: availableSlotsData = [], isLoading: isLoadingSlots } = useAvailableSlots(
     selectedDoctorId,
-    formattedDateStr
+    formattedDateStr,
+    procedureDuration,
+    selectedProcedureTypeId
   )
-  const availableSlots = Array.isArray(availableSlotsData) ? availableSlotsData : []
+  const availableSlots = Array.isArray(availableSlotsData)
+    ? availableSlotsData
+    : Array.isArray((availableSlotsData as any)?.slots)
+    ? (availableSlotsData as any).slots
+    : []
+
+  // Cascading logic
+  const availableDepartments = departments.filter((d: any) => {
+    if (selectedDoctorId) {
+      const doc = doctors.find((doc: any) => doc.id === selectedDoctorId)
+      if (doc?.departments?.length) {
+        return doc.departments.some((dep: any) => dep.id === d.id)
+      }
+    }
+    return true
+  })
+
+  const availableDoctors = doctors.filter((doc: any) => {
+    if (selectedDepartmentId) {
+      if (doc.departments?.length) {
+        return doc.departments.some((dep: any) => dep.id === selectedDepartmentId)
+      }
+      return false
+    }
+    return true
+  })
+
+  const availableProcedures = procedureTypes.filter((proc: any) => {
+    const procDepId = proc?.department && typeof proc.department === 'object' ? proc.department.id : proc?.department
+    if (selectedDepartmentId) {
+      return procDepId === selectedDepartmentId
+    }
+    if (selectedDoctorId) {
+      const doc = doctors.find((d: any) => d.id === selectedDoctorId)
+      if (doc?.departments?.length) {
+        return doc.departments.some((dep: any) => dep.id === procDepId)
+      }
+    }
+    return true
+  })
+
+  // Auto-select department if doctor is selected and belongs to only 1 department
+  const handleDoctorChange = (docId: string) => {
+    setSelectedDoctorId(docId)
+    const doc = doctors.find((d: any) => d.id === docId)
+    if (doc?.departments?.length === 1) {
+       setSelectedDepartmentId(doc.departments[0].id)
+    } else if (!docId) {
+       // Optional: reset department if doctor is unselected, but maybe leave it.
+    }
+  }
 
   const createAppointmentMutation = useCreateAppointment()
+  const updateAppointmentMutation = useUpdateAppointment()
   const cancelAppointmentMutation = useCancelAppointment()
+
+  const handleStatusChange = async (id: string, newStatus: string, label: string) => {
+    try {
+      await updateAppointmentMutation.mutateAsync({ id, data: { status: newStatus } })
+      toast.success(`Navbat holati: ${label}`)
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, 'Holatni o\'zgartirishda xatolik.'))
+    }
+  }
 
   const handleCreateAppointment = async () => {
     if (!selectedPatientId || !selectedDoctorId || !selectedDepartmentId || !selectedSlot) {
@@ -112,22 +185,21 @@ export function AppointmentsList() {
     try {
       await createAppointmentMutation.mutateAsync({
         patient: selectedPatientId,
+        patientId: selectedPatientId,
         doctor: selectedDoctorId,
+        doctorId: selectedDoctorId,
         department: selectedDepartmentId,
+        departmentId: selectedDepartmentId,
         procedureType: selectedProcedureTypeId || undefined,
+        procedureTypeId: selectedProcedureTypeId || undefined,
         scheduledStart: selectedSlot.start,
         scheduledEnd: selectedSlot.end,
-      })
+      } as any)
       toast.success('Navbat muvaffaqiyatli band qilindi!')
       setIsModalOpen(false)
       setSelectedSlot(null)
     } catch (err: any) {
-      const errorDetail =
-        err?.response?.data?.detail ||
-        err?.response?.data?.scheduledStart?.[0] ||
-        err?.response?.data?.nonFieldErrors?.[0] ||
-        'Ushbu vaqt oralig’i allaqachon band qilingan yoki xatolik yuz berdi.'
-      toast.error(`Navbat band etilmadi: ${errorDetail}`)
+      toast.error(getErrorMessage(err, 'Ushbu vaqt oralig’i allaqachon band qilingan yoki xatolik yuz berdi.'))
     }
   }
 
@@ -142,8 +214,8 @@ export function AppointmentsList() {
     try {
       await cancelAppointmentMutation.mutateAsync({ id, reason: 'Mijoz so’rovi bo’yicha' })
       toast.success('Navbat bekor qilindi.')
-    } catch {
-      toast.error('Bekor qilishda xatolik.')
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, 'Bekor qilishda xatolik.'))
     }
   }
 
@@ -165,9 +237,11 @@ export function AppointmentsList() {
               Bemorlarning qabul vaqtlari va shifokorlar bandligi.
             </p>
           </div>
-          <Button onClick={() => setIsModalOpen(true)} className='shadow'>
-            <Plus className='me-2 h-4 w-4' /> Yangi Navbatga Yozish
-          </Button>
+          {canCreateAppointment && (
+            <Button onClick={() => setIsModalOpen(true)} className='shadow'>
+              <Plus className='me-2 h-4 w-4' /> Yangi Navbatga Yozish
+            </Button>
+          )}
         </div>
 
         {/* Filters */}
@@ -218,15 +292,27 @@ export function AppointmentsList() {
                   const statusKey = app?.status || 'scheduled'
                   const badge = STATUS_BADGES[statusKey] || { label: statusKey, variant: 'outline' }
 
-                  const patientName = app?.patientName || app?.patient_name || (typeof app?.patient === 'object' ? `${app.patient.firstName || app.patient.first_name || ''} ${app.patient.lastName || app.patient.last_name || ''}`.trim() : app?.patient) || 'Bemor'
-                  const doctorName = app?.doctorName || app?.doctor_name || (typeof app?.doctor === 'object' ? `${app.doctor.user?.firstName || app.doctor.user?.first_name || ''} ${app.doctor.user?.lastName || app.doctor.user?.last_name || ''}`.trim() : app?.doctor) || 'Shifokor'
-                  const departmentName = app?.departmentName || app?.department_name || (typeof app?.department === 'object' ? app.department.name : app?.department) || 'Bo’lim'
+                  const patientId = app?.patientId || app?.patient_id || (app?.patient && typeof app.patient === 'object' ? app.patient.id : app?.patient)
+                  const patientName = app?.patientName || app?.patient_name || (app?.patient && typeof app.patient === 'object' ? `${app.patient.firstName || app.patient.first_name || ''} ${app.patient.lastName || app.patient.last_name || ''}`.trim() : app?.patient) || 'Bemor'
+                  const doctorName = app?.doctorName || app?.doctor_name || (app?.doctor && typeof app.doctor === 'object' ? `${app.doctor.user?.firstName || app.doctor.user?.first_name || ''} ${app.doctor.user?.lastName || app.doctor.user?.last_name || ''}`.trim() : app?.doctor) || 'Shifokor'
+                  const departmentName = app?.departmentName || app?.department_name || (app?.department && typeof app.department === 'object' ? app.department.name : app?.department) || 'Bo\'lim'
                   const startDateStr = app?.scheduledStart || app?.scheduled_start || app?.start
 
                   return (
                     <TableRow key={app?.id || Math.random()} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
-                        {patientName}
+                        {patientId ? (
+                          <Link
+                            to='/patients/$id'
+                            params={{ id: String(patientId) }}
+                            className='hover:underline text-primary font-semibold flex items-center gap-1'
+                          >
+                            <User className='h-3.5 w-3.5 text-primary/70' />
+                            {patientName}
+                          </Link>
+                        ) : (
+                          patientName
+                        )}
                       </TableCell>
                       <TableCell className='text-xs'>
                         {doctorName}
@@ -243,16 +329,60 @@ export function AppointmentsList() {
                         </Badge>
                       </TableCell>
                       <TableCell className='text-end'>
-                        {statusKey !== 'cancelled' && statusKey !== 'completed' && (
-                          <Button
-                            size='sm'
-                            variant='ghost'
-                            className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
-                            onClick={() => handleCancel(app.id)}
-                          >
-                            Bekor qilish
-                          </Button>
-                        )}
+                        <div className='flex items-center justify-end gap-1 flex-wrap'>
+                          {patientId && (statusKey === 'in_progress' || statusKey === 'confirmed' || statusKey === 'scheduled') && (
+                            <Button
+                              asChild
+                              size='sm'
+                              variant='secondary'
+                              className='h-7 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800'
+                            >
+                              <Link to='/patients/$id' params={{ id: String(patientId) }}>
+                                <FileText className='me-1 h-3.5 w-3.5' /> 🦷 Qabulni Olib Borish
+                              </Link>
+                            </Button>
+                          )}
+                          {!isDoctor && statusKey === 'scheduled' && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='h-7 text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50'
+                              onClick={() => handleStatusChange(app.id, 'confirmed', 'Tasdiqlandi ✅')}
+                            >
+                              ✅ Tasdiqlash
+                            </Button>
+                          )}
+                          {statusKey === 'confirmed' && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='h-7 text-xs text-blue-600 border-blue-300 hover:bg-blue-50'
+                              onClick={() => handleStatusChange(app.id, 'in_progress', 'Boshlandi 🔄')}
+                            >
+                              🔄 Boshlash
+                            </Button>
+                          )}
+                          {statusKey === 'in_progress' && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='h-7 text-xs text-green-600 border-green-300 hover:bg-green-50'
+                              onClick={() => handleStatusChange(app.id, 'completed', 'Yakunlandi 🎉')}
+                            >
+                              🎉 Yakunlash
+                            </Button>
+                          )}
+                          {statusKey !== 'cancelled' && statusKey !== 'completed' && (
+                            <Button
+                              size='sm'
+                              variant='ghost'
+                              className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                              onClick={() => handleCancel(app.id)}
+                            >
+                              Bekor qilish
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -293,7 +423,7 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Bo’lim tanlang' />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((d: any) => (
+                      {availableDepartments.map((d: any) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
@@ -307,13 +437,13 @@ export function AppointmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Shifokor *</label>
                   <SearchableSelect
-                    options={doctors.map((doc: any) => ({
+                    options={availableDoctors.map((doc: any) => ({
                       value: String(doc.id),
                       label: `Dr. ${doc.user?.firstName || doc.user?.first_name || ''} ${doc.user?.lastName || doc.user?.last_name || ''}`,
                       sublabel: doc.specialization || 'Stomatolog',
                     }))}
                     value={selectedDoctorId}
-                    onValueChange={setSelectedDoctorId}
+                    onValueChange={handleDoctorChange}
                     placeholder='Shifokor tanlang...'
                     searchPlaceholder='Shifokor ismini yozing...'
                   />
@@ -326,7 +456,7 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Muolaja turi' />
                     </SelectTrigger>
                     <SelectContent>
-                      {procedureTypes.map((proc: any) => (
+                      {availableProcedures.map((proc: any) => (
                         <SelectItem key={proc.id} value={proc.id}>
                           {proc.name} ({proc.defaultDurationMinutes || proc.default_duration_minutes || 30} daq, {Number(proc.defaultPrice || proc.default_price || 0).toLocaleString()} so'm)
                         </SelectItem>

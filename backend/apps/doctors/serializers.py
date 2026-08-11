@@ -90,6 +90,14 @@ class WorkingHoursSerializer(serializers.ModelSerializer):
             "endTime": instance.end_time.strftime("%H:%M"),
         }
 
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, dict):
+            data = {**data}
+            for camel, snake in (("startTime", "start_time"), ("endTime", "end_time")):
+                if camel in data and snake not in data:
+                    data[snake] = data[camel]
+        return super().to_internal_value(data)
+
     def create(self, validated_data: dict[str, Any]) -> WorkingHours:
         doctor: DoctorProfile | None = self.context.get("doctor")
         if doctor is None:

@@ -9,6 +9,7 @@ import {
   deleteWorkingHoursApi,
   getTimeOffApi,
   createTimeOffApi,
+  deleteTimeOffApi,
   getAvailableSlotsApi,
 } from '../doctors'
 
@@ -98,10 +99,25 @@ export function useCreateTimeOff(doctorId: string) {
   })
 }
 
-export function useAvailableSlots(doctorId: string, date: string) {
+export function useDeleteTimeOff(doctorId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (timeOffId: string) => deleteTimeOffApi(doctorId, timeOffId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['doctors', doctorId, 'time-off'] })
+    },
+  })
+}
+
+export function useAvailableSlots(
+  doctorId: string,
+  date: string,
+  slotMinutes?: number,
+  procedureTypeId?: string
+) {
   return useQuery({
-    queryKey: ['doctors', doctorId, 'available-slots', date],
-    queryFn: () => getAvailableSlotsApi(doctorId, date),
+    queryKey: ['doctors', doctorId, 'available-slots', date, slotMinutes, procedureTypeId],
+    queryFn: () => getAvailableSlotsApi(doctorId, date, slotMinutes, procedureTypeId),
     enabled: Boolean(doctorId && date),
   })
 }

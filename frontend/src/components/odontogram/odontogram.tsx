@@ -84,8 +84,11 @@ export function Odontogram({ toothRecords = [], onSaveRecord, readOnly = false }
 
   // Map of toothNumber -> latest ToothRecord
   const recordMap = new Map<number, ToothRecord>()
-  toothRecords.forEach((rec) => {
-    recordMap.set(rec.toothNumber, rec)
+  toothRecords.forEach((rec: any) => {
+    const num = Number(rec.toothNumber ?? rec.tooth_number)
+    if (num) {
+      recordMap.set(num, rec)
+    }
   })
 
   const handleToothClick = (toothNum: number) => {

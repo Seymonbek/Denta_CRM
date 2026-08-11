@@ -37,16 +37,18 @@ export function useDepartmentsReport(period: string = 'month') {
   })
 }
 
-export function useDoctorMyAnalytics(period: string = 'month', doctorId?: string) {
+export function useDoctorMyAnalytics(period: string = 'month', doctorId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['reports', 'doctor-my-analytics', period, doctorId || 'me'],
     queryFn: () => getDoctorMyAnalyticsApi(period, doctorId),
+    enabled: options?.enabled ?? true,
   })
 }
 
-export function useReceptionAnalytics(period: string = 'month') {
+export function useReceptionAnalytics(period: string = 'month', options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['reports', 'reception-analytics', period],
     queryFn: () => getReceptionAnalyticsApi(period),
+    enabled: options?.enabled ?? true,
   })
 }

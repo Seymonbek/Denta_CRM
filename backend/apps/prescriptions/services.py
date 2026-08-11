@@ -150,17 +150,7 @@ def _substitute_placeholders(text: str, treatment: Treatment) -> str:
 
 
 def _send_via_telegram(prescription: Prescription) -> bool:
-    """Attempt to deliver ``prescription`` through Telegram.
-
-    Import is deferred so the prescriptions app doesn't depend on the
-    telegram_bot app existing (it comes online in T22). If the
-    telegram_bot sender is missing OR the patient has no
-    ``telegram_chat_id`` we return ``False`` and the caller records
-    ``sent_to_telegram_at`` accordingly.
-
-    In dev / test the real bot is stubbed, so this function is safe to
-    call from any environment.
-    """
+    """Attempt to deliver ``prescription`` through Telegram via Notifications app."""
     treatment = prescription.treatment
     patient = treatment.patient
     chat_id = getattr(patient, "telegram_chat_id", None)
@@ -168,20 +158,21 @@ def _send_via_telegram(prescription: Prescription) -> bool:
         return False
 
     try:
-        from apps.telegram_bot.services import send_prescription  # type: ignore[import-not-found]
-    except Exception:  # noqa: BLE001 - app not installed yet
-        logger.info(
-            "telegram_bot app not available; skipping delivery for %s",
-            prescription.pk,
+        from apps.notifications.services import enqueue
+        from apps.notifications.models import NotificationType, NotificationChannel
+        
+        enqueue(
+            user=None,
+            patient=patient,
+            type=NotificationType.PRESCRIPTION_SENT,
+            channel=NotificationChannel.TELEGRAM,
+            message=prescription.content,
+            context={"prescription_id": str(prescription.pk)},
         )
+        return True
+    except Exception:
+        logger.exception("Failed to enqueue Telegram delivery for prescription %s", prescription.pk)
         return False
-
-    try:
-        send_prescription(chat_id=chat_id, content=prescription.content)
-    except Exception:  # noqa: BLE001 - never surface bot errors to caller
-        logger.exception("Telegram delivery failed for prescription %s", prescription.pk)
-        return False
-    return True
 
 
 @transaction.atomic

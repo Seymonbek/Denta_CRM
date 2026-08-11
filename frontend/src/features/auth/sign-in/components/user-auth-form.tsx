@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/get-error-message'
 import { useLogin, useVerify2FA } from '@/api/hooks/use-auth'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -79,11 +80,7 @@ export function UserAuthForm({ className, redirectTo, ...props }: UserAuthFormPr
         }
       }
     } catch (err: any) {
-      const errorMsg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        'Kirishda xatolik yuz berdi.'
-      toast.error(errorMsg)
+      toast.error(getErrorMessage(err, 'Kirishda xatolik yuz berdi.'))
     }
   }
 

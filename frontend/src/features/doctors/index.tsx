@@ -1,11 +1,14 @@
-import { useState } from 'react'
-import { Clock, CalendarX, Plus, Stethoscope, Search } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Clock, CalendarX, Plus, Stethoscope, Search, Trash2 } from 'lucide-react'
+import { confirmSwal } from '@/lib/sweetalert'
 import {
   useDoctors,
   useWorkingHours,
   useTimeOff,
   useCreateWorkingHours,
+  useDeleteWorkingHours,
   useCreateTimeOff,
+  useDeleteTimeOff,
 } from '@/api/hooks/use-doctors'
 import { DoctorProfile } from '@/types/api'
 import { Header } from '@/components/layout/header'
@@ -38,6 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 
 const WEEKDAYS = [
   'Dushanba',
@@ -50,6 +54,9 @@ const WEEKDAYS = [
 ]
 
 export function DoctorsList() {
+  const authUser = useAuthStore((state) => state.user)
+  const isDoctor = authUser?.role === 'doctor'
+
   const [searchTerm, setSearchTerm] = useState('')
   const { data: doctorsData = [], isLoading } = useDoctors()
   const doctorsList = Array.isArray(doctorsData?.results)
@@ -63,7 +70,23 @@ export function DoctorsList() {
     return name.toLowerCase().includes(searchTerm.toLowerCase())
   })
 
+  // For doctor role, strictly restrict list to only their own doctor profile!
+  const displayDoctors = isDoctor
+    ? doctorsList.filter((doc: any) => (doc?.user?.id || doc?.user_id) === authUser?.id)
+    : filteredDoctors
+
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorProfile | null>(null)
+  const [hasAutoOpened, setHasAutoOpened] = useState(false)
+
+  useEffect(() => {
+    if (isDoctor && !hasAutoOpened && doctorsList.length > 0) {
+      const myDoc = doctorsList.find((d: any) => (d.user?.id || d.user_id) === authUser?.id)
+      if (myDoc) {
+        setSelectedDoctor(myDoc)
+        setHasAutoOpened(true)
+      }
+    }
+  }, [isDoctor, doctorsList, authUser, hasAutoOpened])
 
   // Working Hours Form State
   const [weekday, setWeekday] = useState<number>(0)
@@ -82,11 +105,35 @@ export function DoctorsList() {
   const timeOffs = Array.isArray(timeOffsData) ? timeOffsData : []
 
   const createWorkingHoursMutation = useCreateWorkingHours(selectedDoctor?.id || '')
+  const deleteWorkingHoursMutation = useDeleteWorkingHours(selectedDoctor?.id || '')
   const createTimeOffMutation = useCreateTimeOff(selectedDoctor?.id || '')
+  const deleteTimeOffMutation = useDeleteTimeOff(selectedDoctor?.id || '')
+
+  const handleDeleteWorkingHours = async (whId: string) => {
+    try {
+      await deleteWorkingHoursMutation.mutateAsync(whId)
+      toast.success("Ish soati o'chirildi!")
+    } catch {
+      toast.error("Ish soatini o'chirishda xatolik.")
+    }
+  }
+
+  const handleDeleteTimeOff = async (toId: string) => {
+    try {
+      await deleteTimeOffMutation.mutateAsync(toId)
+      toast.success("Ta'til yozuvi o'chirildi!")
+    } catch {
+      toast.error("Ta'til yozuvini o'chirishda xatolik.")
+    }
+  }
 
   const handleAddWorkingHours = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedDoctor) return
+    if (!startTime || !endTime) {
+      toast.error("Boshlanish va tugash vaqtini kiritishingiz shart.")
+      return
+    }
     try {
       await createWorkingHoursMutation.mutateAsync({
         weekday,
@@ -94,26 +141,52 @@ export function DoctorsList() {
         endTime,
       })
       toast.success('Ish soati qo’shildi!')
-    } catch {
-      toast.error('Ish soati qo’shishda xatolik.')
+      setStartTime('09:00')
+      setEndTime('18:00')
+    } catch (err: any) {
+      const data = err?.response?.data
+      const errorMsg =
+        data?.start_time?.[0] ||
+        data?.end_time?.[0] ||
+        data?.weekday?.[0] ||
+        data?.error?.message ||
+        data?.detail ||
+        (typeof data === 'string' ? data : null) ||
+        'Ish soati qo’shishda xatolik.'
+      toast.error(errorMsg)
     }
   }
 
   const handleAddTimeOff = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedDoctor || !dateStart || !dateEnd) return
+    if (!selectedDoctor) return
+    const finalDateStart = dateStart
+    const finalDateEnd = dateEnd || dateStart
+    if (!finalDateStart) {
+      toast.error('Boshlanish sanasini tanlang.')
+      return
+    }
     try {
       await createTimeOffMutation.mutateAsync({
-        dateStart,
-        dateEnd,
+        dateStart: finalDateStart,
+        dateEnd: finalDateEnd,
         reason,
       })
       toast.success('Ta’til/Dam olish kuni kiritildi!')
       setDateStart('')
       setDateEnd('')
       setReason('')
-    } catch {
-      toast.error('Ta’til kiritishda xatolik.')
+    } catch (err: any) {
+      const data = err?.response?.data
+      const errorMsg =
+        data?.date_start?.[0] ||
+        data?.date_end?.[0] ||
+        data?.reason?.[0] ||
+        data?.error?.message ||
+        data?.detail ||
+        (typeof data === 'string' ? data : null) ||
+        'Ta’til kiritishda xatolik.'
+      toast.error(errorMsg)
     }
   }
 
@@ -122,7 +195,7 @@ export function DoctorsList() {
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
           <Stethoscope className='h-5 w-5 text-primary' />
-          <span>Shifokorlar Ro'yxati</span>
+          <span>{isDoctor ? "Mening Ish Jadvalim" : "Shifokorlar Ro'yxati"}</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -132,24 +205,29 @@ export function DoctorsList() {
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
             <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
-              <Stethoscope className='h-6 w-6 text-primary' /> Klinika Shifokorlari
+              <Stethoscope className='h-6 w-6 text-primary' />{" "}
+              {isDoctor ? "Mening Ish Jadvalim va Ta'tillarim" : "Klinika Shifokorlari"}
             </h1>
             <p className='text-xs text-muted-foreground mt-1'>
-              Shifokorlar profili, mutaxassislik, komissiya stavkalari va ish jadvallari.
+              {isDoctor
+                ? "Shaxsiy haftalik ish soatlaringiz hamda dam olish/ta'til kunlaringizni boshqarish."
+                : "Shifokorlar profili, mutaxassislik, komissiya stavkalari va ish jadvallari."}
             </p>
           </div>
         </div>
 
-        {/* Search Toolbar */}
-        <div className='mb-4 relative w-full sm:w-80'>
-          <Search className='absolute left-3 top-2.5 h-4 w-4 text-muted-foreground' />
-          <Input
-            placeholder="Shifokor ismi yoki mutaxassislik..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className='ps-9 text-xs h-9'
-          />
-        </div>
+        {/* Search Toolbar (only for bosh_shifokor) */}
+        {!isDoctor && (
+          <div className='mb-4 relative w-full sm:w-80'>
+            <Search className='absolute left-3 top-2.5 h-4 w-4 text-muted-foreground' />
+            <Input
+              placeholder="Shifokor ismi yoki mutaxassislik..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='ps-9 text-xs h-9'
+            />
+          </div>
+        )}
 
         {/* Doctors Table with Mobile Responsive Horizontal Scroll */}
         <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
@@ -159,26 +237,26 @@ export function DoctorsList() {
                 <TableHead className='text-xs font-semibold'>Shifokor Ismi</TableHead>
                 <TableHead className='text-xs font-semibold'>Mutaxassislik</TableHead>
                 <TableHead className='text-xs font-semibold'>Bo'limlar</TableHead>
-                <TableHead className='text-xs font-semibold'>Komissiya Asosi</TableHead>
-                <TableHead className='text-xs font-semibold'>Komissiya %</TableHead>
+                {!isDoctor && <TableHead className='text-xs font-semibold'>Komissiya Asosi</TableHead>}
+                {!isDoctor && <TableHead className='text-xs font-semibold'>Komissiya %</TableHead>}
                 <TableHead className='text-xs font-semibold text-end'>Ish Jadvali</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
-                    Shifokorlar yuklanmoqda...
+                  <TableCell colSpan={isDoctor ? 4 : 6} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
+                    Ma'lumotlar yuklanmoqda...
                   </TableCell>
                 </TableRow>
-              ) : filteredDoctors.length === 0 ? (
+              ) : displayDoctors.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className='text-center py-8 text-xs text-muted-foreground'>
-                    Hech qanday shifokor topilmadi.
+                  <TableCell colSpan={isDoctor ? 4 : 6} className='text-center py-8 text-xs text-muted-foreground'>
+                    Ma'lumot topilmadi.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredDoctors.map((doc: any) => {
+                displayDoctors.map((doc: any) => {
                   const firstName = doc?.user?.firstName || doc?.user?.first_name || 'Shifokor'
                   const lastName = doc?.user?.lastName || doc?.user?.last_name || ''
                   const phoneNumber = doc?.user?.phoneNumber || doc?.user?.phone_number || ''
@@ -216,14 +294,18 @@ export function DoctorsList() {
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell className='text-xs'>
-                        <Badge variant='secondary' className='text-[10px]'>
-                          {commissionBasis === 'from_total' ? 'Umumiy summa (Total)' : 'Sofi foyda (Net)'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className='text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400'>
-                        {commissionRate}%
-                      </TableCell>
+                      {!isDoctor && (
+                        <TableCell className='text-xs'>
+                          <Badge variant='secondary' className='text-[10px]'>
+                            {commissionBasis === 'from_total' ? 'Umumiy summa (Total)' : 'Sofi foyda (Net)'}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {!isDoctor && (
+                        <TableCell className='text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400'>
+                          {commissionRate}%
+                        </TableCell>
+                      )}
                       <TableCell className='text-end'>
                         <Button
                           size='sm'
@@ -271,16 +353,29 @@ export function DoctorsList() {
                         className='flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs font-mono'
                       >
                         <span className='font-semibold text-foreground'>{WEEKDAYS[wh.weekday] || 'Kun'}</span>
-                        <span className='text-muted-foreground'>
-                          {wh.startTime || wh.start_time} - {wh.endTime || wh.end_time}
-                        </span>
+                        <div className='flex items-center gap-2'>
+                          <span className='text-muted-foreground'>
+                            {wh.startTime || wh.start_time} - {wh.endTime || wh.end_time}
+                          </span>
+                          {wh.id && (
+                            <Button
+                              type='button'
+                              size='icon'
+                              variant='ghost'
+                              className='h-6 w-6 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10'
+                              onClick={() => handleDeleteWorkingHours(wh.id)}
+                            >
+                              <Trash2 className='h-3.5 w-3.5' />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
 
                 {/* Add working hours form */}
-                <form onSubmit={handleAddWorkingHours} className='grid grid-cols-4 gap-2 pt-2 items-end'>
+                <form noValidate onSubmit={handleAddWorkingHours} className='grid grid-cols-4 gap-2 pt-2 items-end'>
                   <div className='space-y-1 col-span-1'>
                     <label className='text-[10px] font-medium'>Kuni</label>
                     <Select value={String(weekday)} onValueChange={(val) => setWeekday(Number(val))}>
@@ -341,12 +436,23 @@ export function DoctorsList() {
                           </span>
                           {to.reason && <p className='text-[11px] text-muted-foreground font-sans'>{to.reason}</p>}
                         </div>
+                        {to.id && (
+                          <Button
+                            type='button'
+                            size='icon'
+                            variant='ghost'
+                            className='h-6 w-6 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10'
+                            onClick={() => handleDeleteTimeOff(to.id)}
+                          >
+                            <Trash2 className='h-3.5 w-3.5' />
+                          </Button>
+                        )}
                       </div>
                     ))
                   )}
                 </div>
 
-                <form onSubmit={handleAddTimeOff} className='space-y-2 pt-2 border-t'>
+                <form noValidate onSubmit={handleAddTimeOff} className='space-y-2 pt-2 border-t'>
                   <div className='grid grid-cols-2 gap-2'>
                     <div className='space-y-1'>
                       <label className='text-[10px] font-medium'>Boshlanish sanasi</label>
@@ -355,7 +461,6 @@ export function DoctorsList() {
                         className='h-8 text-xs font-mono'
                         value={dateStart}
                         onChange={(e) => setDateStart(e.target.value)}
-                        required
                       />
                     </div>
                     <div className='space-y-1'>
@@ -365,7 +470,6 @@ export function DoctorsList() {
                         className='h-8 text-xs font-mono'
                         value={dateEnd}
                         onChange={(e) => setDateEnd(e.target.value)}
-                        required
                       />
                     </div>
                   </div>

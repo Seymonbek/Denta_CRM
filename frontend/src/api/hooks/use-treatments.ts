@@ -13,7 +13,7 @@ export const TREATMENTS_QUERY_KEY = ['treatments']
 export function useTreatments(params?: {
   patient?: string
   doctor?: string
-  paymentStatus?: string
+  payment_status?: string
   stage?: string
   page?: number
 }) {

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Users,
   CreditCard,
@@ -36,6 +37,7 @@ import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth-store'
 
 export function Dashboard() {
+  const navigate = useNavigate()
   const [period, setPeriod] = useState<string>('month')
   const authUser = useAuthStore((state) => state.user)
   const isHeadDoctor = authUser?.role === 'bosh_shifokor'
@@ -45,7 +47,9 @@ export function Dashboard() {
   const { data: report, isLoading, isError, error } = useDashboardReport(period, {
     enabled: isHeadDoctor,
   })
-  const { data: doctorAnalytics, isLoading: isDocAnalyticsLoading } = useDoctorMyAnalytics(period)
+  const { data: doctorAnalytics, isLoading: isDocAnalyticsLoading } = useDoctorMyAnalytics(period, undefined, {
+    enabled: isDoctor || isHeadDoctor,
+  })
   const resetAuth = useAuthStore((state) => state.reset)
 
   const topProcedures = Array.isArray(report?.topProcedures)
@@ -94,7 +98,7 @@ export function Dashboard() {
               className='h-8 text-xs font-bold gap-1'
               onClick={() => {
                 resetAuth()
-                window.location.href = '/sign-in'
+                navigate({ to: '/sign-in' })
               }}
             >
               <LogOut className='h-3.5 w-3.5' /> Qaytadan kirish
@@ -117,23 +121,23 @@ export function Dashboard() {
             <div className='flex flex-wrap items-center gap-2 shrink-0'>
               {isAdministrator ? (
                 <>
-                  <Button size='sm' onClick={() => (window.location.href = '/patients')}>
+                  <Button size='sm' onClick={() => navigate({ to: '/patients' })}>
                     <UserPlus className='h-3.5 w-3.5 mr-1.5' /> Yangi Bemor Ro'yxatga Olish
                   </Button>
-                  <Button size='sm' variant='outline' onClick={() => (window.location.href = '/appointments')}>
+                  <Button size='sm' variant='outline' onClick={() => navigate({ to: '/appointments' })}>
                     <Calendar className='h-3.5 w-3.5 mr-1.5' /> Navbat Yozish
                   </Button>
-                  <Button size='sm' variant='secondary' onClick={() => (window.location.href = '/payments')}>
+                  <Button size='sm' variant='secondary' onClick={() => navigate({ to: '/payments' })}>
                     <CreditCard className='h-3.5 w-3.5 mr-1.5' /> Kassa & To'lovlar
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button size='sm' onClick={() => (window.location.href = '/appointments')}>
-                    📋 Navbatlarim
+                  <Button size='sm' onClick={() => navigate({ to: '/appointments' })}>
+                    🦷 Navbatlarim
                   </Button>
-                  <Button size='sm' variant='outline' onClick={() => (window.location.href = '/patients')}>
-                    👤 Bemorlarim
+                  <Button size='sm' variant='outline' onClick={() => navigate({ to: '/patients' })}>
+                    📋 Bemorlarim
                   </Button>
                 </>
               )}
@@ -171,7 +175,7 @@ export function Dashboard() {
         {/* Administrator Quick Action Cards */}
         {isAdministrator && (
           <div className='grid gap-4 sm:grid-cols-3 mb-6'>
-            <Card className='shadow-sm border-blue-500/20 bg-blue-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => (window.location.href = '/patients')}>
+            <Card className='shadow-sm border-blue-500/20 bg-blue-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => navigate({ to: '/patients' })}>
               <CardHeader className='pb-2'>
                 <CardTitle className='text-sm font-bold flex items-center gap-2 text-blue-600 dark:text-blue-400'>
                   <UserPlus className='h-5 w-5' /> 1. Bemor Ro'yxatga Olish
@@ -187,7 +191,7 @@ export function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className='shadow-sm border-emerald-500/20 bg-emerald-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => (window.location.href = '/appointments')}>
+            <Card className='shadow-sm border-emerald-500/20 bg-emerald-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => navigate({ to: '/appointments' })}>
               <CardHeader className='pb-2'>
                 <CardTitle className='text-sm font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400'>
                   <Calendar className='h-5 w-5' /> 2. Navbat Yozish & Qabul
@@ -197,24 +201,24 @@ export function Dashboard() {
                 <p className='text-xs text-muted-foreground'>
                   Bemorni tanlangan shifokor qabuliga navbatga kiritish yoki kelgan bemor holatini "Kutmoqda" ga o'tkazish.
                 </p>
-                <Button size='sm' variant='outline' className='w-full text-xs font-bold gap-1 mt-2 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'>
-                  <Calendar className='h-3.5 w-3.5' /> Navbatlar Jadvali (/appointments)
+                <Button size='sm' variant='outline' className='w-full text-xs font-bold gap-1 mt-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'>
+                  <Calendar className='h-3.5 w-3.5' /> Navbatlar (/appointments)
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className='shadow-sm border-purple-500/20 bg-purple-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => (window.location.href = '/payments')}>
+            <Card className='shadow-sm border-purple-500/20 bg-purple-500/5 hover:shadow-md transition-shadow cursor-pointer' onClick={() => navigate({ to: '/payments' })}>
               <CardHeader className='pb-2'>
                 <CardTitle className='text-sm font-bold flex items-center gap-2 text-purple-600 dark:text-purple-400'>
-                  <CreditCard className='h-5 w-5' /> 3. To'lov Qabul Qilish (Kassa)
+                  <CreditCard className='h-5 w-5' /> 3. Kassa va To'lov
                 </CardTitle>
               </CardHeader>
               <CardContent className='space-y-2'>
                 <p className='text-xs text-muted-foreground'>
-                  Muolajasi yakunlangan bemor to'lovini naqd, karta yoki Click/Payme orqali qabul qilish hamda chek berish.
+                  Shifokor tomonidan yakunlangan muolajalar uchun to'lovni qabul qilish, qarzni yopish va chek chiqarish.
                 </p>
-                <Button size='sm' variant='secondary' className='w-full text-xs font-bold gap-1 mt-2'>
-                  <CreditCard className='h-3.5 w-3.5' /> Kassa & To'lovlar (/payments)
+                <Button size='sm' variant='outline' className='w-full text-xs font-bold gap-1 mt-2 border-purple-500/30 text-purple-600 dark:text-purple-400'>
+                  <CreditCard className='h-3.5 w-3.5' /> Kassa (/payments)
                 </Button>
               </CardContent>
             </Card>

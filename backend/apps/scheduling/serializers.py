@@ -117,9 +117,13 @@ class AppointmentSerializer(serializers.ModelSerializer):
     # ------------------------------------------------------------------
     _CAMEL_ALIASES = {
         "patientId": "patient_id",
+        "patient": "patient_id",
         "doctorId": "doctor_id",
+        "doctor": "doctor_id",
         "departmentId": "department_id",
+        "department": "department_id",
         "procedureTypeId": "procedure_type_id",
+        "procedureType": "procedure_type_id",
         "scheduledStart": "scheduled_start",
         "scheduledEnd": "scheduled_end",
     }

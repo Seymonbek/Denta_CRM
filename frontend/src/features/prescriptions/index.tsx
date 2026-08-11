@@ -87,7 +87,7 @@ export function PrescriptionsList() {
 
   // Filter Prescriptions
   const filteredPrescriptions = prescriptionsList.filter((p: any) => {
-    const text = (p?.content || '') + (typeof p?.treatment === 'object' ? p?.treatment?.patient_name || '' : '')
+    const text = (p?.content || '') + (p?.treatment && typeof p.treatment === 'object' ? p.treatment.patient_name || '' : '')
     const matchesSearch = text.toLowerCase().includes(searchTerm.toLowerCase())
     const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || p?.sent_at
     const matchesStatus =
@@ -100,7 +100,7 @@ export function PrescriptionsList() {
   })
 
   const treatmentSelectOptions = treatments.map((t: any) => {
-    const pName = typeof t?.patient === 'object' ? `${t.patient.first_name || ''} ${t.patient.last_name || ''}` : `Bemor #${t.patient || ''}`
+    const pName = t?.patient && typeof t.patient === 'object' ? `${t.patient.first_name || ''} ${t.patient.last_name || ''}` : `Bemor #${t.patient || ''}`
     const proc = t?.procedure_type?.name || 'Muolaja'
     return {
       value: String(t.id),
@@ -255,8 +255,8 @@ export function PrescriptionsList() {
                   ) : (
                     filteredPrescriptions.map((p: any) => {
                       const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || p?.sent_at || ''
-                      const treatmentDisplay = typeof p?.treatment === 'object'
-                        ? (p?.treatment?.patient_name || p?.treatment?.diagnosis || 'Davolash yozuvi')
+                      const treatmentDisplay = p?.treatment && typeof p.treatment === 'object'
+                        ? (p.treatment.patient_name || p.treatment.diagnosis || 'Davolash yozuvi')
                         : `Davolash #${p?.treatment || ''}`
                       const contentTitle = p?.content ? p.content.split('\n')[0] : 'Retsept yozuvi'
 
@@ -353,8 +353,8 @@ export function PrescriptionsList() {
                     <User className='h-3.5 w-3.5 text-primary' /> Davolash / Bemor:
                   </div>
                   <div className='text-sm font-bold'>
-                    {typeof selectedPrescriptionDetail?.treatment === 'object'
-                      ? selectedPrescriptionDetail?.treatment?.patient_name || '—'
+                    {selectedPrescriptionDetail?.treatment && typeof selectedPrescriptionDetail.treatment === 'object'
+                      ? selectedPrescriptionDetail.treatment.patient_name || '—'
                       : `Davolash #${selectedPrescriptionDetail?.treatment || ''}`}
                   </div>
                 </div>

@@ -256,14 +256,23 @@ class DoctorProfileViewSet(viewsets.ModelViewSet):
             day: date = datetime.strptime(raw_date, "%Y-%m-%d").date()
         except ValueError as exc:
             raise DRFValidationError({"date": ["YYYY-MM-DD formatida yuboring."]}) from exc
+        procedure_type_id = request.query_params.get("procedure_type") or request.query_params.get("procedure_type_id")
+        procedure = None
+        if procedure_type_id:
+            try:
+                procedure = ProcedureType.objects.get(pk=procedure_type_id)
+            except (ProcedureType.DoesNotExist, ValueError):
+                procedure = None
+
+        default_min = procedure.default_duration_minutes if procedure else 30
         try:
-            slot_minutes = int(request.query_params.get("slot_minutes") or 30)
+            slot_minutes = int(request.query_params.get("slot_minutes") or default_min)
         except (TypeError, ValueError):
-            slot_minutes = 30
+            slot_minutes = default_min
 
         booked_ranges = self._get_booked_ranges(doctor, day)
         slots = compute_available_slots(
-            doctor, day=day, slot_minutes=slot_minutes, booked_ranges=booked_ranges
+            doctor, day=day, slot_minutes=slot_minutes, procedure=procedure, booked_ranges=booked_ranges
         )
         return Response(
             {"doctorId": str(doctor.id), "date": day.isoformat(), "slots": slots},

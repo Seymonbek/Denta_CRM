@@ -7,7 +7,11 @@ import {
   usePatientOdontogram,
   usePatientBalance,
 } from '@/api/hooks/use-patients'
-import { getTreatmentsApi, createToothRecordApi } from '@/api/treatments'
+import { useAppointments } from '@/api/hooks/use-appointments'
+import { useTreatments, useCreateTreatment } from '@/api/hooks/use-treatments'
+import { getTreatmentsApi, createTreatmentApi, createToothRecordApi } from '@/api/treatments'
+import { apiClient } from '@/api/client'
+import { ActiveTreatmentSession } from '@/components/treatment-session/active-treatment-session'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -28,6 +32,16 @@ export function PatientDetail() {
   const { data: historyData = [] } = usePatientHistory(id)
   const { data: toothRecordsData = [] } = usePatientOdontogram(id)
   const { data: balanceData } = usePatientBalance(id)
+
+  const { data: apptsData } = useAppointments({ patient: id, status: 'in_progress' })
+  const activeAppts = Array.isArray(apptsData?.results) ? apptsData.results : Array.isArray(apptsData) ? apptsData : []
+  const activeAppt = activeAppts[0]
+
+  const { data: treatmentsRes } = useTreatments({ patient: id, stage: 'in_progress' })
+  const activeTreatments = Array.isArray(treatmentsRes?.results) ? treatmentsRes.results : Array.isArray(treatmentsRes) ? treatmentsRes : []
+  const activeTreatment = activeTreatments[0]
+
+  const createTreatment = useCreateTreatment()
 
   const history = Array.isArray(historyData) ? historyData : []
   const toothRecords = Array.isArray(toothRecordsData) ? toothRecordsData : []
@@ -70,13 +84,47 @@ export function PatientDetail() {
     notes: string
   }) => {
     try {
-      // 1. Try finding existing treatment for patient
-      const treatmentsRes = await getTreatmentsApi({ patient: id })
+      // 1. Find or create an active treatment container for this patient
+      const treatmentsRes = await getTreatmentsApi({ patient: id, stage: 'in_progress' })
       const treatments = treatmentsRes?.results || (Array.isArray(treatmentsRes) ? treatmentsRes : [])
-      const activeTreatment = treatments[0]
+      let treatmentId = treatments[0]?.id
 
-      if (activeTreatment?.id) {
-        await createToothRecordApi(activeTreatment.id, {
+      if (!treatmentId) {
+        // Find an active appointment to link the treatment to
+        const { getAppointmentsApi } = await import('@/api/appointments')
+        
+        let apptsRes = await getAppointmentsApi({ patient: id, status: 'in_progress' })
+        let appts = apptsRes?.results || (Array.isArray(apptsRes) ? apptsRes : [])
+        
+        if (appts.length === 0) {
+           apptsRes = await getAppointmentsApi({ patient: id, status: 'confirmed' })
+           appts = apptsRes?.results || (Array.isArray(apptsRes) ? apptsRes : [])
+        }
+
+        const activeAppt = appts[0]
+
+        if (!activeAppt) {
+          toast.error("Bemorning faol navbati topilmadi. Avval qabulni boshlang (Jarayonda).")
+          return
+        }
+
+        const doctorId = typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor
+        const departmentId = typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department
+        
+        const newTreatment = await createTreatmentApi({
+          patient: id,
+          doctor: doctorId,
+          department: departmentId,
+          appointment: activeAppt.id,
+          diagnosis: `Tish #${record.toothNumber} ko'rik va muolajasi`,
+          description: record.notes || "Tish xaritasiga yozuv kiritildi",
+          price: "0",
+        } as any)
+        treatmentId = newTreatment.id
+      }
+
+      if (treatmentId) {
+        await createToothRecordApi(treatmentId, {
           toothNumber: record.toothNumber,
           procedure: record.procedure,
           status: record.status,
@@ -84,47 +132,36 @@ export function PatientDetail() {
         })
       }
 
-      // 2. Update local Query state for Odontogram immediately
-      queryClient.setQueryData(['patients', id, 'odontogram'], (old: any[] = []) => {
-        const list = Array.isArray(old) ? [...old] : []
-        const existingIdx = list.findIndex((r: any) => r.toothNumber === record.toothNumber)
-        const updatedRec = {
-          toothNumber: record.toothNumber,
-          procedure: record.procedure,
-          status: record.status,
-          notes: record.notes,
-          updatedAt: new Date().toISOString(),
-        }
-        if (existingIdx >= 0) {
-          list[existingIdx] = updatedRec
-        } else {
-          list.push(updatedRec)
-        }
-        return list
-      })
-
-      queryClient.invalidateQueries({ queryKey: ['patients', id, 'odontogram'] })
+      // 2. Refresh Odontogram
+      await queryClient.invalidateQueries({ queryKey: ['patients', id, 'odontogram'] })
       toast.success(`Tish #${record.toothNumber} saqlandi va yangilandi!`)
-    } catch {
-      // Fallback: Optimistic update on frontend
-      queryClient.setQueryData(['patients', id, 'odontogram'], (old: any[] = []) => {
-        const list = Array.isArray(old) ? [...old] : []
-        const existingIdx = list.findIndex((r: any) => r.toothNumber === record.toothNumber)
-        const updatedRec = {
-          toothNumber: record.toothNumber,
-          procedure: record.procedure,
-          status: record.status,
-          notes: record.notes,
-          updatedAt: new Date().toISOString(),
-        }
-        if (existingIdx >= 0) {
-          list[existingIdx] = updatedRec
-        } else {
-          list.push(updatedRec)
-        }
-        return list
-      })
-      toast.success(`Tish #${record.toothNumber} sozlandi!`)
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.department?.[0] || err?.response?.data?.detail || err?.response?.data?.non_field_errors?.[0] || "Saqlashda xatolik yuz berdi."
+      toast.error(errMsg)
+    }
+  }
+
+  const handleStartSession = async () => {
+    if (!activeAppt) {
+       toast.error("Bemorning faol navbati yo'q!")
+       return
+    }
+    try {
+      const doctorId = typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor
+      const departmentId = typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department
+      
+      await createTreatment.mutateAsync({
+        patient: id,
+        doctor: doctorId,
+        department: departmentId,
+        appointment: activeAppt.id,
+        diagnosis: "",
+        description: "Qabul boshlandi",
+        price: "0",
+      } as any)
+      toast.success("Muolaja sessiyasi boshlandi!")
+    } catch(err: any) {
+      toast.error("Xatolik yuz berdi")
     }
   }
 
@@ -210,8 +247,16 @@ export function PatientDetail() {
         </div>
 
         {/* Detail Tabs */}
-        <Tabs defaultValue='odontogram' className='space-y-4'>
+        <Tabs defaultValue={activeAppt ? 'session' : 'odontogram'} className='space-y-4'>
           <TabsList className='w-full justify-start overflow-x-auto border-b rounded-none bg-transparent p-0'>
+            {activeAppt && (
+              <TabsTrigger
+                value='session'
+                className='data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent px-4 py-2 text-xs font-semibold'
+              >
+                🔴 Joriy Muolaja
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value='odontogram'
               className='data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent px-4 py-2 text-xs font-semibold'
@@ -231,6 +276,28 @@ export function PatientDetail() {
               💰 To'lovlar va Balans
             </TabsTrigger>
           </TabsList>
+
+          {activeAppt && (
+            <TabsContent value='session' className='pt-2'>
+              {activeTreatment ? (
+                <ActiveTreatmentSession 
+                  treatmentId={activeTreatment.id} 
+                  appointmentId={activeAppt.id} 
+                  patientId={id} 
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-xl bg-muted/10 text-center">
+                  <h3 className="text-lg font-bold mb-2">Qabul boshlangan, lekin muolaja sessiyasi ochilmagan</h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-md">
+                    Bemorning qabuliga rasmlar yuklash, tashxis yozish va yakunlash uchun muolaja sessiyasini boshlang. Yoki tish xaritasiga yozuv kiritish orqali avtomatik ochishingiz mumkin.
+                  </p>
+                  <Button onClick={handleStartSession} disabled={createTreatment.isPending}>
+                    {createTreatment.isPending ? 'Boshlanmoqda...' : 'Muolaja Sessiyasini Boshlash'}
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value='odontogram' className='pt-2'>
             <Odontogram toothRecords={toothRecords} onSaveRecord={handleSaveToothRecord} />

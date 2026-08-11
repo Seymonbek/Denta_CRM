@@ -80,10 +80,10 @@ export const sidebarData: SidebarData = {
           roles: ['bosh_shifokor'],
         },
         {
-          title: 'Shifokorlar',
+          title: 'Ish Jadvali va Ta’tillar',
           url: '/doctors',
           icon: Stethoscope,
-          roles: ['bosh_shifokor'],
+          roles: ['bosh_shifokor', 'doctor'],
         },
         {
           title: 'Retseptlar',

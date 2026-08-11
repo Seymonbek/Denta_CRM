@@ -10,7 +10,7 @@ import {
 export async function getTreatmentsApi(params?: {
   patient?: string
   doctor?: string
-  paymentStatus?: string
+  payment_status?: string
   stage?: string
   page?: number
 }): Promise<PaginatedResponse<Treatment>> {

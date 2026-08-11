@@ -263,6 +263,31 @@ def create_appointment(
         raise ValidationError(
             {"scheduled_start": ["Shifokorda bu vaqtga boshqa navbat bor (DB constraint)."]}
         ) from exc
+
+    # Enqueue a Telegram notification for the patient if possible
+    if appointment.patient.telegram_chat_id:
+        try:
+            from apps.notifications.services import enqueue
+            from apps.notifications.models import NotificationType, NotificationChannel
+            from django.utils.dateformat import format as date_format
+
+            # Using APPOINTMENT_REMINDER_1D for generic confirmation,
+            # as there isn't a dedicated APPOINTMENT_CREATED yet.
+            date_str = date_format(timezone.localtime(appointment.scheduled_start), "d.m.Y H:i")
+            msg = f"✅ Navbatingiz belgilandi!\n\n📅 Vaqt: {date_str}\n👨‍⚕️ Shifokor: {appointment.doctor.user.get_full_name() or 'Shifokor'}"
+
+            enqueue(
+                user=None,
+                patient=appointment.patient,
+                type=NotificationType.APPOINTMENT_REMINDER_1D,
+                channel=NotificationChannel.TELEGRAM,
+                message=msg,
+                context={"appointment_id": str(appointment.pk)},
+            )
+        except Exception as notify_exc:
+            import logging
+            logging.getLogger(__name__).warning("Failed to enqueue appointment creation notification: %s", notify_exc)
+
     return appointment
 
 
