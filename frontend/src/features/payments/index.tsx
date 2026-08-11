@@ -10,6 +10,7 @@ import {
   useDoctorCommissions,
   useDoctorCommissionSummary,
 } from '@/api/hooks/use-payments'
+import { useOpenCashShift } from '@/api/hooks/use-cash-shifts'
 import { useTreatments } from '@/api/hooks/use-treatments'
 import { usePatients } from '@/api/hooks/use-patients'
 import { useDoctors } from '@/api/hooks/use-doctors'
@@ -103,6 +104,9 @@ export function PaymentsList() {
   const createPaymentMutation = useCreatePayment()
   const voidPaymentMutation = useVoidPayment()
 
+  const { data: openShift } = useOpenCashShift()
+  const isShiftOpen = !!openShift
+
   // Merge pending and all treatments for the dropdown so selected item displays correctly
   const allModalTreatments = [...pendingTreatments, ...treatments].filter(
     (t, index, self) => index === self.findIndex((t2) => t2.id === t.id)
@@ -117,8 +121,8 @@ export function PaymentsList() {
 
   const handleCreatePayment = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!treatmentId || !patientId || !amount) {
-      toast.error('Davolash yozuvi, bemor va summani kiriting.')
+    if (!patientId || !amount) {
+      toast.error('Bemor va summani kiriting.')
       return
     }
 
@@ -127,7 +131,7 @@ export function PaymentsList() {
     try {
       await createPaymentMutation.mutateAsync({
         data: {
-          treatment: treatmentId,
+          treatment: treatmentId || undefined,
           patient: patientId,
           amount,
           method,
@@ -178,8 +182,8 @@ export function PaymentsList() {
               Mijozlardan to'lov qabul qilish (Idempotent), to'lovlar tarixi va shifokorlar komissiyasi.
             </p>
           </div>
-          <Button onClick={() => openPaymentModal('', '', '')} className='shadow'>
-            <Plus className='me-2 h-4 w-4' /> Boshqa To'lov Qabul Qilish
+          <Button onClick={() => openPaymentModal('', '', '')} className='shadow' disabled={!isShiftOpen}>
+            <Plus className='me-2 h-4 w-4' /> {isShiftOpen ? "Boshqa To'lov Qabul Qilish" : "Avval smenani oching"}
           </Button>
         </div>
 
@@ -223,6 +227,7 @@ export function PaymentsList() {
                         size="sm" 
                         className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                         onClick={() => openPaymentModal(pt.id, pId, pt.price || '')}
+                        disabled={!isShiftOpen}
                       >
                         <CreditCard className="w-3.5 h-3.5 mr-1" /> To'lash
                       </Button>
@@ -313,6 +318,7 @@ export function PaymentsList() {
                               variant='ghost'
                               className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
                               onClick={() => handleVoid(p.id)}
+                              disabled={!isShiftOpen}
                             >
                               <Ban className='h-3.5 w-3.5 me-1' /> Bekor qilish
                             </Button>

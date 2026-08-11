@@ -13,6 +13,9 @@ import {
   Bell,
   Settings,
   Sparkles,
+  ClipboardCheck,
+  Briefcase,
+  ShieldAlert,
 } from 'lucide-react'
 
 export interface NavSubItem {
@@ -103,11 +106,29 @@ export const sidebarData: SidebarData = {
           icon: CreditCard,
           roles: ['bosh_shifokor', 'administrator'],
         },
+        {
+          title: 'Kassa Smenalari',
+          url: '/cash-shifts',
+          icon: Briefcase,
+          roles: ['bosh_shifokor', 'administrator'],
+        },
+        {
+          title: 'Chegirma Tasdiqlash',
+          url: '/approvals',
+          icon: ClipboardCheck,
+          roles: ['bosh_shifokor'],
+        },
       ],
     },
     {
       title: 'AI & Statistika',
       items: [
+        {
+          title: 'Audit Log (Tarix)',
+          url: '/audit-log',
+          icon: ShieldAlert,
+          roles: ['bosh_shifokor'],
+        },
         {
           title: 'AI Yordamchi (Gemini)',
           url: '/ai-assistant',

@@ -122,6 +122,18 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
   }
 
   const handleFinishAppointment = async () => {
+    if (materials.length === 0) {
+      toast.error("Diqqat! Muolajani yakunlashdan oldin ishlatilgan materiallarni kiriting.", {
+        duration: 5000,
+      })
+      return
+    }
+
+    if (treatmentData?.approvalStatus === 'pending' || treatmentData?.approval_status === 'pending') {
+      toast.error("Chegirma tasdiqlanmagan. Bosh shifokor tasdig'ini kuting.")
+      return
+    }
+
     const isConfirmed = await confirmSwal({
       title: "Qabulni yakunlaysizmi?",
       text: `Jami summa: ${price} so'm. Barcha ishlar yakunlandimi?`,
@@ -344,15 +356,21 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
           </div>
         </CardContent>
         <CardFooter className="flex justify-end border-t pt-4 border-primary/10">
-           <Button 
-             size="lg" 
-             className="bg-emerald-600 hover:bg-emerald-700 text-white"
-             onClick={handleFinishAppointment}
-             disabled={updateTreatment.isPending || updateAppointment.isPending}
-           >
-             {(updateTreatment.isPending || updateAppointment.isPending) ? <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> : <CheckCircle className="w-5 h-5 mr-2" />}
-             Qabulni Yakunlash
-           </Button>
+           <Button
+              className="w-full h-12 text-base font-semibold shadow-md bg-primary hover:bg-primary/90"
+              onClick={handleFinishAppointment}
+              disabled={
+                updateTreatment.isPending || 
+                updateAppointment.isPending || 
+                treatmentData?.approvalStatus === 'pending' || 
+                treatmentData?.approval_status === 'pending'
+              }
+            >
+              {(updateTreatment.isPending || updateAppointment.isPending) ? <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> : <CheckCircle className="w-5 h-5 mr-2" />}
+              {treatmentData?.approvalStatus === 'pending' || treatmentData?.approval_status === 'pending' 
+                ? "Tasdiq kutilmoqda (Chegirma)" 
+                : "Qabulni Yakunlash"}
+            </Button>
         </CardFooter>
       </Card>
 

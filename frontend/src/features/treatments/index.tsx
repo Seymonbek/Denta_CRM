@@ -63,6 +63,8 @@ export function TreatmentsList() {
   const [diagnosis, setDiagnosis] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
+  const [defaultPrice, setDefaultPrice] = useState<number>(0)
+  const [discountReason, setDiscountReason] = useState('')
 
   const { data: treatmentsData, isLoading } = useTreatments()
   const treatments = Array.isArray(treatmentsData?.results)
@@ -104,6 +106,7 @@ export function TreatmentsList() {
       return
     }
 
+    const discountPercent = defaultPrice > 0 ? ((defaultPrice - Number(price)) / defaultPrice) * 100 : 0
     try {
       await createTreatmentMutation.mutateAsync({
         appointment: appointmentId,
@@ -114,6 +117,9 @@ export function TreatmentsList() {
         diagnosis,
         description,
         price,
+        originalPrice: defaultPrice > 0 ? defaultPrice : undefined,
+        discountPercent: discountPercent > 0 ? discountPercent : 0,
+        discountReason: discountReason || undefined,
       })
       toast.success('Davolash yozuvi yaratildi!')
       setIsModalOpen(false)
@@ -380,7 +386,11 @@ export function TreatmentsList() {
                     onValueChange={(val) => {
                       setProcedureTypeId(val)
                       const proc = procedureTypes.find((p: any) => p.id === val)
-                      if (proc) setPrice(proc.defaultPrice || proc.default_price || '')
+                      if (proc) {
+                        const dp = proc.defaultPrice || proc.default_price || 0
+                        setDefaultPrice(dp)
+                        setPrice(dp)
+                      }
                     }}
                   >
                     <SelectTrigger>
@@ -415,7 +425,30 @@ export function TreatmentsList() {
                   onChange={(e) => setPrice(e.target.value)}
                   required
                 />
+                {defaultPrice > 0 && Number(price) < defaultPrice && (
+                  <p className='text-[10px] text-muted-foreground mt-1'>
+                    Asl narx: {Number(defaultPrice).toLocaleString()} so'm 
+                    ({(((defaultPrice - Number(price)) / defaultPrice) * 100).toFixed(1)}% chegirma)
+                  </p>
+                )}
+                {defaultPrice > 0 && ((defaultPrice - Number(price)) / defaultPrice) * 100 > 10 && (
+                  <Badge variant='destructive' className='text-[10px] mt-1'>
+                    Diqqat! 10% dan yuqori chegirma bosh shifokor tasdig'ini talab qiladi.
+                  </Badge>
+                )}
               </div>
+
+              {defaultPrice > 0 && ((defaultPrice - Number(price)) / defaultPrice) * 100 > 10 && (
+                <div className='space-y-1 mt-2'>
+                  <label className='text-xs font-medium text-destructive'>Chegirma Sababi *</label>
+                  <Input
+                    placeholder='Chegirma berish sababini yozing...'
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
 
               <div className='space-y-1'>
                 <label className='text-xs font-medium'>Batafsil Tavsif</label>

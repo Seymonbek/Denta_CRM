@@ -198,6 +198,16 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
     default_commission_rate = serializers.DecimalField(
         max_digits=5, decimal_places=2, required=False
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request and hasattr(request, "user"):
+            from apps.accounts.models import User
+            if request.user.role != User.Role.BOSH_SHIFOKOR:
+                self.fields["commission_basis"].read_only = True
+                self.fields["default_commission_rate"].read_only = True
+
     can_view_other_doctors = serializers.BooleanField(required=False)
     is_active = serializers.BooleanField(required=False)
 

@@ -216,12 +216,20 @@ def record_payment(
                 }
             )
 
+    active_shift = None
+    if received_by and getattr(received_by, "pk", None):
+        from apps.payments.models import CashShift
+        active_shift = CashShift.objects.filter(cashier=received_by, status="open").first()
+        if not active_shift:
+            raise ValidationError({"detail": ["Ushbu foydalanuvchi uchun ochiq kassa smenasi topilmadi. Avval smenani oching."]})
+
     payment = Payment.objects.create(
         treatment=treatment,
         patient=resolved_patient,
         amount=_quantise(money),
         method=method,
         received_by=received_by if getattr(received_by, "pk", None) else None,
+        cash_shift=active_shift,
         note=(note or "").strip(),
     )
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Plus, Search, ArrowRight } from 'lucide-react'
+import { confirmSwal } from '@/lib/sweetalert'
 import { usePatients, useCreatePatient } from '@/api/hooks/use-patients'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -110,7 +111,17 @@ export function PatientsList() {
         data?.detail ||
         (typeof data === 'string' ? data : null) ||
         'Bemor qo’shishda xatolik yuz berdi.'
-      toast.error(errorMsg)
+        
+      if (typeof errorMsg === 'string' && errorMsg.includes('allaqachon mavjud')) {
+        confirmSwal({
+          title: "Bemor mavjud!",
+          text: errorMsg + " Qidiruvdan foydalanib bemorni topishingiz mumkin.",
+          confirmButtonText: "Tushunarli",
+          showCancelButton: false
+        })
+      } else {
+        toast.error(errorMsg)
+      }
     }
   }
 
