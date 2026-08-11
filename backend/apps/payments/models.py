@@ -56,6 +56,13 @@ class CommissionBasisSnapshot(models.TextChoices):
     FROM_NET = "from_net", _("Sof daromaddan")
 
 
+class CashShiftStatus(models.TextChoices):
+    """Shift status."""
+
+    OPEN = "open", _("Ochiq")
+    CLOSED = "closed", _("Yopiq")
+
+
 # ---------------------------------------------------------------------------
 # Payment
 # ---------------------------------------------------------------------------
@@ -64,12 +71,22 @@ class Payment(BaseModel):
 
     Method = PaymentMethod  # convenience re-export
 
+    cash_shift = models.ForeignKey(
+        "payments.CashShift",
+        on_delete=models.SET_NULL,
+        related_name="payments",
+        null=True,
+        blank=True,
+        verbose_name=_("Kassa Smenasi"),
+    )
     treatment = models.ForeignKey(
         "treatments.Treatment",
         on_delete=models.PROTECT,
         related_name="payments",
         related_query_name="payment",
         verbose_name=_("Davolash"),
+        null=True,
+        blank=True,
     )
     patient = models.ForeignKey(
         "patients.Patient",
@@ -114,6 +131,21 @@ class Payment(BaseModel):
     @property
     def is_void(self) -> bool:
         return not self.is_active
+
+    def clean(self):
+        super().clean()
+        # Prevent modification if linked to a closed shift
+        if self.pk:
+            old = Payment.objects.get(pk=self.pk)
+            if old.cash_shift_id and old.cash_shift.status == 'closed':
+                from django.core.exceptions import ValidationError
+                raise ValidationError("Yopiq kassa smenasiga tegishli to'lovni o'zgartirib bo'lmaydi.")
+
+    def delete(self, *args, **kwargs):
+        if self.cash_shift_id and self.cash_shift.status == 'closed':
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Yopiq kassa smenasiga tegishli to'lovni o'chirib bo'lmaydi.")
+        super().delete(*args, **kwargs)
 
     class Meta:
         verbose_name = _("To'lov")
@@ -225,9 +257,53 @@ class CommissionRecord(BaseModel):
         return f"Commission({self.doctor_id}, {self.amount})"
 
 
+# ---------------------------------------------------------------------------
+# CashShift
+# ---------------------------------------------------------------------------
+class CashShift(BaseModel):
+    administrator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="cash_shifts",
+        verbose_name=_("Administrator"),
+    )
+    opened_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Ochilgan vaqti"))
+    closed_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Yopilgan vaqti"))
+    start_balance = models.DecimalField(
+        _("Boshlang'ich qoldiq"), max_digits=12, decimal_places=2, default=Decimal("0.00")
+    )
+    cash_collected = models.DecimalField(
+        _("Naqd tushum"), max_digits=12, decimal_places=2, default=Decimal("0.00")
+    )
+    card_collected = models.DecimalField(
+        _("Karta/Plastik tushum"), max_digits=12, decimal_places=2, default=Decimal("0.00")
+    )
+    status = models.CharField(
+        _("Holati"), max_length=10, choices=CashShiftStatus.choices, default=CashShiftStatus.OPEN
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_shifts",
+        verbose_name=_("Tasdiqlagan shaxs"),
+    )
+
+    class Meta:
+        verbose_name = _("Kassa Smenasi")
+        verbose_name_plural = _("Kassa Smenalari")
+        ordering = ["-opened_at"]
+
+    def __str__(self):
+        return f"Shift {self.pk} - {self.administrator.get_full_name()}"
+
+
 __all__ = [
     "Payment",
     "CommissionRecord",
+    "CashShift",
     "PaymentMethod",
     "CommissionBasisSnapshot",
+    "CashShiftStatus",
 ]

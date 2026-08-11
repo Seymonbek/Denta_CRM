@@ -164,6 +164,19 @@ class TreatmentSerializer(serializers.ModelSerializer):
         choices=TreatmentStage.choices, required=False
     )
     is_active = serializers.BooleanField(required=False)
+    
+    original_price = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    discount_percent = serializers.DecimalField(
+        max_digits=5, decimal_places=2, read_only=True
+    )
+    approval_status = serializers.ChoiceField(
+        choices=Treatment.ApprovalStatus.choices, read_only=True
+    )
+    discount_reason = serializers.CharField(
+        max_length=500, allow_blank=True, required=False
+    )
 
     class Meta:
         model = Treatment
@@ -177,15 +190,23 @@ class TreatmentSerializer(serializers.ModelSerializer):
             "diagnosis",
             "description",
             "price",
+            "original_price",
+            "discount_percent",
+            "discount_reason",
+            "approval_status",
             "payment_status",
             "stage",
             "is_active",
         )
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "original_price", "discount_percent", "approval_status")
 
     _CAMEL_TO_SNAKE = {
         "procedureType": "procedure_type",
         "paymentStatus": "payment_status",
+        "originalPrice": "original_price",
+        "discountPercent": "discount_percent",
+        "discountReason": "discount_reason",
+        "approvalStatus": "approval_status",
         "isActive": "is_active",
         "doctorId": "doctor",
         "patientId": "patient",

@@ -73,16 +73,28 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     """Serializer to handle profile updates for the currently-authenticated user.
 
-    Allows updating first name, last name, and Telegram chat ID.
+    Allows updating first name, last name, Telegram chat ID, and password.
     """
 
     firstName = serializers.CharField(source="first_name", required=False, max_length=100)
     lastName = serializers.CharField(source="last_name", required=False, max_length=100)
     telegramChatId = serializers.IntegerField(source="telegram_chat_id", required=False, allow_null=True)
+    password = serializers.CharField(write_only=True, required=False, min_length=8)
 
     class Meta:  # type: ignore[override]
         model = User
-        fields = ("firstName", "lastName", "telegramChatId")
+        fields = ("firstName", "lastName", "telegramChatId", "password")
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        # Ensure role cannot be updated even if somehow passed
+        validated_data.pop("role", None)
+        
+        instance = super().update(instance, validated_data)
+        if password:
+            instance.set_password(password)
+            instance.save()
+        return instance
 
     def to_representation(self, instance: User) -> dict[str, Any]:
         return UserProfileSerializer(instance).data

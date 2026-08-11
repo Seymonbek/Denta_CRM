@@ -23,6 +23,7 @@ from rest_framework_simplejwt.exceptions import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.core.permissions import IsOwnerOrBoshShifokor
 from .serializers import (
     LoginSerializer,
     PasswordResetConfirmSerializer,
@@ -134,7 +135,7 @@ class MeView(APIView):
     PATCH /api/v1/auth/me/ — update the authenticated user's profile.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOwnerOrBoshShifokor]
 
     @extend_schema(
         tags=["auth"],

@@ -162,6 +162,7 @@ MIDDLEWARE = [
     # response phase re-binds the user id contextvar.
     "apps.core.middleware.RequestIdMiddleware",
     "simple_history.middleware.HistoryRequestMiddleware",
+    "apps.core.middleware.ThreadLocalMiddleware",
 ]
 
 
@@ -512,6 +513,7 @@ REST_FRAMEWORK: dict[str, Any] = {
     "DEFAULT_THROTTLE_RATES": {
         "auth_login": env_str("LOGIN_RATE_LIMIT", "5/min"),
         "auth_password_reset": env_str("PASSWORD_RESET_RATE_LIMIT", "3/hour"),
+        "patient_reminders": "2/day",
     },
 }
 

@@ -92,10 +92,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
 
+from .throttles import PatientReminderThrottle
+
 class SendTelegramReminderView(APIView):
     """POST /api/v1/notifications/send-reminder/ — triggers Telegram reminder."""
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [PatientReminderThrottle]
 
     def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         appointment_id = request.data.get("appointmentId") or request.data.get("appointment_id")

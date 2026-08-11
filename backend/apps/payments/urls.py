@@ -17,6 +17,7 @@ from .views import (
     PatientBalanceView,
     PaymentReceiptPDFView,
     PaymentViewSet,
+    CashShiftViewSet,
 )
 
 app_name = "payments"
@@ -58,6 +59,10 @@ doctor_commission_urlpatterns = [
     ),
 ]
 
+cash_shift_router = DefaultRouter()
+cash_shift_router.register(r"", CashShiftViewSet, basename="cash-shift")
+cash_shift_urlpatterns = cash_shift_router.urls
+
 urlpatterns = payment_urlpatterns
 
 
@@ -65,5 +70,6 @@ __all__ = [
     "payment_urlpatterns",
     "patient_balance_urlpatterns",
     "doctor_commission_urlpatterns",
+    "cash_shift_urlpatterns",
     "urlpatterns",
 ]

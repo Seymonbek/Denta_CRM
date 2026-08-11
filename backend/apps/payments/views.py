@@ -21,7 +21,8 @@ from typing import Any
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import filters, status, viewsets
+from rest_framework import filters, status, viewsets, permissions
+from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.generics import get_object_or_404
 from rest_framework.request import Request
@@ -305,10 +306,49 @@ class PaymentReceiptPDFView(APIView):
         return HttpResponse(html_content, content_type="text/html; charset=utf-8")
 
 
+class CashShiftViewSet(viewsets.ModelViewSet):
+    """CRUD and Approval for CashShift (Kassa Smenasi)."""
+    queryset = __import__("apps.payments.models", fromlist=["CashShift"]).CashShift.objects.select_related("administrator", "approved_by").all()
+    serializer_class = __import__("apps.payments.serializers", fromlist=["CashShiftSerializer"]).CashShiftSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if getattr(self.request.user, "role", None) != "bosh_shifokor":
+            qs = qs.filter(administrator=self.request.user)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(administrator=self.request.user)
+
+    @extend_schema(
+        summary="Approve (and close) a cash shift",
+        request=None,
+        responses={200: __import__("apps.payments.serializers", fromlist=["CashShiftSerializer"]).CashShiftSerializer}
+    )
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve_shift(self, request, pk=None):
+        if getattr(request.user, "role", None) != "bosh_shifokor":
+            return Response(
+                {"detail": "Faqat bosh shifokor smenani tasdiqlashi mumkin."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        shift = self.get_object()
+        from django.utils import timezone
+        
+        shift.status = "closed"
+        shift.closed_at = timezone.now()
+        shift.approved_by = request.user
+        shift.save(update_fields=["status", "closed_at", "approved_by", "updated_at"])
+        
+        return Response(self.get_serializer(shift).data)
+
+
 __all__ = [
     "PaymentViewSet",
     "PatientBalanceView",
     "DoctorCommissionsView",
     "DoctorCommissionsSummaryView",
     "PaymentReceiptPDFView",
+    "CashShiftViewSet",
 ]

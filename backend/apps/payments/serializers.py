@@ -33,7 +33,15 @@ class PaymentSerializer(serializers.ModelSerializer):
     """
 
     treatment = serializers.PrimaryKeyRelatedField(
-        queryset=Treatment.objects.filter(is_active=True),
+        queryset=__import__("apps.treatments.models", fromlist=["Treatment"]).Treatment.objects.filter(is_active=True),
+        allow_null=True,
+        required=False,
+    )
+    patientId = serializers.PrimaryKeyRelatedField(
+        queryset=__import__("apps.patients.models", fromlist=["Patient"]).Patient.objects.filter(is_active=True),
+        source="patient",
+        allow_null=True,
+        required=False,
     )
     amount = serializers.DecimalField(
         max_digits=12,
@@ -45,12 +53,17 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Payment
-        fields = ("id", "treatment", "amount", "method", "note")
+        fields = ("id", "treatment", "patientId", "amount", "method", "note")
         read_only_fields = ("id",)
 
     _CAMEL_ALIASES = {
         "treatmentId": "treatment",
     }
+
+    def validate(self, attrs):
+        if not attrs.get("treatment") and not attrs.get("patient"):
+            raise serializers.ValidationError("Kamida 'treatmentId' yoki 'patientId' kiritilishi shart.")
+        return attrs
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
         if isinstance(data, dict):
@@ -64,7 +77,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: Payment) -> dict[str, Any]:
         return {
             "id": str(instance.id),
-            "treatmentId": str(instance.treatment_id),
+            "treatmentId": str(instance.treatment_id) if instance.treatment_id else None,
             "patientId": str(instance.patient_id),
             "amount": _decimal_str(instance.amount),
             "method": instance.method,
@@ -87,7 +100,8 @@ class PaymentSerializer(serializers.ModelSerializer):
         actor = getattr(request, "user", None) if request else None
         try:
             return record_payment(
-                treatment=validated_data["treatment"],
+                treatment=validated_data.get("treatment"),
+                patient=validated_data.get("patient"),
                 amount=validated_data["amount"],
                 method=validated_data.get("method", PaymentMethod.CASH),
                 received_by=actor,
@@ -157,9 +171,23 @@ class CommissionSummarySerializer(serializers.Serializer):
     dateTo = serializers.CharField(allow_null=True)
 
 
+class CashShiftSerializer(serializers.ModelSerializer):
+    admin_name = serializers.CharField(source="administrator.get_full_name", read_only=True)
+
+    class Meta:
+        model = __import__("apps.payments.models", fromlist=["CashShift"]).CashShift
+        fields = [
+            "id", "administrator", "admin_name", "opened_at", "closed_at", 
+            "start_balance", "cash_collected", "card_collected", 
+            "status", "approved_by"
+        ]
+        read_only_fields = ["id", "opened_at", "closed_at", "status", "approved_by", "cash_collected", "card_collected"]
+
+
 __all__ = [
     "PaymentSerializer",
     "PatientBalanceSerializer",
     "CommissionRecordSerializer",
     "CommissionSummarySerializer",
+    "CashShiftSerializer",
 ]

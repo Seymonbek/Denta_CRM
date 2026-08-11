@@ -171,7 +171,8 @@ def recalculate_commission(treatment: Treatment) -> CommissionRecord:
 @transaction.atomic
 def record_payment(
     *,
-    treatment: Treatment,
+    treatment: Treatment | None = None,
+    patient: Any = None,
     amount: Any,
     method: str = PaymentMethod.CASH,
     received_by: Any = None,
@@ -191,34 +192,42 @@ def record_payment(
     if method not in {m.value for m in PaymentMethod}:
         raise ValidationError({"method": [f"Noto'g'ri to'lov turi: {method!r}."]})
 
-    already_paid = total_paid_for_treatment(treatment.pk)
-    price = Decimal(treatment.price or _ZERO)
-    projected = already_paid + money
-    # Allow a 1-tiyin cushion for rounding drift.
-    if projected > price + Decimal("0.01"):
-        raise ValidationError(
-            {
-                "amount": [
-                    (
-                        "Kiritilgan miqdor umumiy narxdan oshib ketadi. "
-                        f"Qolgan qarz: {(price - already_paid):.2f}."
-                    )
-                ]
-            }
-        )
+    if not treatment and not patient:
+        raise ValidationError({"detail": ["'treatment' yoki 'patient' ko'rsatilishi shart."]})
+        
+    resolved_patient = patient
+    if treatment:
+        resolved_patient = treatment.patient
+
+    if treatment:
+        already_paid = total_paid_for_treatment(treatment.pk)
+        price = Decimal(treatment.price or _ZERO)
+        projected = already_paid + money
+        # Allow a 1-tiyin cushion for rounding drift.
+        if projected > price + Decimal("0.01"):
+            raise ValidationError(
+                {
+                    "amount": [
+                        (
+                            "Kiritilgan miqdor umumiy narxdan oshib ketadi. "
+                            f"Qolgan qarz: {(price - already_paid):.2f}."
+                        )
+                    ]
+                }
+            )
 
     payment = Payment.objects.create(
         treatment=treatment,
-        patient=treatment.patient,
+        patient=resolved_patient,
         amount=_quantise(money),
         method=method,
         received_by=received_by if getattr(received_by, "pk", None) else None,
         note=(note or "").strip(),
     )
 
-    # Refresh treatment state — signal also does this but keeping the
-    # call here means the return value already reflects the new status.
-    _refresh_payment_status(treatment)
+    # Refresh treatment state
+    if treatment:
+        _refresh_payment_status(treatment)
 
     # Enqueue Telegram notification for the patient if possible
     if payment.patient and payment.patient.telegram_chat_id:
@@ -249,6 +258,9 @@ def record_payment(
 @transaction.atomic
 def void_payment(payment: Payment) -> Payment:
     """Soft-void a payment (``is_active=False``) and refresh state."""
+    if payment.cash_shift_id and payment.cash_shift.status == 'closed':
+        raise ValidationError("Yopiq kassa smenasiga tegishli to'lovni bekor qilib bo'lmaydi.")
+        
     if payment.is_active:
         payment.is_active = False
         payment.save(update_fields=["is_active", "updated_at"])

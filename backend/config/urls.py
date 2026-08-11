@@ -33,6 +33,9 @@ from apps.payments.urls import (
 from apps.payments.urls import (
     payment_urlpatterns as payments_payment_urls,
 )
+from apps.payments.urls import (
+    cash_shift_urlpatterns,
+)
 from apps.prescriptions.urls import (
     action_urlpatterns as prescription_action_urls,
 )
@@ -66,6 +69,7 @@ def healthcheck(_request):
 # is a real, importable urls module — no dangling includes.
 api_v1_patterns: list = [
     path("auth/", include("apps.accounts.urls", namespace="accounts")),
+    path("", include("apps.core.urls", namespace="core")),
     path("departments/", include("apps.departments.urls", namespace="departments")),
     path("doctors/", include("apps.doctors.urls", namespace="doctors")),
     path(
@@ -107,6 +111,10 @@ api_v1_patterns: list = [
     path(
         "payments/",
         include((payments_payment_urls, "payments")),
+    ),
+    path(
+        "cash-shifts/",
+        include((cash_shift_urlpatterns, "cash-shifts")),
     ),
     path(
         "ratings/",

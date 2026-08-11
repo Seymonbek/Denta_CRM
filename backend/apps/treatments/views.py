@@ -17,8 +17,9 @@ from __future__ import annotations
 from typing import Any
 
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import filters, status, viewsets
+from rest_framework import serializers
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.request import Request
@@ -325,6 +326,38 @@ class TreatmentViewSet(viewsets.ModelViewSet):
         }
         html_content = generate_treatment_act_html(treatment_data)
         return HttpResponse(html_content, content_type="text/html; charset=utf-8")
+
+    @extend_schema(
+        summary="Approve or reject a discount for a treatment",
+        request=inline_serializer(
+            name="ApproveDiscountSerializer",
+            fields={
+                "status": serializers.ChoiceField(choices=["approved", "rejected"])
+            }
+        ),
+        responses={200: TreatmentSerializer}
+    )
+    @action(detail=True, methods=["post"], url_path="approve-discount")
+    def approve_discount(self, request: Request, pk: str | None = None) -> Response:
+        """Bosh shifokor tomonidan chegirmalarni tasdiqlash yoki rad etish."""
+        if getattr(request.user, "role", None) != "bosh_shifokor":
+            return Response(
+                {"detail": "Faqat bosh shifokor chegirmalarni tasdiqlashi mumkin."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        treatment = self.get_object()
+        new_status = request.data.get("status")
+        if new_status not in ["approved", "rejected"]:
+            return Response(
+                {"detail": "'status' maydoni 'approved' yoki 'rejected' bo'lishi kerak."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        treatment.approval_status = new_status
+        treatment.save(update_fields=["approval_status", "updated_at"])
+        
+        return Response(TreatmentSerializer(treatment).data, status=status.HTTP_200_OK)
 
 
 __all__ = ["TreatmentViewSet"]

@@ -39,3 +39,30 @@ class BaseModel(models.Model):
         abstract = True
         ordering = ["-created_at"]
         get_latest_by = "created_at"
+
+
+class AuditLog(models.Model):
+    """Global system audit log for critical mutations."""
+    
+    ACTION_CHOICES = (
+        ("CREATE", "CREATE"),
+        ("UPDATE", "UPDATE"),
+        ("DELETE", "DELETE"),
+    )
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        "accounts.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="audit_logs"
+    )
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    model_name = models.CharField(max_length=100)
+    object_id = models.CharField(max_length=255)
+    changes = models.JSONField(default=dict, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-timestamp"]
+        verbose_name = _("Audit Yozuvi")
+        verbose_name_plural = _("Audit Yozuvlari")

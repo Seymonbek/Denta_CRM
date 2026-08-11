@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Save, CheckCircle, Upload, FileText, Camera, RefreshCw, AlertCircle } from 'lucide-react'
 import { useUpdateTreatment, useUploadTreatmentPhoto, useTreatment } from '@/api/hooks/use-treatments'
 import { useUpdateAppointment } from '@/api/hooks/use-appointments'
+import { usePrescriptions, useIssuePrescription, usePrescriptionTemplates } from '@/api/hooks/use-prescriptions'
 import { toast } from 'sonner'
 import { confirmSwal } from '@/lib/sweetalert'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PhotoType } from '@/types/api'
 
 interface ActiveTreatmentSessionProps {
@@ -27,10 +30,23 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
   const updateTreatment = useUpdateTreatment()
   const uploadPhoto = useUploadTreatmentPhoto()
   const updateAppointment = useUpdateAppointment()
+  
+  // Prescription Hooks
+  const { data: prescriptionsData } = usePrescriptions({ treatment: treatmentId })
+  const prescriptionsList = Array.isArray(prescriptionsData?.results) ? prescriptionsData.results : Array.isArray(prescriptionsData) ? prescriptionsData : []
+  const { data: templatesData } = usePrescriptionTemplates()
+  const templates = Array.isArray(templatesData?.results) ? templatesData.results : Array.isArray(templatesData) ? templatesData : []
+  const issuePrescriptionMutation = useIssuePrescription()
 
   const [diagnosis, setDiagnosis] = useState(treatment?.diagnosis || '')
   const [description, setDescription] = useState(treatment?.description || '')
   const [price, setPrice] = useState(treatment?.price || '0.00')
+
+  // Prescription UI State
+  const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false)
+  const [prescriptionContent, setPrescriptionContent] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [sendToTelegram, setSendToTelegram] = useState(true)
 
   // Photo upload states
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -77,6 +93,31 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
     } finally {
       setIsUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleIssuePrescription = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!prescriptionContent.trim() && !selectedTemplateId) {
+      toast.error('Retsept matnini kiriting yoki shablon tanlang.')
+      return
+    }
+
+    try {
+      await issuePrescriptionMutation.mutateAsync({
+        treatmentId,
+        data: {
+          templateId: selectedTemplateId || undefined,
+          content: prescriptionContent,
+          sendTelegram: sendToTelegram,
+        },
+      })
+      toast.success('Retsept muvaffaqiyatli saqlandi')
+      setIsPrescriptionModalOpen(false)
+      setPrescriptionContent('')
+      setSelectedTemplateId('')
+    } catch (err: any) {
+      toast.error('Retsept saqlashda xatolik yuz berdi.')
     }
   }
 
@@ -233,6 +274,46 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
         </Card>
       </div>
 
+      {/* Prescriptions Card */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" /> Retseptlar va Dori-darmonlar
+            </CardTitle>
+            <CardDescription>
+              Bemorga shu muolaja davomida yozilgan retseptlar
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setIsPrescriptionModalOpen(true)}>
+            Retsept Yozish
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {prescriptionsList.length > 0 ? (
+            <div className="space-y-3">
+              {prescriptionsList.map((p: any) => (
+                <div key={p.id} className="p-3 border rounded-lg bg-muted/20 flex flex-col gap-2">
+                  <div className="text-sm whitespace-pre-wrap">{p.content || (p.template && typeof p.template === 'object' ? p.template.content : 'Shablon asosida')}</div>
+                  <div className="flex justify-between items-center text-xs text-muted-foreground mt-2 border-t pt-2">
+                    <span>Sana: {new Date(p.createdAt || p.created_at || Date.now()).toLocaleString()}</span>
+                    {(p.sentToTelegramAt || p.sent_to_telegram_at || p.sent_at) && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 border-blue-200">
+                        Telegram orqali yuborildi
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center p-4 border border-dashed rounded-lg text-muted-foreground text-sm">
+              Hozircha retsept yozilmagan.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Completion Card */}
       <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10">
         <CardHeader>
@@ -274,6 +355,67 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
            </Button>
         </CardFooter>
       </Card>
+
+      {/* Prescription Modal */}
+      <Dialog open={isPrescriptionModalOpen} onOpenChange={setIsPrescriptionModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Yangi Retsept Yozish</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleIssuePrescription} className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Tayyor Shablon (Ixtiyoriy)</Label>
+              <Select value={selectedTemplateId} onValueChange={(val) => {
+                setSelectedTemplateId(val)
+                const tpl = templates.find((t: any) => String(t.id) === val)
+                if (tpl) {
+                  setPrescriptionContent(tpl.content || '')
+                }
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Shablonni tanlang..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Tanlanmagan</SelectItem>
+                  {templates.map((tpl: any) => (
+                    <SelectItem key={tpl.id} value={String(tpl.id)}>
+                      {tpl.name || tpl.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Retsept Matni *</Label>
+              <Textarea
+                required
+                className="min-h-[150px]"
+                placeholder="Dori-darmonlar va qabul qilish tartibini yozing..."
+                value={prescriptionContent}
+                onChange={(e) => setPrescriptionContent(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center space-x-2 bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
+              <Checkbox
+                id="telegram"
+                checked={sendToTelegram}
+                onCheckedChange={(checked) => setSendToTelegram(!!checked)}
+              />
+              <Label htmlFor="telegram" className="text-sm font-medium cursor-pointer flex-1">
+                Bemorga Telegram orqali yuborish
+              </Label>
+            </div>
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsPrescriptionModalOpen(false)}>
+                Bekor Qilish
+              </Button>
+              <Button type="submit" disabled={issuePrescriptionMutation.isPending}>
+                {issuePrescriptionMutation.isPending ? 'Saqlanmoqda...' : 'Saqlash va Yuborish'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

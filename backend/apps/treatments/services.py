@@ -358,10 +358,36 @@ def create_treatment(
     )
 
     # Default price from procedure type when omitted.
+    original_price = Decimal("0.00")
+    if procedure_obj is not None:
+        original_price = Decimal(procedure_obj.default_price)
+
     if price in (None, "") and procedure_obj is not None:
-        resolved_price = Decimal(procedure_obj.default_price)
+        resolved_price = original_price
     else:
         resolved_price = _clean_price(price)
+
+    # Calculate discount and approval status
+    approval_status = Treatment.ApprovalStatus.APPROVED
+    discount_percent = Decimal("0.00")
+
+    if original_price > Decimal("0.00") and resolved_price < original_price:
+        discount = original_price - resolved_price
+        discount_percent = (discount / original_price) * 100
+        discount_percent = discount_percent.quantize(Decimal("0.01"))
+        
+        if discount_percent > Decimal("10.00"):
+            approval_status = Treatment.ApprovalStatus.PENDING
+
+    resolved_stage = _clean_choice(
+        stage,
+        choices=TreatmentStage,
+        field="stage",
+        default=TreatmentStage.IN_PROGRESS,
+    )
+
+    if resolved_stage == TreatmentStage.COMPLETED and approval_status == Treatment.ApprovalStatus.PENDING:
+        raise ValidationError({"stage": ["Tasdiqlanmagan chegirma bilan muolajani yakunlab bo'lmaydi."]})
 
     return Treatment.objects.create(
         doctor=doctor_obj,
@@ -374,18 +400,16 @@ def create_treatment(
             description, max_length=10_000, field="description"
         ),
         price=resolved_price,
+        original_price=original_price,
+        discount_percent=discount_percent,
+        approval_status=approval_status,
         payment_status=_clean_choice(
             payment_status,
             choices=PaymentStatus,
             field="payment_status",
             default=PaymentStatus.UNPAID,
         ),
-        stage=_clean_choice(
-            stage,
-            choices=TreatmentStage,
-            field="stage",
-            default=TreatmentStage.IN_PROGRESS,
-        ),
+        stage=resolved_stage,
         created_by=created_by if isinstance(created_by, User) else None,
         is_active=True,
     )
@@ -443,6 +467,13 @@ def update_treatment(
                     "o'tkazib bo'lmaydi."
                 ]}
             )
+            
+        # Material Usage Guard
+        if new_stage == TreatmentStage.COMPLETED and not treatment.usages.exists():
+            raise ValidationError(
+                {"stage": ["Davolashni yakunlash uchun ishlatilingan materiallarni kiriting."]}
+            )
+            
         treatment.stage = new_stage
         update_fields.append("stage")
 
@@ -460,6 +491,36 @@ def update_treatment(
     if is_active is not None:
         treatment.is_active = bool(is_active)
         update_fields.append("is_active")
+
+    # Re-calculate discount and approval if price or procedure changed
+    if "price" in update_fields or "procedure_type" in update_fields:
+        if treatment.procedure_type:
+            treatment.original_price = Decimal(treatment.procedure_type.default_price)
+        else:
+            treatment.original_price = treatment.price
+            
+        update_fields.append("original_price")
+        
+        treatment.discount_percent = Decimal("0.00")
+        if treatment.original_price > Decimal("0.00") and treatment.price < treatment.original_price:
+            discount = treatment.original_price - treatment.price
+            dp = (discount / treatment.original_price) * 100
+            treatment.discount_percent = dp.quantize(Decimal("0.01"))
+            
+            if treatment.discount_percent > Decimal("10.00"):
+                if treatment.approval_status != Treatment.ApprovalStatus.APPROVED:
+                    # Keep pending or reset to pending
+                    treatment.approval_status = Treatment.ApprovalStatus.PENDING
+            else:
+                treatment.approval_status = Treatment.ApprovalStatus.APPROVED
+        else:
+            treatment.approval_status = Treatment.ApprovalStatus.APPROVED
+            
+        update_fields.append("discount_percent")
+        update_fields.append("approval_status")
+
+    if treatment.stage == TreatmentStage.COMPLETED and treatment.approval_status == Treatment.ApprovalStatus.PENDING:
+        raise ValidationError({"stage": ["Tasdiqlanmagan chegirma bilan muolajani yakunlab bo'lmaydi."]})
 
     if update_fields:
         treatment.save(update_fields=update_fields + ["updated_at"])

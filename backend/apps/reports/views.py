@@ -160,11 +160,19 @@ class DoctorMyAnalyticsReportView(APIView):
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         role = getattr(request.user, "role", None)
         doc_profile = None
+        req_doc_id = request.query_params.get("doctor_id")
 
-        if role == "doctor" and not getattr(getattr(request.user, "doctor_profile", None), "can_view_other_doctors", False):
-            doc_profile = getattr(request.user, "doctor_profile", None)
+        if role == "doctor":
+            my_profile = getattr(request.user, "doctor_profile", None)
+            if req_doc_id and my_profile and str(my_profile.id) != req_doc_id:
+                if not getattr(my_profile, "can_view_other_doctors", False):
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied("Siz boshqa shifokorlarning hisobotlarini ko'ra olmaysiz.")
+                else:
+                    doc_profile = DoctorProfile.objects.filter(pk=req_doc_id).first()
+            else:
+                doc_profile = my_profile
         else:
-            req_doc_id = request.query_params.get("doctor_id")
             if req_doc_id:
                 doc_profile = DoctorProfile.objects.filter(pk=req_doc_id).first()
 

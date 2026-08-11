@@ -217,6 +217,14 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("id",)
 
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        request = self.context.get("request")
+        if request and getattr(request.user, "role", None) != "bosh_shifokor":
+            forbidden_keys = {"default_commission_rate", "commission_basis", "can_view_other_doctors", "is_active"}
+            if any(k in attrs for k in forbidden_keys):
+                raise serializers.ValidationError("Ushbu amaliyotni faqat Bosh Shifokor bajara oladi")
+        return super().validate(attrs)
+
     # ------------------------------------------------------------------
     # Input normalisation (accept camelCase aliases)
     # ------------------------------------------------------------------
@@ -405,6 +413,14 @@ class ProcedureTypeSerializer(serializers.ModelSerializer):
             "is_active",
         )
         read_only_fields = ("id",)
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        request = self.context.get("request")
+        if request and getattr(request.user, "role", None) != "bosh_shifokor":
+            forbidden_keys = {"default_price", "commission_rate_override", "is_active"}
+            if any(k in attrs for k in forbidden_keys):
+                raise serializers.ValidationError("Ushbu amaliyotni faqat Bosh Shifokor bajara oladi")
+        return super().validate(attrs)
 
     _CAMEL_ALIASES = {
         "departmentId": "department_id",

@@ -49,10 +49,49 @@ class _RolePermission(BasePermission):
 
 
 class IsBoshShifokor(_RolePermission):
-    """Grants access only to head-doctor (``bosh_shifokor``) accounts."""
+    """Grants access only to head-doctor (``bosh_shifokor``) accounts.
+    Allows GET, HEAD, OPTIONS for all authenticated users."""
 
     required_role = ROLE_BOSH_SHIFOKOR
     message = "Only the head doctor (bosh_shifokor) can perform this action."
+
+    def has_permission(self, request: Request, view: Any) -> bool:
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return getattr(user, "role", None) in ALL_ROLES
+        return super().has_permission(request, view)
+
+
+class IsOwnerOrBoshShifokor(BasePermission):
+    """
+    Shifokor va administratorlar faqat o'zlariga tegishli obyektlarni o'zgartira olsin,
+    bosh_shifokor esa barcha obyektlarni boshqara olsin.
+    """
+
+    message = "Siz faqat o'zingizga tegishli ma'lumotlarni tahrirlay olasiz."
+
+    def has_permission(self, request: Request, view: Any) -> bool:
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+        return getattr(user, "role", None) in ALL_ROLES
+
+    def has_object_permission(self, request: Request, view: Any, obj: Any) -> bool:
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        role = getattr(user, "role", None)
+
+        if role == ROLE_BOSH_SHIFOKOR:
+            return True
+        
+        owner_id = getattr(obj, "user_id", getattr(obj, "id", None))
+        if owner_id is not None and owner_id == user.id:
+            return True
+
+        return False
 
 
 class IsDoctor(_RolePermission):

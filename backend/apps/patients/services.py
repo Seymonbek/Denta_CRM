@@ -84,6 +84,13 @@ def _assert_unique_phone(phone: str, *, exclude_id: Any = None) -> None:
         )
 
 
+def _assert_unique_name(first: str, last: str) -> None:
+    if Patient.objects.filter(first_name__iexact=first, last_name__iexact=last, is_active=True).exists():
+        raise ValidationError(
+            {"detail": [f"{first} {last} ismli bemor allaqachon ro'yxatda mavjud."]}
+        )
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -109,6 +116,7 @@ def create_patient(
     last = _clean_name(last_name, field="last_name", label="Familiya")
     phone = _clean_phone(phone_number)
     _assert_unique_phone(phone)
+    _assert_unique_name(first, last)
 
     try:
         patient = Patient.objects.create(

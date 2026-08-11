@@ -28,4 +28,17 @@ def _on_user_saved(sender, instance: User, created: bool, **kwargs):
             )
 
 
-__all__ = ["_on_user_saved"]
+@receiver(post_save, sender=User, dispatch_uid="accounts.user.blacklist_tokens_on_deactivation")
+def _on_user_deactivated(sender, instance: User, created: bool, **kwargs):
+    """Blacklist all active refresh tokens when a user is deactivated."""
+    if not created and not instance.is_active:
+        try:
+            from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+            tokens = OutstandingToken.objects.filter(user=instance)
+            for token in tokens:
+                BlacklistedToken.objects.get_or_create(token=token)
+        except Exception:
+            logger.exception("accounts: failed to blacklist tokens for deactivated user %s", instance.pk)
+
+
+__all__ = ["_on_user_saved", "_on_user_deactivated"]

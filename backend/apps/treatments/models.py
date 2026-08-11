@@ -46,6 +46,12 @@ class TreatmentStage(models.TextChoices):
     COMPLETED = "completed", _("Yakunlangan")
 
 
+class ApprovalStatus(models.TextChoices):
+    PENDING = "pending", _("Kutilmoqda")
+    APPROVED = "approved", _("Tasdiqlangan")
+    REJECTED = "rejected", _("Rad etilgan")
+
+
 class PhotoType(models.TextChoices):
     BEFORE = "before", _("Davolashdan oldin")
     AFTER = "after", _("Davolashdan keyin")
@@ -67,6 +73,7 @@ class Treatment(BaseModel):
 
     PaymentStatus = PaymentStatus  # convenience re-exports
     Stage = TreatmentStage
+    ApprovalStatus = ApprovalStatus
 
     appointment = models.ForeignKey(
         "scheduling.Appointment",
@@ -124,6 +131,31 @@ class Treatment(BaseModel):
         decimal_places=2,
         default=Decimal("0.00"),
         validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    original_price = models.DecimalField(
+        _("Asl Narx"),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    discount_percent = models.DecimalField(
+        _("Chegirma foizi"),
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
+    discount_reason = models.CharField(
+        _("Chegirma sababi"),
+        max_length=500,
+        blank=True,
+        default="",
+    )
+    approval_status = models.CharField(
+        _("Tasdiqlash holati"),
+        max_length=20,
+        choices=ApprovalStatus.choices,
+        default=ApprovalStatus.APPROVED,
     )
     payment_status = models.CharField(
         _("To'lov holati"),
