@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react'
 import { useParams, Link } from '@tanstack/react-router'
 import { ArrowLeft, Phone, MapPin, Calendar } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -77,12 +78,17 @@ export function PatientDetail() {
   const totalBilled = Number(balanceData?.totalBilled ?? balanceData?.total_billed ?? 0)
   const totalPaid = Number(balanceData?.totalPaid ?? balanceData?.total_paid ?? 0)
 
+  const isSavingToothRef = useRef(false)
+  const isStartingSessionRef = useRef(false)
+
   const handleSaveToothRecord = async (record: {
     toothNumber: number
     procedure: any
     status: any
     notes: string
   }) => {
+    if (isSavingToothRef.current) return
+    isSavingToothRef.current = true
     try {
       // 1. Find or create an active treatment container for this patient
       const treatmentsRes = await getTreatmentsApi({ patient: id, stage: 'in_progress' })
@@ -110,11 +116,13 @@ export function PatientDetail() {
 
         const doctorId = typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor
         const departmentId = typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department
+        const procedureTypeId = activeAppt.procedureType ? (typeof activeAppt.procedureType === 'object' ? activeAppt.procedureType.id : activeAppt.procedureType) : (activeAppt.procedure_type ? (typeof activeAppt.procedure_type === 'object' ? activeAppt.procedure_type.id : activeAppt.procedure_type) : undefined)
         
         const newTreatment = await createTreatmentApi({
           patient: id,
           doctor: doctorId,
           department: departmentId,
+          procedureType: procedureTypeId,
           appointment: activeAppt.id,
           diagnosis: `Tish #${record.toothNumber} ko'rik va muolajasi`,
           description: record.notes || "Tish xaritasiga yozuv kiritildi",
@@ -138,6 +146,8 @@ export function PatientDetail() {
     } catch (err: any) {
       const errMsg = err?.response?.data?.department?.[0] || err?.response?.data?.detail || err?.response?.data?.non_field_errors?.[0] || "Saqlashda xatolik yuz berdi."
       toast.error(errMsg)
+    } finally {
+      isSavingToothRef.current = false
     }
   }
 
@@ -146,14 +156,18 @@ export function PatientDetail() {
        toast.error("Bemorning faol navbati yo'q!")
        return
     }
+    if (isStartingSessionRef.current) return
+    isStartingSessionRef.current = true
     try {
       const doctorId = typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor
       const departmentId = typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department
+      const procedureTypeId = activeAppt.procedureType ? (typeof activeAppt.procedureType === 'object' ? activeAppt.procedureType.id : activeAppt.procedureType) : (activeAppt.procedure_type ? (typeof activeAppt.procedure_type === 'object' ? activeAppt.procedure_type.id : activeAppt.procedure_type) : undefined)
       
       await createTreatment.mutateAsync({
         patient: id,
         doctor: doctorId,
         department: departmentId,
+        procedureType: procedureTypeId,
         appointment: activeAppt.id,
         diagnosis: "",
         description: "Qabul boshlandi",
@@ -162,6 +176,8 @@ export function PatientDetail() {
       toast.success("Muolaja sessiyasi boshlandi!")
     } catch(err: any) {
       toast.error("Xatolik yuz berdi")
+    } finally {
+      isStartingSessionRef.current = false
     }
   }
 

@@ -11,7 +11,9 @@ import logging
 from typing import Any
 
 from drf_spectacular.utils import OpenApiExample, extend_schema
-from rest_framework import status
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -23,7 +25,13 @@ from rest_framework_simplejwt.exceptions import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.core.permissions import IsOwnerOrBoshShifokor
+from apps.core.permissions import IsOwnerOrBoshShifokor, ROLE_BOSH_SHIFOKOR
+from apps.doctors.models import WorkingHours, TimeOff
+from apps.doctors.permissions import WorkingHoursPermission, TimeOffPermission
+from apps.doctors.selectors import working_hours_for, time_off_for
+from apps.doctors.serializers import WorkingHoursSerializer, TimeOffSerializer
+from apps.doctors.services import delete_working_hours, delete_time_off
+from .models import User
 from .serializers import (
     LoginSerializer,
     PasswordResetConfirmSerializer,
@@ -32,17 +40,10 @@ from .serializers import (
     TwoFactorDisableSerializer,
     TwoFactorEnableSerializer,
     TwoFactorVerifySerializer,
+    UserManagementSerializer,
     UserProfileSerializer,
     UserProfileUpdateSerializer,
 )
-
-from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound
-from apps.doctors.models import WorkingHours, TimeOff
-from apps.doctors.serializers import WorkingHoursSerializer, TimeOffSerializer
-from apps.doctors.permissions import WorkingHoursPermission, TimeOffPermission
-from apps.doctors.selectors import working_hours_for, time_off_for
-from apps.doctors.services import delete_working_hours, delete_time_off
 
 logger = logging.getLogger(__name__)
 
@@ -460,11 +461,6 @@ def _resolve_user_from_token(refresh: RefreshToken):
     except user_model.DoesNotExist as exc:
         raise InvalidToken("User not found for refresh token.") from exc
 
-
-from rest_framework import viewsets
-from apps.core.permissions import ROLE_BOSH_SHIFOKOR
-from .models import User
-from .serializers import UserManagementSerializer
 
 class UserViewSet(viewsets.ModelViewSet):
     """CRUD for all users, restricted to Bosh Shifokor."""

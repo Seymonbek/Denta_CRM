@@ -6,6 +6,7 @@ import {
   updateTreatmentApi,
   uploadTreatmentPhotoApi,
   createToothRecordApi,
+  approveDiscountApi,
 } from '../treatments'
 
 export const TREATMENTS_QUERY_KEY = ['treatments']
@@ -15,6 +16,7 @@ export function useTreatments(params?: {
   doctor?: string
   payment_status?: string
   stage?: string
+  approval_status?: string
   page?: number
 }) {
   return useQuery({
@@ -45,6 +47,17 @@ export function useUpdateTreatment() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => updateTreatmentApi(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: TREATMENTS_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['treatments', variables.id] })
+    },
+  })
+}
+
+export function useApproveDiscount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'approved' | 'rejected' }) => approveDiscountApi(id, status),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: TREATMENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['treatments', variables.id] })

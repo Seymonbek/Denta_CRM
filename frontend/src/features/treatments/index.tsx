@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Plus, Camera, FileText, Activity, Search, CreditCard } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { format } from 'date-fns'
@@ -99,12 +99,17 @@ export function TreatmentsList() {
   const createTreatmentMutation = useCreateTreatment()
   const uploadPhotoMutation = useUploadTreatmentPhoto()
 
+  const isSubmittingRef = useRef(false)
+
   const handleCreateTreatment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!appointmentId || !patientId || !doctorId || !departmentId || !procedureTypeId || !price) {
       toast.error('Barcha majburiy maydonlarni to’ldiring.')
       return
     }
+    
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
 
     const discountPercent = defaultPrice > 0 ? ((defaultPrice - Number(price)) / defaultPrice) * 100 : 0
     try {
@@ -125,6 +130,8 @@ export function TreatmentsList() {
       setIsModalOpen(false)
     } catch (err: any) {
       toast.error(getErrorMessage(err, 'Yaratishda xatolik yuz berdi.'))
+    } finally {
+      isSubmittingRef.current = false
     }
   }
 

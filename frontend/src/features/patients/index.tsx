@@ -112,10 +112,14 @@ export function PatientsList() {
         (typeof data === 'string' ? data : null) ||
         'Bemor qo’shishda xatolik yuz berdi.'
         
-      if (typeof errorMsg === 'string' && errorMsg.includes('allaqachon mavjud')) {
+      const isDuplicate = 
+        err?.response?.status === 400 && 
+        (typeof errorMsg === 'string' && (errorMsg.toLowerCase().includes('mavjud') || errorMsg.toLowerCase().includes('already exists') || errorMsg.toLowerCase().includes('duplicate')));
+
+      if (isDuplicate) {
         confirmSwal({
-          title: "Bemor mavjud!",
-          text: errorMsg + " Qidiruvdan foydalanib bemorni topishingiz mumkin.",
+          title: "Ushbu bemor bazada mavjud!",
+          text: "Siz kiritgan ism yoki telefon raqamiga ega bemor allaqachon mavjud. Qidiruvdan foydalaning.",
           confirmButtonText: "Tushunarli",
           showCancelButton: false
         })

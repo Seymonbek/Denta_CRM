@@ -12,6 +12,7 @@ export async function getTreatmentsApi(params?: {
   doctor?: string
   payment_status?: string
   stage?: string
+  approval_status?: string
   page?: number
 }): Promise<PaginatedResponse<Treatment>> {
   const response = await apiClient.get<PaginatedResponse<Treatment>>('treatments/', { params })
@@ -69,5 +70,10 @@ export async function createToothRecordApi(
   }
 ): Promise<ToothRecord> {
   const response = await apiClient.post<ToothRecord>(`treatments/${treatmentId}/tooth-records/`, data)
+  return response.data
+}
+
+export async function approveDiscountApi(id: string, status: 'approved' | 'rejected'): Promise<Treatment> {
+  const response = await apiClient.post<Treatment>(`treatments/${id}/approve-discount/`, { status })
   return response.data
 }

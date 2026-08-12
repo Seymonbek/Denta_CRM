@@ -6,6 +6,8 @@ export async function getPaymentsApi(params?: {
   treatment?: string
   method?: string
   page?: number
+  cash_shift?: string
+  refund_status?: string
 }): Promise<PaginatedResponse<Payment>> {
   const response = await apiClient.get<PaginatedResponse<Payment>>('payments/', { params })
   return response.data
@@ -31,6 +33,10 @@ export async function createPaymentApi(
 
 export async function voidPaymentApi(id: string, reason?: string): Promise<void> {
   await apiClient.delete(`payments/${id}/`, { data: { reason } })
+}
+
+export async function approveRefundApi(id: string, approved: boolean): Promise<void> {
+  await apiClient.post(`payments/${id}/approve-refund/`, { approved })
 }
 
 export async function getDoctorCommissionsApi(

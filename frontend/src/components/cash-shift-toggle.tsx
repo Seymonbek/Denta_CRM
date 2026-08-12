@@ -1,33 +1,33 @@
-import { useState } from 'react'
-import { api } from '@/api/client'
+import { useState, useEffect } from 'react'
+import { apiClient } from '@/api/client'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { Briefcase, Play, Square } from 'lucide-react'
 
-// Basic fetcher for open shift
-export const useOpenCashShift = () => {
-  return useQuery({
-    queryKey: ['cash-shifts', 'open'],
-    queryFn: async () => {
-      const res = await api.get('/api/v1/payments/cash-shifts/?status=open')
-      // return the first open shift for the current user
-      return res.data.results?.[0] || null
-    },
-  })
-}
+import { useOpenCashShift } from '@/api/hooks/use-cash-shifts'
+import { useShiftStore } from '@/stores/shift-store'
 
 export function CashShiftToggle() {
   const user = useAuthStore((state) => state.user)
   const queryClient = useQueryClient()
   const { data: openShift, isLoading } = useOpenCashShift()
+  const setShift = useShiftStore((state) => state.setShift)
+
+  useEffect(() => {
+    if (openShift) {
+      setShift(true, openShift.id)
+    } else if (!isLoading) {
+      setShift(false, null)
+    }
+  }, [openShift, isLoading, setShift])
 
   const isCashier = user?.role === 'bosh_shifokor' || user?.role === 'administrator'
 
   const openShiftMutation = useMutation({
     mutationFn: async () => {
-      const res = await api.post('/api/v1/payments/cash-shifts/', {})
+      const res = await apiClient.post('/cash-shifts/', {})
       return res.data
     },
     onSuccess: () => {
@@ -41,7 +41,7 @@ export function CashShiftToggle() {
 
   const closeShiftMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await api.post(`/api/v1/payments/cash-shifts/${id}/close/`)
+      const res = await apiClient.post(`/cash-shifts/${id}/approve/`)
       return res.data
     },
     onSuccess: () => {

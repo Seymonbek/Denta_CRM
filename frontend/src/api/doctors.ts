@@ -31,7 +31,7 @@ export async function updateDoctorApi(id: string, data: any): Promise<DoctorProf
 }
 
 export async function getWorkingHoursApi(doctorId: string): Promise<WorkingHours[]> {
-  const response = await apiClient.get<WorkingHours[]>(`doctors/${doctorId}/working-hours/`)
+  const response = await apiClient.get<WorkingHours[]>(`auth/users/${doctorId}/working-hours/`)
   return response.data
 }
 
@@ -46,16 +46,16 @@ export async function createWorkingHoursApi(
     startTime: data.startTime,
     endTime: data.endTime,
   }
-  const response = await apiClient.post<WorkingHours>(`doctors/${doctorId}/working-hours/`, payload)
+  const response = await apiClient.post<WorkingHours>(`auth/users/${doctorId}/working-hours/`, payload)
   return response.data
 }
 
 export async function deleteWorkingHoursApi(doctorId: string, workingHoursId: string): Promise<void> {
-  await apiClient.delete(`doctors/${doctorId}/working-hours/${workingHoursId}/`)
+  await apiClient.delete(`auth/users/${doctorId}/working-hours/${workingHoursId}/`)
 }
 
 export async function getTimeOffApi(doctorId: string): Promise<TimeOff[]> {
-  const response = await apiClient.get<TimeOff[]>(`doctors/${doctorId}/time-off/`)
+  const response = await apiClient.get<TimeOff[]>(`auth/users/${doctorId}/time-off/`)
   return response.data
 }
 
@@ -63,12 +63,12 @@ export async function createTimeOffApi(
   doctorId: string,
   data: { dateStart: string; dateEnd: string; reason: string }
 ): Promise<TimeOff> {
-  const response = await apiClient.post<TimeOff>(`doctors/${doctorId}/time-off/`, data)
+  const response = await apiClient.post<TimeOff>(`auth/users/${doctorId}/time-off/`, data)
   return response.data
 }
 
 export async function deleteTimeOffApi(doctorId: string, entryId: string): Promise<void> {
-  await apiClient.delete(`doctors/${doctorId}/time-off/${entryId}/`)
+  await apiClient.delete(`auth/users/${doctorId}/time-off/${entryId}/`)
 }
 
 export async function getAvailableSlotsApi(

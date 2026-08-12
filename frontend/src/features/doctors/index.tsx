@@ -98,16 +98,16 @@ export function DoctorsList() {
   const [dateEnd, setDateEnd] = useState('')
   const [reason, setReason] = useState('')
 
-  const { data: workingHoursData = [] } = useWorkingHours(selectedDoctor?.id || '')
+  const { data: workingHoursData = [] } = useWorkingHours(selectedDoctor?.user?.id || '')
   const workingHours = Array.isArray(workingHoursData) ? workingHoursData : []
 
-  const { data: timeOffsData = [] } = useTimeOff(selectedDoctor?.id || '')
+  const { data: timeOffsData = [] } = useTimeOff(selectedDoctor?.user?.id || '')
   const timeOffs = Array.isArray(timeOffsData) ? timeOffsData : []
 
-  const createWorkingHoursMutation = useCreateWorkingHours(selectedDoctor?.id || '')
-  const deleteWorkingHoursMutation = useDeleteWorkingHours(selectedDoctor?.id || '')
-  const createTimeOffMutation = useCreateTimeOff(selectedDoctor?.id || '')
-  const deleteTimeOffMutation = useDeleteTimeOff(selectedDoctor?.id || '')
+  const createWorkingHoursMutation = useCreateWorkingHours(selectedDoctor?.user?.id || '')
+  const deleteWorkingHoursMutation = useDeleteWorkingHours(selectedDoctor?.user?.id || '')
+  const createTimeOffMutation = useCreateTimeOff(selectedDoctor?.user?.id || '')
+  const deleteTimeOffMutation = useDeleteTimeOff(selectedDoctor?.user?.id || '')
 
   const handleDeleteWorkingHours = async (whId: string) => {
     try {

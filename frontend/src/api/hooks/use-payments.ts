@@ -5,6 +5,7 @@ import {
   voidPaymentApi,
   getDoctorCommissionsApi,
   getDoctorCommissionSummaryApi,
+  approveRefundApi,
 } from '../payments'
 
 export const PAYMENTS_QUERY_KEY = ['payments']
@@ -14,6 +15,8 @@ export function usePayments(params?: {
   treatment?: string
   method?: string
   page?: number
+  cash_shift?: string
+  refund_status?: string
 }) {
   return useQuery({
     queryKey: [...PAYMENTS_QUERY_KEY, params],
@@ -47,6 +50,17 @@ export function useVoidPayment() {
       queryClient.invalidateQueries({ queryKey: PAYMENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['treatments'] })
       queryClient.invalidateQueries({ queryKey: ['patients'] })
+    },
+  })
+}
+
+export function useApproveRefund() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, approved }: { id: string; approved: boolean }) => approveRefundApi(id, approved),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PAYMENTS_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['treatments'] })
     },
   })
 }

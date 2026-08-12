@@ -77,6 +77,12 @@ export const sidebarData: SidebarData = {
       title: 'Klinika Boshqaruvi',
       items: [
         {
+          title: 'Xodimlar',
+          url: '/users',
+          icon: Users,
+          roles: ['bosh_shifokor'],
+        },
+        {
           title: 'Bo’limlar',
           url: '/departments',
           icon: Building2,

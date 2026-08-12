@@ -22,6 +22,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import { ClinicSettingsCard } from './clinic-settings-card'
 
 export function SettingsPage() {
   const { data: user } = useMe()
@@ -185,11 +186,23 @@ export function SettingsPage() {
                 <Switch
                   checked={twoFactorEnabled}
                   onCheckedChange={handleToggle2FATrigger}
+                  disabled={!telegramChatId}
                 />
               </div>
+              {!telegramChatId && (
+                <p className="text-xs font-semibold text-rose-500 mt-2">
+                  2FA ni yoqish uchun avval Telegram botimizdan ro'yxatdan o'ting va Chat ID ni kiriting.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
+
+        {user?.role === 'bosh_shifokor' && (
+          <div className='mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6'>
+            <ClinicSettingsCard />
+          </div>
+        )}
 
         {/* Password Re-enter Modal for 2FA */}
         <Dialog open={is2FAModalOpen} onOpenChange={setIs2FAModalOpen}>

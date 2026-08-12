@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Plus, Ban, FileText, Wallet, Search, CreditCard, AlertCircle } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { confirmSwal } from '@/lib/sweetalert'
@@ -10,7 +10,7 @@ import {
   useDoctorCommissions,
   useDoctorCommissionSummary,
 } from '@/api/hooks/use-payments'
-import { useOpenCashShift } from '@/api/hooks/use-cash-shifts'
+import { useShiftStore } from '@/stores/shift-store'
 import { useTreatments } from '@/api/hooks/use-treatments'
 import { usePatients } from '@/api/hooks/use-patients'
 import { useDoctors } from '@/api/hooks/use-doctors'
@@ -54,6 +54,8 @@ const METHOD_LABELS: Record<string, string> = {
   click: 'Click',
   bank_transfer: 'Bank O’tkazmasi',
 }
+
+
 
 export function PaymentsList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -103,14 +105,18 @@ export function PaymentsList() {
 
   const createPaymentMutation = useCreatePayment()
   const voidPaymentMutation = useVoidPayment()
+  const isShiftOpen = useShiftStore(state => state.isShiftOpen)
 
-  const { data: openShift } = useOpenCashShift()
-  const isShiftOpen = !!openShift
+  const isSubmittingRef = useRef(false)
 
   // Merge pending and all treatments for the dropdown so selected item displays correctly
   const allModalTreatments = [...pendingTreatments, ...treatments].filter(
     (t, index, self) => index === self.findIndex((t2) => t2.id === t.id)
   )
+
+  const filteredTreatments = patientId 
+    ? allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === patientId)
+    : allModalTreatments
 
   const openPaymentModal = (tId: string, pId: string, amt: string) => {
     setTreatmentId(tId)
@@ -126,14 +132,17 @@ export function PaymentsList() {
       return
     }
 
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
+
     const idempotencyKey = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
     try {
       await createPaymentMutation.mutateAsync({
         data: {
           treatment: treatmentId || undefined,
-          patient: patientId,
-          amount,
+          patientId: patientId,
+          amount: amount.toString().replace(',', '.'),
           method,
         },
         idempotencyKey,
@@ -145,6 +154,8 @@ export function PaymentsList() {
       setPatientId('')
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || 'To’lovni amalga oshirishda xatolik.')
+    } finally {
+      isSubmittingRef.current = false
     }
   }
 
@@ -422,34 +433,21 @@ export function PaymentsList() {
 
             <form onSubmit={handleCreatePayment} className='space-y-3 py-2'>
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>Davolash Ishi (Treatment) *</label>
-                <Select
-                  value={treatmentId}
+                <label className='text-xs font-medium'>Bemor *</label>
+                <Select 
+                  value={patientId} 
                   onValueChange={(val) => {
-                    setTreatmentId(val)
-                    const tr = allModalTreatments.find((t: any) => t.id === val)
-                    if (tr) {
-                      setPatientId(typeof tr.patient === 'object' ? tr.patient.id : tr.patient)
-                      setAmount(tr.price || '')
+                    setPatientId(val)
+                    const patientTreatments = allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === val)
+                    if (patientTreatments.length === 1) {
+                      setTreatmentId(patientTreatments[0].id)
+                      setAmount(patientTreatments[0].price || '')
+                    } else {
+                      setTreatmentId('')
+                      setAmount('')
                     }
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder='Davolash ishini tanlang' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allModalTreatments.map((t: any) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.patientName || t.patient_name || 'Bemor'} - {t.procedureTypeName || t.procedure_type_name || 'Muolaja'} ({Number(t.price || 0).toLocaleString()} so'm)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className='space-y-1'>
-                <label className='text-xs font-medium'>Bemor *</label>
-                <Select value={patientId} onValueChange={setPatientId}>
                   <SelectTrigger>
                     <SelectValue placeholder='Bemor' />
                   </SelectTrigger>
@@ -459,6 +457,38 @@ export function PaymentsList() {
                         {p.firstName || p.first_name} {p.lastName || p.last_name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className='space-y-1'>
+                <label className='text-xs font-medium'>Davolash Ishi (Treatment) *</label>
+                <Select
+                  value={treatmentId}
+                  onValueChange={(val) => {
+                    setTreatmentId(val)
+                    const tr = allModalTreatments.find((t: any) => t.id === val)
+                    if (tr) {
+                      setPatientId(tr.patient?.id || tr.patient)
+                      setAmount(tr.price || '')
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder='Davolash ishini tanlang' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredTreatments.map((t: any) => {
+                      const patientName = t.patient ? `${t.patient.firstName || t.patient.first_name || ''} ${t.patient.lastName || t.patient.last_name || ''}`.trim() : 'Bemor'
+                      const procedureName = t.procedureType?.name || t.procedure_type?.name || 'Umumiy Muolaja'
+                      const dateStr = t.createdAt || t.created_at || ''
+                      const dateFormatted = dateStr ? format(new Date(dateStr), 'dd.MM.yy HH:mm') : ''
+                      return (
+                        <SelectItem key={t.id} value={t.id}>
+                          {patientName} - {procedureName} {dateFormatted ? `(${dateFormatted})` : ''} - {Number(t.price || 0).toLocaleString()} so'm
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               </div>

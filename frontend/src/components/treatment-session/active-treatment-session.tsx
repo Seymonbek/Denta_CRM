@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Save, CheckCircle, Upload, FileText, Camera, RefreshCw, AlertCircle } from 'lucide-react'
 import { useUpdateTreatment, useUploadTreatmentPhoto, useTreatment } from '@/api/hooks/use-treatments'
@@ -53,16 +53,42 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
   const [selectedPhotoType, setSelectedPhotoType] = useState<PhotoType>('before')
   const [isUploading, setIsUploading] = useState(false)
 
-  // Sync state when data is loaded
-  if (treatment && diagnosis === '' && treatment.diagnosis !== '') {
-    setDiagnosis(treatment.diagnosis || '')
-  }
-  if (treatment && description === '' && treatment.description !== '') {
-    setDescription(treatment.description || '')
-  }
-  if (treatment && price === '0.00' && treatment.price && treatment.price !== '0.00') {
-    setPrice(treatment.price)
-  }
+  // Sync state when data is loaded, and handle local storage draft
+  useEffect(() => {
+    const draftKey = `treatment_draft_${treatmentId}`
+    const draft = localStorage.getItem(draftKey)
+    
+    // If we have a draft and the user hasn't explicitly saved recently, we can restore it.
+    // To be safe, we only restore if current state is empty or matches server state but draft is different.
+    if (draft) {
+      try {
+        const { diagnosis: draftDiag, description: draftDesc } = JSON.parse(draft)
+        if (draftDiag && diagnosis === '') setDiagnosis(draftDiag)
+        if (draftDesc && description === '') setDescription(draftDesc)
+      } catch (e) {
+        // ignore JSON parse errors
+      }
+    } else {
+      if (treatment && diagnosis === '' && treatment.diagnosis) {
+        setDiagnosis(treatment.diagnosis)
+      }
+      if (treatment && description === '' && treatment.description) {
+        setDescription(treatment.description)
+      }
+    }
+
+    if (treatment && price === '0.00' && treatment.price && treatment.price !== '0.00') {
+      setPrice(treatment.price)
+    }
+  }, [treatment, treatmentId])
+
+  // Save to local storage on change
+  useEffect(() => {
+    const draftKey = `treatment_draft_${treatmentId}`
+    if (diagnosis || description) {
+      localStorage.setItem(draftKey, JSON.stringify({ diagnosis, description }))
+    }
+  }, [diagnosis, description, treatmentId])
 
   const handleSaveNotes = async () => {
     try {
@@ -70,6 +96,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
         id: treatmentId,
         data: { diagnosis, description, price }
       })
+      localStorage.removeItem(`treatment_draft_${treatmentId}`)
       toast.success("Ma'lumotlar saqlandi")
     } catch (error) {
       toast.error("Xatolik yuz berdi")
@@ -122,14 +149,14 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
   }
 
   const handleFinishAppointment = async () => {
-    if (materials.length === 0) {
+    if (!treatment?.material_usages || treatment.material_usages.length === 0) {
       toast.error("Diqqat! Muolajani yakunlashdan oldin ishlatilgan materiallarni kiriting.", {
         duration: 5000,
       })
       return
     }
 
-    if (treatmentData?.approvalStatus === 'pending' || treatmentData?.approval_status === 'pending') {
+    if (treatment?.approvalStatus === 'pending' || treatment?.approval_status === 'pending') {
       toast.error("Chegirma tasdiqlanmagan. Bosh shifokor tasdig'ini kuting.")
       return
     }
@@ -413,15 +440,23 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
                 onChange={(e) => setPrescriptionContent(e.target.value)}
               />
             </div>
-            <div className="flex items-center space-x-2 bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
-              <Checkbox
-                id="telegram"
-                checked={sendToTelegram}
-                onCheckedChange={(checked) => setSendToTelegram(!!checked)}
-              />
-              <Label htmlFor="telegram" className="text-sm font-medium cursor-pointer flex-1">
-                Bemorga Telegram orqali yuborish
-              </Label>
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center space-x-2 bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                <Checkbox
+                  id="telegram"
+                  checked={sendToTelegram}
+                  onCheckedChange={(checked) => setSendToTelegram(!!checked)}
+                  disabled={!(treatment?.patient?.telegramChatId || treatment?.patient?.telegram_chat_id)}
+                />
+                <Label htmlFor="telegram" className="text-sm font-medium cursor-pointer flex-1">
+                  Bemorga Telegram orqali yuborish
+                </Label>
+              </div>
+              {!(treatment?.patient?.telegramChatId || treatment?.patient?.telegram_chat_id) && (
+                <p className="text-[11px] text-rose-500 font-medium">
+                  Bemor Telegram botga ulanmagan (faqat chop etish mumkin).
+                </p>
+              )}
             </div>
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => setIsPrescriptionModalOpen(false)}>
