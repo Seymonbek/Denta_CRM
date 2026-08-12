@@ -49,28 +49,28 @@ def doctors_in_department(department_id: str) -> QuerySet[DoctorProfile]:
 # ---------------------------------------------------------------------------
 # WorkingHours
 # ---------------------------------------------------------------------------
-def working_hours_for(doctor: DoctorProfile) -> QuerySet[WorkingHours]:
-    return WorkingHours.objects.filter(doctor=doctor).order_by(
+def working_hours_for(user: "User") -> QuerySet[WorkingHours]:
+    return WorkingHours.objects.filter(user=user).order_by(
         "weekday", "start_time"
     )
 
 
 def working_hours_on_weekday(
-    doctor: DoctorProfile, weekday: int
+    user: "User", weekday: int
 ) -> QuerySet[WorkingHours]:
-    return working_hours_for(doctor).filter(weekday=weekday)
+    return working_hours_for(user).filter(weekday=weekday)
 
 
 # ---------------------------------------------------------------------------
 # TimeOff
 # ---------------------------------------------------------------------------
-def time_off_for(doctor: DoctorProfile) -> QuerySet[TimeOff]:
-    return TimeOff.objects.filter(doctor=doctor).order_by("-date_start")
+def time_off_for(user: "User") -> QuerySet[TimeOff]:
+    return TimeOff.objects.filter(user=user).order_by("-date_start")
 
 
-def time_off_covering(doctor: DoctorProfile, day) -> QuerySet[TimeOff]:
+def time_off_covering(user: "User", day) -> QuerySet[TimeOff]:
     return TimeOff.objects.filter(
-        doctor=doctor, date_start__lte=day, date_end__gte=day
+        user=user, date_start__lte=day, date_end__gte=day
     )
 
 

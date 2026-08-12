@@ -134,14 +134,14 @@ class DoctorProfile(BaseModel):
 # WorkingHours
 # ---------------------------------------------------------------------------
 class WorkingHours(BaseModel):
-    """Recurring weekly shift for a doctor."""
+    """Recurring weekly shift for a user."""
 
-    doctor = models.ForeignKey(
-        DoctorProfile,
+    user = models.ForeignKey(
+        "accounts.User",
         on_delete=models.CASCADE,
         related_name="working_hours",
         related_query_name="working_hour",
-        verbose_name=_("Shifokor"),
+        verbose_name=_("Foydalanuvchi"),
     )
     weekday = models.IntegerField(
         _("Hafta kuni"),
@@ -153,10 +153,10 @@ class WorkingHours(BaseModel):
     class Meta:
         verbose_name = _("Ish soati")
         verbose_name_plural = _("Ish soatlari")
-        ordering = ["doctor__user__last_name", "weekday", "start_time"]
+        ordering = ["user__last_name", "weekday", "start_time"]
         constraints = [
             models.UniqueConstraint(
-                fields=["doctor", "weekday", "start_time"],
+                fields=["user", "weekday", "start_time"],
                 name="doctors_workinghours_unique_slot",
             ),
             models.CheckConstraint(
@@ -165,12 +165,12 @@ class WorkingHours(BaseModel):
             ),
         ]
         indexes = [
-            models.Index(fields=["doctor", "weekday"], name="doctors_wh_by_day_idx"),
+            models.Index(fields=["user", "weekday"], name="doctors_wh_by_day_idx"),
         ]
 
     def __str__(self) -> str:  # pragma: no cover
         return (
-            f"{self.doctor_id} w{self.weekday} "
+            f"{self.user_id} w{self.weekday} "
             f"{self.start_time:%H:%M}-{self.end_time:%H:%M}"
         )
 
@@ -181,12 +181,12 @@ class WorkingHours(BaseModel):
 class TimeOff(BaseModel):
     """One-off leave (inclusive date range) that suspends working hours."""
 
-    doctor = models.ForeignKey(
-        DoctorProfile,
+    user = models.ForeignKey(
+        "accounts.User",
         on_delete=models.CASCADE,
         related_name="time_off",
         related_query_name="time_off_entry",
-        verbose_name=_("Shifokor"),
+        verbose_name=_("Foydalanuvchi"),
     )
     date_start = models.DateField(_("Boshlanish sanasi"))
     date_end = models.DateField(_("Tugash sanasi"))
@@ -209,13 +209,13 @@ class TimeOff(BaseModel):
         ]
         indexes = [
             models.Index(
-                fields=["doctor", "date_start", "date_end"],
+                fields=["user", "date_start", "date_end"],
                 name="doctors_timeoff_range_idx",
             ),
         ]
 
     def __str__(self) -> str:  # pragma: no cover
-        return f"TimeOff({self.doctor_id}) {self.date_start} → {self.date_end}"
+        return f"TimeOff({self.user_id}) {self.date_start} → {self.date_end}"
 
     def covers(self, day) -> bool:
         """Return True if ``day`` (a ``date``) falls inside the leave range."""

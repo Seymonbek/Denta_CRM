@@ -181,7 +181,7 @@ class CashShiftSerializer(serializers.ModelSerializer):
             "start_balance", "cash_collected", "card_collected", 
             "status", "approved_by"
         ]
-        read_only_fields = ["id", "opened_at", "closed_at", "status", "approved_by", "cash_collected", "card_collected"]
+        read_only_fields = ["id", "administrator", "opened_at", "closed_at", "status", "approved_by", "cash_collected", "card_collected"]
 
 
 __all__ = [

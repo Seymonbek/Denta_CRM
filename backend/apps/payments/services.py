@@ -219,7 +219,7 @@ def record_payment(
     active_shift = None
     if received_by and getattr(received_by, "pk", None):
         from apps.payments.models import CashShift
-        active_shift = CashShift.objects.filter(cashier=received_by, status="open").first()
+        active_shift = CashShift.objects.filter(administrator=received_by, status="open").first()
         if not active_shift:
             raise ValidationError({"detail": ["Ushbu foydalanuvchi uchun ochiq kassa smenasi topilmadi. Avval smenani oching."]})
 
@@ -265,13 +265,19 @@ def record_payment(
 
 @transaction.atomic
 def void_payment(payment: Payment) -> Payment:
-    """Soft-void a payment (``is_active=False``) and refresh state."""
+    """Soft-void a payment (``is_active=False``) and refresh state.
+    If the cash shift is closed, trigger a refund approval instead.
+    """
     if payment.cash_shift_id and payment.cash_shift.status == 'closed':
-        raise ValidationError("Yopiq kassa smenasiga tegishli to'lovni bekor qilib bo'lmaydi.")
+        if payment.refund_status != "pending":
+            payment.refund_status = "pending"
+            payment.save(update_fields=["refund_status", "updated_at"])
+        return payment
         
     if payment.is_active:
         payment.is_active = False
-        payment.save(update_fields=["is_active", "updated_at"])
+        payment.refund_status = "approved" if payment.refund_status == "pending" else "none"
+        payment.save(update_fields=["is_active", "refund_status", "updated_at"])
     _refresh_payment_status(payment.treatment)
     return payment
 

@@ -39,6 +39,18 @@ class MockBot:
         # callers can persist it exactly like they would for the real bot.
         return type("MockMessage", (), {"message_id": len(self.sent)})()
 
+    async def send_document(
+        self,
+        chat_id: int,
+        document: Any,
+        caption: str = "",
+        **kwargs: Any,
+    ) -> Any:
+        record = {"chat_id": chat_id, "caption": caption, "kwargs": kwargs}
+        self.sent.append(record)
+        logger.info("telegram_bot[MOCK]: send_document %s", record)
+        return type("MockMessage", (), {"message_id": len(self.sent)})()
+
     async def close(self) -> None:  # pragma: no cover - mock
         return None
 
@@ -110,4 +122,24 @@ def send_message_sync(*, chat_id: int, text: str, reply_markup: Any = None) -> i
             loop.close()
 
 
-__all__ = ["get_bot", "reset_bot", "send_message_sync", "MockBot"]
+def send_document_sync(*, chat_id: int, document: bytes, filename: str, caption: str = "") -> int | None:
+    """Send a document synchronously."""
+    bot = get_bot()
+
+    async def _send() -> int | None:
+        from aiogram.types import BufferedInputFile
+        file_obj = BufferedInputFile(document, filename=filename)
+        result = await bot.send_document(chat_id=chat_id, document=file_obj, caption=caption)
+        return getattr(result, "message_id", None)
+
+    try:
+        return asyncio.run(_send())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_send())
+        finally:
+            loop.close()
+
+
+__all__ = ["get_bot", "reset_bot", "send_message_sync", "send_document_sync", "MockBot"]

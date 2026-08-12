@@ -287,6 +287,57 @@ class TreatmentPhoto(BaseModel):
     def __str__(self) -> str:  # pragma: no cover - repr helper
         return f"TreatmentPhoto({self.treatment_id}, {self.photo_type})"
 
+    def save(self, *args, **kwargs) -> None:
+        if self.image:
+            from PIL import Image
+            import io
+            import sys
+            import os
+            from django.core.files.uploadedfile import InMemoryUploadedFile
+            
+            is_new = True
+            if self.pk:
+                try:
+                    orig = TreatmentPhoto.objects.get(pk=self.pk)
+                    if orig.image == self.image:
+                        is_new = False
+                except TreatmentPhoto.DoesNotExist:
+                    pass
+            
+            if is_new:
+                try:
+                    im = Image.open(self.image)
+                    if im.mode in ("RGBA", "P"):
+                        im = im.convert("RGB")
+                    
+                    im.thumbnail((1920, 1080), Image.Resampling.LANCZOS)
+                    output = io.BytesIO()
+                    im.save(output, format='JPEG', quality=70)
+                    output.seek(0)
+                    
+                    basename = os.path.basename(self.image.name)
+                    name_without_ext = os.path.splitext(basename)[0]
+                    
+                    self.image = InMemoryUploadedFile(
+                        output, 'ImageField', f"{name_without_ext}.jpg",
+                        'image/jpeg', sys.getsizeof(output), None
+                    )
+                    
+                    im.thumbnail((300, 300), Image.Resampling.LANCZOS)
+                    thumb_output = io.BytesIO()
+                    im.save(thumb_output, format='JPEG', quality=60)
+                    thumb_output.seek(0)
+                    
+                    self.thumbnail = InMemoryUploadedFile(
+                        thumb_output, 'ImageField', f"{name_without_ext}_thumb.jpg",
+                        'image/jpeg', sys.getsizeof(thumb_output), None
+                    )
+                except Exception:
+                    # Ignore image processing errors (e.g. invalid file)
+                    pass
+
+        super().save(*args, **kwargs)
+
 
 __all__ = [
     "Treatment",

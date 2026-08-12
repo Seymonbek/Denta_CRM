@@ -7,6 +7,13 @@ from typing import Any
 
 def generate_payment_receipt_html(payment_data: dict[str, Any]) -> str:
     """Generate printable HTML for a payment receipt."""
+    from apps.core.models import ClinicSettings
+    clinic_settings = ClinicSettings.objects.first()
+    
+    clinic_name = clinic_settings.name if clinic_settings else "DentaCRM Stomatologiya"
+    clinic_inn = clinic_settings.inn if clinic_settings else "123456789"
+    clinic_address = clinic_settings.address if clinic_settings else "Toshkent sh., Yunusobod t."
+
     receipt_no = str(payment_data.get("id", ""))[:8].upper()
     amount = Decimal(str(payment_data.get("amount", "0.00")))
     payment_method = payment_data.get("payment_method", "cash")
@@ -150,8 +157,9 @@ def generate_payment_receipt_html(payment_data: dict[str, Any]) -> str:
 <body>
     <div class="receipt-card">
         <div class="header">
-            <h1>🦷 DentaCRM Stomatologiya</h1>
+            <h1>🦷 {clinic_name}</h1>
             <p>Rasmiy To'lov Kvitansiyasi / Chek</p>
+            <p style="margin-top: 4px;">INN: {clinic_inn} | {clinic_address}</p>
         </div>
         <div class="details">
             <div class="details-row"><strong>Chek №:</strong> <span>#{receipt_no}</span></div>
@@ -177,6 +185,13 @@ def generate_payment_receipt_html(payment_data: dict[str, Any]) -> str:
 
 def generate_treatment_act_html(treatment_data: dict[str, Any]) -> str:
     """Generate printable HTML for a treatment act summary."""
+    from apps.core.models import ClinicSettings
+    clinic_settings = ClinicSettings.objects.first()
+    
+    clinic_name = clinic_settings.name if clinic_settings else "DentaCRM Stomatologiya"
+    clinic_inn = clinic_settings.inn if clinic_settings else "123456789"
+    clinic_address = clinic_settings.address if clinic_settings else "Toshkent sh., Yunusobod t."
+
     act_no = str(treatment_data.get("id", ""))[:8].upper()
     patient_name = treatment_data.get("patient_name", "Bemor")
     doctor_name = treatment_data.get("doctor_name", "Shifokor")
@@ -251,7 +266,6 @@ def generate_treatment_act_html(treatment_data: dict[str, Any]) -> str:
         if description
         else ""
     )
-
     return f"""<!DOCTYPE html>
 <html lang="uz">
 <head>

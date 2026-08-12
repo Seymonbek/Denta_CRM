@@ -12,9 +12,14 @@ from .views import (
     TwoFactorDisableView,
     TwoFactorEnableView,
     TwoFactorVerifyView,
+    UserViewSet,
 )
+from rest_framework.routers import DefaultRouter
 
 app_name = "accounts"
+
+router = DefaultRouter()
+router.register(r"users", UserViewSet, basename="user")
 
 urlpatterns = [
     path("login/", LoginView.as_view(), name="login"),
@@ -35,4 +40,4 @@ urlpatterns = [
     path("2fa/enable/", TwoFactorEnableView.as_view(), name="two-factor-enable"),
     path("2fa/disable/", TwoFactorDisableView.as_view(), name="two-factor-disable"),
     path("2fa/verify/", TwoFactorVerifyView.as_view(), name="two-factor-verify"),
-]
+] + router.urls

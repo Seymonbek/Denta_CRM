@@ -22,3 +22,28 @@ class AuditLogViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
     ordering_fields = ["timestamp"]
     ordering = ["-timestamp"]
 
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import ClinicSettings
+from .serializers import ClinicSettingsSerializer
+
+class ClinicSettingsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def get(self, request):
+        settings = ClinicSettings.objects.first()
+        if not settings:
+            settings = ClinicSettings.objects.create()
+        return Response(ClinicSettingsSerializer(settings).data)
+
+    def patch(self, request):
+        if getattr(request.user, 'role', None) != 'bosh_shifokor':
+            return Response({'detail': 'Not allowed'}, status=403)
+        settings = ClinicSettings.objects.first()
+        if not settings:
+            settings = ClinicSettings.objects.create()
+        serializer = ClinicSettingsSerializer(settings, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+

@@ -652,3 +652,38 @@ class TwoFactorVerifySerializer(serializers.Serializer):
             "refresh": str(refresh),
             "user": UserProfileSerializer(self.user).data,
         }
+
+
+# ---------------------------------------------------------------------------
+# /auth/users/ - User Management (for Bosh Shifokor)
+# ---------------------------------------------------------------------------
+class UserManagementSerializer(serializers.ModelSerializer):
+    firstName = serializers.CharField(source='first_name', required=True)
+    lastName = serializers.CharField(source='last_name', required=True)
+    phoneNumber = serializers.CharField(source='phone_number', required=True)
+    password = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = User
+        fields = (
+            'id', 'firstName', 'lastName', 'phoneNumber', 
+            'role', 'password', 'is_active', 'telegram_chat_id', 'two_factor_enabled'
+        )
+        read_only_fields = ('id', 'telegram_chat_id', 'two_factor_enabled')
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = super().create(validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        instance = super().update(instance, validated_data)
+        if password:
+            instance.set_password(password)
+            instance.save()
+        return instance
+

@@ -198,7 +198,7 @@ def _assign_departments(profile: DoctorProfile, department_ids: Iterable[str]) -
 @transaction.atomic
 def create_working_hours(
     *,
-    doctor: DoctorProfile,
+    user: "User",
     weekday: int,
     start_time: Any,
     end_time: Any,
@@ -210,13 +210,13 @@ def create_working_hours(
     if start >= end:
         raise ValidationError({"end_time": ["Tugash vaqti boshlanish vaqtidan keyin bo'lishi kerak."]})
 
-    if _has_overlapping_shift(doctor, weekday_int, start, end):
+    if _has_overlapping_shift(user, weekday_int, start, end):
         raise ValidationError(
             {"start_time": ["Bu vaqt oralig'ida boshqa smena mavjud."]}
         )
 
     return WorkingHours.objects.create(
-        doctor=doctor,
+        user=user,
         weekday=weekday_int,
         start_time=start,
         end_time=end,
@@ -234,7 +234,7 @@ def _validate_weekday(value: Any) -> int:
 
 
 def _has_overlapping_shift(
-    doctor: DoctorProfile,
+    user: "User",
     weekday: int,
     start: time,
     end: time,
@@ -242,7 +242,7 @@ def _has_overlapping_shift(
     exclude_id: str | None = None,
 ) -> bool:
     qs = WorkingHours.objects.filter(
-        doctor=doctor,
+        user=user,
         weekday=weekday,
     ).filter(Q(start_time__lt=end) & Q(end_time__gt=start))
     if exclude_id is not None:
@@ -261,7 +261,7 @@ def delete_working_hours(entry: WorkingHours) -> None:
 @transaction.atomic
 def create_time_off(
     *,
-    doctor: DoctorProfile,
+    user: "User",
     date_start: Any,
     date_end: Any,
     reason: str = "",
@@ -275,7 +275,7 @@ def create_time_off(
     # Reject overlapping time off entries — clinicians shouldn't get double
     # rows for the same span (harmless but confusing).
     overlap = TimeOff.objects.filter(
-        doctor=doctor,
+        user=user,
         date_start__lte=end,
         date_end__gte=start,
     ).exists()
@@ -284,7 +284,7 @@ def create_time_off(
             {"date_start": ["Bu davrda boshqa dam olish yozuvi mavjud."]}
         )
     return TimeOff.objects.create(
-        doctor=doctor,
+        user=user,
         date_start=start,
         date_end=end,
         reason=(reason or "").strip(),

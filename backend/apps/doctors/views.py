@@ -96,130 +96,43 @@ class DoctorProfileViewSet(viewsets.ModelViewSet):
         return base
 
     # ------------------------------------------------------------------
-    # Soft delete
+    # Revoke sessions
+    # ------------------------------------------------------------------
+    @extend_schema(
+        summary="Revoke all active sessions for this user",
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"], url_path="revoke-sessions")
+    def revoke_sessions(self, request: Request, pk: str | None = None) -> Response:
+        from apps.core.permissions import IsBoshShifokor
+        from rest_framework.exceptions import PermissionDenied
+        
+        # Only Bosh Shifokor can revoke sessions
+        if not IsBoshShifokor().has_permission(request, self):
+            raise PermissionDenied("Sizda ushbu amalni bajarish huquqi yo'q.")
+            
+        profile = self.get_object()
+        user = profile.user
+        
+        try:
+            from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+            tokens = OutstandingToken.objects.filter(user=user)
+            revoked_count = 0
+            for token in tokens:
+                _, created = BlacklistedToken.objects.get_or_create(token=token)
+                if created:
+                    revoked_count += 1
+            
+            return Response({"detail": f"{revoked_count} ta faol sessiya bekor qilindi."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # ------------------------------------------------------------------
+    # Internal auth checks for schedule writes
     # ------------------------------------------------------------------
     def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         profile: DoctorProfile = self.get_object()
         update_doctor_profile(profile, is_active=False)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    # ------------------------------------------------------------------
-    # Nested — /working-hours/
-    # ------------------------------------------------------------------
-    @extend_schema(
-        methods=["GET"],
-        summary="List working hours for a doctor",
-        responses={200: WorkingHoursSerializer(many=True)},
-    )
-    @extend_schema(
-        methods=["POST"],
-        summary="Add a working-hours entry",
-        request=WorkingHoursSerializer,
-        responses={201: WorkingHoursSerializer},
-    )
-    @action(
-        detail=True,
-        methods=["get", "post"],
-        url_path="working-hours",
-        permission_classes=[WorkingHoursPermission],
-    )
-    def working_hours(self, request: Request, pk: str | None = None) -> Response:
-        doctor = self.get_object()
-        if request.method.lower() == "get":
-            qs = working_hours_for(doctor)
-            data = WorkingHoursSerializer(qs, many=True).data
-            return Response(data, status=status.HTTP_200_OK)
-
-        # POST — enforce object-level rule (doctor edits own only).
-        self._assert_can_write_schedule(request, doctor)
-        serializer = WorkingHoursSerializer(
-            data=request.data, context={"doctor": doctor, "request": request}
-        )
-        serializer.is_valid(raise_exception=True)
-        instance = serializer.save()
-        return Response(
-            WorkingHoursSerializer(instance).data, status=status.HTTP_201_CREATED
-        )
-
-    @extend_schema(
-        methods=["DELETE"],
-        summary="Delete a working-hours entry",
-        responses={204: None},
-    )
-    @action(
-        detail=True,
-        methods=["delete"],
-        url_path=r"working-hours/(?P<entry_id>[^/.]+)",
-        permission_classes=[WorkingHoursPermission],
-    )
-    def working_hours_delete(
-        self, request: Request, pk: str | None = None, entry_id: str | None = None
-    ) -> Response:
-        doctor = self.get_object()
-        self._assert_can_write_schedule(request, doctor)
-        try:
-            entry = WorkingHours.objects.get(pk=entry_id, doctor=doctor)
-        except WorkingHours.DoesNotExist as exc:
-            raise NotFound("Ish soati topilmadi.") from exc
-        delete_working_hours(entry)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    # ------------------------------------------------------------------
-    # Nested — /time-off/
-    # ------------------------------------------------------------------
-    @extend_schema(
-        methods=["GET"],
-        summary="List time-off entries for a doctor",
-        responses={200: TimeOffSerializer(many=True)},
-    )
-    @extend_schema(
-        methods=["POST"],
-        summary="Create a time-off entry",
-        request=TimeOffSerializer,
-        responses={201: TimeOffSerializer},
-    )
-    @action(
-        detail=True,
-        methods=["get", "post"],
-        url_path="time-off",
-        permission_classes=[TimeOffPermission],
-    )
-    def time_off(self, request: Request, pk: str | None = None) -> Response:
-        doctor = self.get_object()
-        if request.method.lower() == "get":
-            data = TimeOffSerializer(time_off_for(doctor), many=True).data
-            return Response(data, status=status.HTTP_200_OK)
-        self._assert_can_write_schedule(request, doctor)
-        serializer = TimeOffSerializer(
-            data=request.data, context={"doctor": doctor, "request": request}
-        )
-        serializer.is_valid(raise_exception=True)
-        instance = serializer.save()
-        return Response(
-            TimeOffSerializer(instance).data, status=status.HTTP_201_CREATED
-        )
-
-    @extend_schema(
-        methods=["DELETE"],
-        summary="Delete a time-off entry",
-        responses={204: None},
-    )
-    @action(
-        detail=True,
-        methods=["delete"],
-        url_path=r"time-off/(?P<entry_id>[^/.]+)",
-        permission_classes=[TimeOffPermission],
-    )
-    def time_off_delete(
-        self, request: Request, pk: str | None = None, entry_id: str | None = None
-    ) -> Response:
-        doctor = self.get_object()
-        self._assert_can_write_schedule(request, doctor)
-        try:
-            entry = TimeOff.objects.get(pk=entry_id, doctor=doctor)
-        except TimeOff.DoesNotExist as exc:
-            raise NotFound("Dam olish yozuvi topilmadi.") from exc
-        delete_time_off(entry)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     # ------------------------------------------------------------------
@@ -280,23 +193,6 @@ class DoctorProfileViewSet(viewsets.ModelViewSet):
         )
 
     # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _assert_can_write_schedule(request: Request, doctor: DoctorProfile) -> None:
-        role = getattr(request.user, "role", None)
-        if role == ROLE_BOSH_SHIFOKOR:
-            return
-        if role == ROLE_DOCTOR and getattr(doctor, "user_id", None) == getattr(
-            request.user, "id", None
-        ):
-            return
-        from rest_framework.exceptions import PermissionDenied
-
-        raise PermissionDenied(
-            "Boshqa shifokor jadvalini o'zgartirishga ruxsatingiz yo'q."
-        )
-
     @staticmethod
     def _get_booked_ranges(doctor: DoctorProfile, day: date):
         """Return booked appointment ranges for the given day.

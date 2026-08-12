@@ -105,7 +105,7 @@ class SendTelegramReminderView(APIView):
         message_custom = request.data.get("message")
 
         from apps.scheduling.models import Appointment
-        from apps.notifications.services import create_notification
+        from apps.notifications.services import enqueue
         from apps.notifications.models import NotificationType, NotificationChannel
 
         if appointment_id:
@@ -116,15 +116,16 @@ class SendTelegramReminderView(APIView):
                 date_str = appt.scheduled_start.strftime("%Y-%m-%d %H:%M") if appt.scheduled_start else ""
 
                 msg = message_custom or (
-                    f"🦷 <b>DentaCRM Eslatma</b>\n\n"
+                    f"📅 <b>DentaCRM Eslatma</b>\n\n"
                     f"Hurmatli <b>{patient_name}</b>!\n"
                     f"Sizning <b>{date_str}</b> da <b>Dr. {doc_name}</b> qabuliga navbatingiz bor.\n\n"
-                    f"Klinikamiz sizni kutmoqda! ✨"
+                    f"Klinikamiz sizni kutmoqda! 🦷"
                 )
 
-                log = create_notification(
-                    type=NotificationType.SCHEDULING_REMINDER_2H,
-                    recipient=request.user,
+                log = enqueue(
+                    notification_type=NotificationType.SCHEDULING_REMINDER_2H,
+                    user=None,
+                    patient=appt.patient,
                     message=msg,
                     channel=NotificationChannel.TELEGRAM,
                 )

@@ -83,7 +83,7 @@ class WorkingHoursSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: WorkingHours) -> dict[str, Any]:
         return {
             "id": str(instance.id),
-            "doctorId": str(instance.doctor_id),
+            "userId": str(instance.user_id),
             "weekday": instance.weekday,
             "weekdayLabel": Weekday(instance.weekday).label,
             "startTime": instance.start_time.strftime("%H:%M"),
@@ -99,12 +99,12 @@ class WorkingHoursSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def create(self, validated_data: dict[str, Any]) -> WorkingHours:
-        doctor: DoctorProfile | None = self.context.get("doctor")
-        if doctor is None:
-            raise serializers.ValidationError({"doctor": ["Shifokor kontekstda topilmadi."]})
+        user: "User | None" = self.context.get("user")
+        if user is None:
+            raise serializers.ValidationError({"user": ["Foydalanuvchi kontekstda topilmadi."]})
         try:
             return create_working_hours(
-                doctor=doctor,
+                user=user,
                 weekday=validated_data["weekday"],
                 start_time=validated_data["start_time"],
                 end_time=validated_data["end_time"],
@@ -129,7 +129,7 @@ class TimeOffSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: TimeOff) -> dict[str, Any]:
         return {
             "id": str(instance.id),
-            "doctorId": str(instance.doctor_id),
+            "userId": str(instance.user_id),
             "dateStart": instance.date_start.isoformat(),
             "dateEnd": instance.date_end.isoformat(),
             "reason": instance.reason or "",
@@ -144,12 +144,12 @@ class TimeOffSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def create(self, validated_data: dict[str, Any]) -> TimeOff:
-        doctor: DoctorProfile | None = self.context.get("doctor")
-        if doctor is None:
-            raise serializers.ValidationError({"doctor": ["Shifokor kontekstda topilmadi."]})
+        user: "User | None" = self.context.get("user")
+        if user is None:
+            raise serializers.ValidationError({"user": ["Foydalanuvchi kontekstda topilmadi."]})
         try:
             return create_time_off(
-                doctor=doctor,
+                user=user,
                 date_start=validated_data["date_start"],
                 date_end=validated_data["date_end"],
                 reason=validated_data.get("reason", ""),

@@ -133,3 +133,64 @@ def sweep_orphan_photos() -> str:
 
     call_command("orphan_photo_cleanup", "--apply", verbosity=0)
     return "ok"
+
+
+@shared_task(name="apps.treatments.tasks.generate_and_send_pdf")
+def generate_and_send_pdf(treatment_id: str, chat_id: int) -> str:
+    """Generate a PDF act for a treatment and send it via Telegram."""
+    from .models import Treatment
+    from apps.core.pdf_services import generate_treatment_act_html
+    from xhtml2pdf import pisa
+    from io import BytesIO
+    from apps.telegram_bot.bot import send_document_sync
+
+    try:
+        treatment = Treatment.objects.select_related("patient", "doctor__user", "procedure_type").prefetch_related("tooth_records").get(pk=treatment_id)
+    except Treatment.DoesNotExist:
+        return "treatment_not_found"
+
+    tooth_records = [
+        {
+            "tooth_number": tr.tooth_number,
+            "procedure": tr.get_procedure_display(),
+            "status": tr.get_status_display(),
+            "notes": tr.notes,
+        }
+        for tr in treatment.tooth_records.all()
+    ]
+    treatment_data = {
+        "id": treatment.pk,
+        "patient_name": getattr(treatment.patient, "full_name", str(treatment.patient)) if treatment.patient else "Bemor",
+        "doctor_name": treatment.doctor.user.get_full_name() if treatment.doctor else "Shifokor",
+        "procedure_name": treatment.procedure_type.name if treatment.procedure_type else "Muolaja",
+        "price": treatment.price,
+        "diagnosis": treatment.diagnosis or "-",
+        "description": treatment.description or "",
+        "tooth_records": tooth_records,
+        "tooth_number": ", ".join(str(r["tooth_number"]) for r in tooth_records) or "-",
+        "notes": treatment.description or treatment.diagnosis or "Muolaja muvaffaqiyatli yakunlandi.",
+        "created_at": treatment.created_at.isoformat(),
+    }
+    
+    html_content = generate_treatment_act_html(treatment_data)
+    pdf_buffer = BytesIO()
+    pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
+    
+    if pisa_status.err:
+        logger.error(f"Failed to generate PDF for treatment {treatment_id}")
+        return "pdf_generation_error"
+        
+    pdf_bytes = pdf_buffer.getvalue()
+    filename = f"Dalolatnoma_{str(treatment.pk)[:8].upper()}.pdf"
+    
+    try:
+        send_document_sync(
+            chat_id=chat_id,
+            document=pdf_bytes,
+            filename=filename,
+            caption=f"🧾 {treatment_data['patient_name']} uchun davolash dalolatnomasi."
+        )
+        return "sent"
+    except Exception as e:
+        logger.exception(f"Failed to send PDF to Telegram: {e}")
+        return "send_error"

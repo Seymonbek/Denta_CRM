@@ -309,10 +309,21 @@ def dashboard_payload(period: Period) -> dict[str, Any]:
 
 def revenue_payload(period: Period) -> dict[str, Any]:
     start, end = period_range(period)
+    from apps.payments.models import Payment
+    
+    deposits = Payment.objects.filter(
+        is_active=True,
+        treatment__isnull=True,
+        created_at__gte=start,
+        created_at__lt=end,
+    ).aggregate(total=Coalesce(Sum("amount"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
+    deposit_total = deposits["total"] or _ZERO
+
     return {
         "period": period,
         "range": {"start": _iso(start), "end": _iso(end)},
         "total": str(revenue_between(start, end)),
+        "depositTotal": str(deposit_total),
         "byDay": revenue_by_day(start, end),
         "byMethod": revenue_by_method(start, end),
         "generatedAt": _iso(_tz_now()),
@@ -477,6 +488,9 @@ def reception_analytics_payload(period: Period) -> dict[str, Any]:
     total_cash_collected = payments_qs.aggregate(total=Sum("amount"))["total"] or _ZERO
     payments_count = payments_qs.count()
 
+    deposit_qs = payments_qs.filter(treatment__isnull=True)
+    deposit_total = deposit_qs.aggregate(total=Sum("amount"))["total"] or _ZERO
+
     by_method_qs = (
         payments_qs.values("method")
         .annotate(
@@ -516,6 +530,7 @@ def reception_analytics_payload(period: Period) -> dict[str, Any]:
         "period": period,
         "range": {"start": _iso(start), "end": _iso(end)},
         "totalPaymentsCollected": str(total_cash_collected),
+        "depositTotal": str(deposit_total),
         "paymentsCount": payments_count,
         "byMethod": by_method,
         "appointments": {

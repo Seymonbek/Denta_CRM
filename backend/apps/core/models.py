@@ -66,3 +66,14 @@ class AuditLog(models.Model):
         ordering = ["-timestamp"]
         verbose_name = _("Audit Yozuvi")
         verbose_name_plural = _("Audit Yozuvlari")
+class ClinicSettings(BaseModel):
+    name = models.CharField(max_length=255, default="DentaCRM Stomatologiya")
+    inn = models.CharField(max_length=50, blank=True, null=True, default="123456789")
+    address = models.CharField(max_length=500, blank=True, null=True, default="Toshkent sh., Yunusobod t.")
+    
+    class Meta:
+        verbose_name = _("Klinika Sozlamalari")
+        verbose_name_plural = _("Klinika Sozlamalari")
+
+    def __str__(self) -> str:
+        return self.name

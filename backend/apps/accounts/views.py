@@ -36,6 +36,14 @@ from .serializers import (
     UserProfileUpdateSerializer,
 )
 
+from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
+from apps.doctors.models import WorkingHours, TimeOff
+from apps.doctors.serializers import WorkingHoursSerializer, TimeOffSerializer
+from apps.doctors.permissions import WorkingHoursPermission, TimeOffPermission
+from apps.doctors.selectors import working_hours_for, time_off_for
+from apps.doctors.services import delete_working_hours, delete_time_off
+
 logger = logging.getLogger(__name__)
 
 
@@ -451,3 +459,152 @@ def _resolve_user_from_token(refresh: RefreshToken):
         return user_model.objects.get(pk=user_id, is_active=True)
     except user_model.DoesNotExist as exc:
         raise InvalidToken("User not found for refresh token.") from exc
+
+
+from rest_framework import viewsets
+from apps.core.permissions import ROLE_BOSH_SHIFOKOR
+from .models import User
+from .serializers import UserManagementSerializer
+
+class UserViewSet(viewsets.ModelViewSet):
+    """CRUD for all users, restricted to Bosh Shifokor."""
+    queryset = User.objects.all().order_by('-date_joined')
+    serializer_class = UserManagementSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrBoshShifokor]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == ROLE_BOSH_SHIFOKOR:
+            return super().get_queryset()
+        # Just a fallback, IsOwnerOrBoshShifokor will actually prevent list access
+        return User.objects.filter(pk=user.pk)
+
+    @staticmethod
+    def _assert_can_write_schedule(request: Request, user_obj: User) -> None:
+        role = getattr(request.user, "role", None)
+        if role == ROLE_BOSH_SHIFOKOR:
+            return
+        if getattr(user_obj, "id", None) == getattr(request.user, "id", None):
+            return
+        from rest_framework.exceptions import PermissionDenied
+        raise PermissionDenied("Boshqa xodim jadvalini o'zgartirishga ruxsatingiz yo'q.")
+
+    # ------------------------------------------------------------------
+    # Nested — /working-hours/
+    # ------------------------------------------------------------------
+    @extend_schema(
+        methods=["GET"],
+        summary="List working hours for a user",
+        responses={200: WorkingHoursSerializer(many=True)},
+    )
+    @extend_schema(
+        methods=["POST"],
+        summary="Add a working-hours entry",
+        request=WorkingHoursSerializer,
+        responses={201: WorkingHoursSerializer},
+    )
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="working-hours",
+        permission_classes=[WorkingHoursPermission],
+    )
+    def working_hours(self, request: Request, pk: str | None = None) -> Response:
+        user_obj = self.get_object()
+        if request.method.lower() == "get":
+            qs = working_hours_for(user_obj)
+            data = WorkingHoursSerializer(qs, many=True).data
+            return Response(data, status=status.HTTP_200_OK)
+
+        self._assert_can_write_schedule(request, user_obj)
+        serializer = WorkingHoursSerializer(
+            data=request.data, context={"user": user_obj, "request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        return Response(
+            WorkingHoursSerializer(instance).data, status=status.HTTP_201_CREATED
+        )
+
+    @extend_schema(
+        methods=["DELETE"],
+        summary="Delete a working-hours entry",
+        responses={204: None},
+    )
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"working-hours/(?P<entry_id>[^/.]+)",
+        permission_classes=[WorkingHoursPermission],
+    )
+    def working_hours_delete(
+        self, request: Request, pk: str | None = None, entry_id: str | None = None
+    ) -> Response:
+        user_obj = self.get_object()
+        self._assert_can_write_schedule(request, user_obj)
+        try:
+            entry = WorkingHours.objects.get(pk=entry_id, user=user_obj)
+        except WorkingHours.DoesNotExist as exc:
+            raise NotFound("Ish soati topilmadi.") from exc
+        delete_working_hours(entry)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # Nested — /time-off/
+    # ------------------------------------------------------------------
+    @extend_schema(
+        methods=["GET"],
+        summary="List time-off entries for a user",
+        responses={200: TimeOffSerializer(many=True)},
+    )
+    @extend_schema(
+        methods=["POST"],
+        summary="Create a time-off entry",
+        request=TimeOffSerializer,
+        responses={201: TimeOffSerializer},
+    )
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="time-off",
+        permission_classes=[TimeOffPermission],
+    )
+    def time_off(self, request: Request, pk: str | None = None) -> Response:
+        user_obj = self.get_object()
+        if request.method.lower() == "get":
+            data = TimeOffSerializer(time_off_for(user_obj), many=True).data
+            return Response(data, status=status.HTTP_200_OK)
+            
+        self._assert_can_write_schedule(request, user_obj)
+        serializer = TimeOffSerializer(
+            data=request.data, context={"user": user_obj, "request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        return Response(
+            TimeOffSerializer(instance).data, status=status.HTTP_201_CREATED
+        )
+
+    @extend_schema(
+        methods=["DELETE"],
+        summary="Delete a time-off entry",
+        responses={204: None},
+    )
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"time-off/(?P<entry_id>[^/.]+)",
+        permission_classes=[TimeOffPermission],
+    )
+    def time_off_delete(
+        self, request: Request, pk: str | None = None, entry_id: str | None = None
+    ) -> Response:
+        user_obj = self.get_object()
+        self._assert_can_write_schedule(request, user_obj)
+        try:
+            entry = TimeOff.objects.get(pk=entry_id, user=user_obj)
+        except TimeOff.DoesNotExist as exc:
+            raise NotFound("Dam olish yozuvi topilmadi.") from exc
+        delete_time_off(entry)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+

@@ -20,8 +20,8 @@ from typing import Any
 
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import filters, status, viewsets, permissions
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import filters, serializers, status, viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.generics import get_object_or_404
@@ -123,7 +123,7 @@ class PaymentViewSet(IdempotencyMixin, viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [PaymentPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ["method", "treatment", "patient"]
+    filterset_fields = ["method", "treatment", "patient", "cash_shift", "refund_status"]
     ordering_fields = ["created_at", "amount"]
     ordering = ["-created_at"]
     http_method_names = ["get", "post", "delete", "head", "options"]
@@ -148,8 +148,50 @@ class PaymentViewSet(IdempotencyMixin, viewsets.ModelViewSet):
 
     def destroy(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         payment: Payment = self.get_object()
+        from .services import void_payment
         void_payment(payment)
+        if payment.refund_status == "pending":
+            return Response(
+                {"detail": "Kassa smenasi yopilganligi sababli to'lovni bekor qilish so'rovi Bosh Shifokor tasdig'iga yuborildi."},
+                status=status.HTTP_202_ACCEPTED
+            )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        summary="Approve or reject a refund request (Bosh Shifokor only)",
+        request=inline_serializer(
+            name="ApproveRefundSerializer",
+            fields={"approved": serializers.BooleanField()},
+        ),
+        responses={200: None, 400: None},
+    )
+    @action(detail=True, methods=["post"], url_path="approve-refund")
+    def approve_refund(self, request: Request, pk: str | None = None) -> Response:
+        from apps.core.permissions import IsBoshShifokor
+        from rest_framework.exceptions import PermissionDenied
+        
+        if not IsBoshShifokor().has_permission(request, self):
+            raise PermissionDenied("Faqat bosh shifokor bekor qilish so'rovlarini tasdiqlay oladi.")
+            
+        payment: Payment = self.get_object()
+        if payment.refund_status != "pending":
+            return Response({"error": "To'lov bekor qilish so'rovi kutilmayapti."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        approved = request.data.get("approved")
+        if approved is None:
+            return Response({"error": "'approved' maydoni talab qilinadi."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if approved:
+            payment.is_active = False
+            payment.refund_status = "approved"
+            payment.save(update_fields=["is_active", "refund_status", "updated_at"])
+            from .services import _refresh_payment_status
+            _refresh_payment_status(payment.treatment)
+            return Response({"detail": "To'lov bekor qilinishi tasdiqlandi."}, status=status.HTTP_200_OK)
+        else:
+            payment.refund_status = "rejected"
+            payment.save(update_fields=["refund_status", "updated_at"])
+            return Response({"detail": "To'lov bekor qilinishi rad etildi."}, status=status.HTTP_200_OK)
 
 
 # ===========================================================================
@@ -319,7 +361,24 @@ class CashShiftViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import ValidationError
+        from apps.payments.models import CashShift, CashShiftStatus
+        if CashShift.objects.filter(administrator=self.request.user, status=CashShiftStatus.OPEN).exists():
+            raise ValidationError({"detail": "Sizda allaqachon ochiq smena mavjud."})
         serializer.save(administrator=self.request.user)
+
+    @extend_schema(
+        summary="Get my open cash shift",
+        request=None,
+        responses={200: __import__("apps.payments.serializers", fromlist=["CashShiftSerializer"]).CashShiftSerializer, 404: None}
+    )
+    @action(detail=False, methods=["get"], url_path="my-open")
+    def my_open(self, request):
+        from apps.payments.models import CashShift, CashShiftStatus
+        shift = CashShift.objects.filter(administrator=request.user, status=CashShiftStatus.OPEN).first()
+        if shift:
+            return Response(self.get_serializer(shift).data)
+        return Response(None)
 
     @extend_schema(
         summary="Approve (and close) a cash shift",
@@ -339,7 +398,14 @@ class CashShiftViewSet(viewsets.ModelViewSet):
         shift.status = "closed"
         shift.closed_at = timezone.now()
         shift.approved_by = request.user
-        shift.save(update_fields=["status", "closed_at", "approved_by", "updated_at"])
+        
+        from django.db.models import Sum
+        cash = shift.payments.filter(method="cash").aggregate(total=Sum("amount"))["total"] or 0
+        card = shift.payments.filter(method="card").aggregate(total=Sum("amount"))["total"] or 0
+        
+        shift.cash_collected = cash
+        shift.card_collected = card
+        shift.save(update_fields=["status", "closed_at", "approved_by", "updated_at", "cash_collected", "card_collected"])
         
         return Response(self.get_serializer(shift).data)
 

@@ -61,17 +61,16 @@ class DoctorProfilePermission(BasePermission):
 
 
 class WorkingHoursPermission(BasePermission):
-    """WorkingHours: bosh_shifokor or the doctor who owns the schedule."""
+    """WorkingHours: bosh_shifokor or the user who owns the schedule."""
 
-    message = "Ish jadvalini faqat bosh shifokor yoki tegishli shifokor tahrirlaydi."
+    message = "Ish jadvalini faqat bosh shifokor yoki tegishli xodim tahrirlaydi."
 
     def has_permission(self, request: Request, view: Any) -> bool:
         if not _authenticated_with_role(request):
             return False
         if request.method in SAFE_METHODS:
             return True
-        role = getattr(request.user, "role", None)
-        return role in {ROLE_BOSH_SHIFOKOR, ROLE_DOCTOR}
+        return True  # Any valid role can manage their own schedule
 
     def has_object_permission(self, request: Request, view: Any, obj: Any) -> bool:
         if not _authenticated_with_role(request):
@@ -81,13 +80,10 @@ class WorkingHoursPermission(BasePermission):
             return True
         if role == ROLE_BOSH_SHIFOKOR:
             return True
-        if role == ROLE_DOCTOR:
-            # ``obj`` may be a DoctorProfile (nested-action route) or a
-            # WorkingHours / TimeOff row (once inside services). Resolve
-            # both to the same owner user id.
-            owner_user_id = _resolve_schedule_owner_user_id(obj)
-            return owner_user_id == getattr(request.user, "id", None)
-        return False
+        
+        # Any authenticated user with a role can manage their own schedule
+        owner_user_id = _resolve_schedule_owner_user_id(obj)
+        return owner_user_id == getattr(request.user, "id", None)
 
 
 class TimeOffPermission(WorkingHoursPermission):
@@ -97,17 +93,16 @@ class TimeOffPermission(WorkingHoursPermission):
 
 
 def _resolve_schedule_owner_user_id(obj: Any) -> Any:
-    """Return the user_id that owns a DoctorProfile / WorkingHours / TimeOff."""
+    """Return the user_id that owns a User / DoctorProfile / WorkingHours / TimeOff."""
     if obj is None:
         return None
-    # DoctorProfile.user_id
+    # If obj is User
+    if hasattr(obj, "role"):
+        return obj.id
+    # If obj is DoctorProfile
     user_id = getattr(obj, "user_id", None)
     if user_id is not None:
         return user_id
-    # WorkingHours.doctor.user_id / TimeOff.doctor.user_id
-    doctor = getattr(obj, "doctor", None)
-    if doctor is not None:
-        return getattr(doctor, "user_id", None)
     return None
 
 

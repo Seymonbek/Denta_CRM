@@ -50,7 +50,7 @@ class TreatmentViewSet(viewsets.ModelViewSet):
     serializer_class = TreatmentSerializer
     permission_classes = [TreatmentPermission]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ["payment_status", "stage", "department"]
+    filterset_fields = ["payment_status", "stage", "department", "approval_status"]
     ordering_fields = ["created_at", "price"]
     ordering = ["-created_at"]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
@@ -326,6 +326,26 @@ class TreatmentViewSet(viewsets.ModelViewSet):
         }
         html_content = generate_treatment_act_html(treatment_data)
         return HttpResponse(html_content, content_type="text/html; charset=utf-8")
+
+    @extend_schema(summary="Send PDF act to Patient's Telegram asynchronously")
+    @action(detail=True, methods=["post"], url_path="send-pdf-to-telegram")
+    def send_pdf_to_telegram(self, request: Request, pk: str | None = None) -> Response:
+        treatment: Treatment = self.get_object()
+        
+        chat_id = getattr(treatment.patient, "telegram_chat_id", None)
+        if not chat_id:
+            return Response(
+                {"error": "Bemorning Telegram ID'si kiritilmagan."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        from .tasks import generate_and_send_pdf
+        generate_and_send_pdf.delay(str(treatment.pk), chat_id)
+        
+        return Response(
+            {"detail": "PDF Telegram'ga yuborilmoqda."},
+            status=status.HTTP_202_ACCEPTED
+        )
 
     @extend_schema(
         summary="Approve or reject a discount for a treatment",

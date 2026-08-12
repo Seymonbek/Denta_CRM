@@ -11,3 +11,11 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "object_id", "changes", "ip_address", "timestamp"
         ]
 
+
+from .models import ClinicSettings
+
+class ClinicSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClinicSettings
+        fields = ['id', 'name', 'inn', 'address']
+

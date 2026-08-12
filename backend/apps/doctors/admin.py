@@ -57,7 +57,7 @@ class DoctorProfileAdmin(ModelAdmin):
     autocomplete_fields = ("user", "departments")
     filter_horizontal = ("departments",)
     readonly_fields = ("created_at", "updated_at")
-    inlines = (WorkingHoursInline, TimeOffInline)
+    inlines = ()
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -77,57 +77,49 @@ class DoctorProfileAdmin(ModelAdmin):
 
 @admin.register(WorkingHours)
 class WorkingHoursAdmin(ModelAdmin):
-    list_display = ("doctor", "weekday", "start_time", "end_time")
+    list_display = ("user", "weekday", "start_time", "end_time")
     list_filter = ("weekday",)
-    search_fields = ("doctor__user__first_name", "doctor__user__last_name")
+    search_fields = ("user__first_name", "user__last_name")
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         if is_doctor_restricted(request.user):
-            profile = get_doctor_profile(request.user)
-            if profile:
-                return qs.filter(doctor=profile)
+            return qs.filter(user=request.user)
         return qs
 
     def save_model(self, request, obj, form, change):
         if is_doctor_restricted(request.user):
-            profile = get_doctor_profile(request.user)
-            if profile:
-                obj.doctor = profile
+            obj.user = request.user
         super().save_model(request, obj, form, change)
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
         if is_doctor_restricted(request.user):
-            readonly.append("doctor")
+            readonly.append("user")
         return readonly
 
 
 @admin.register(TimeOff)
 class TimeOffAdmin(ModelAdmin):
-    list_display = ("doctor", "date_start", "date_end", "reason")
-    list_filter = ("date_start",)
-    search_fields = ("doctor__user__first_name", "doctor__user__last_name", "reason")
+    list_display = ("user", "date_start", "date_end", "reason")
+    list_filter = ("date_start", "date_end")
+    search_fields = ("user__first_name", "user__last_name", "reason")
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         if is_doctor_restricted(request.user):
-            profile = get_doctor_profile(request.user)
-            if profile:
-                return qs.filter(doctor=profile)
+            return qs.filter(user=request.user)
         return qs
 
     def save_model(self, request, obj, form, change):
         if is_doctor_restricted(request.user):
-            profile = get_doctor_profile(request.user)
-            if profile:
-                obj.doctor = profile
+            obj.user = request.user
         super().save_model(request, obj, form, change)
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
         if is_doctor_restricted(request.user):
-            readonly.append("doctor")
+            readonly.append("user")
         return readonly
 
 

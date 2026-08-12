@@ -63,6 +63,15 @@ class CashShiftStatus(models.TextChoices):
     CLOSED = "closed", _("Yopiq")
 
 
+class RefundStatus(models.TextChoices):
+    """Refund status for payments in closed shifts."""
+    
+    NONE = "none", _("Yo'q")
+    PENDING = "pending", _("Kutilmoqda")
+    APPROVED = "approved", _("Tasdiqlangan")
+    REJECTED = "rejected", _("Rad etilgan")
+
+
 # ---------------------------------------------------------------------------
 # Payment
 # ---------------------------------------------------------------------------
@@ -70,6 +79,7 @@ class Payment(BaseModel):
     """Money received against a :class:`~apps.treatments.models.Treatment`."""
 
     Method = PaymentMethod  # convenience re-export
+    Refund = RefundStatus
 
     cash_shift = models.ForeignKey(
         "payments.CashShift",
@@ -107,6 +117,13 @@ class Payment(BaseModel):
         choices=PaymentMethod.choices,
         default=PaymentMethod.CASH,
     )
+    refund_status = models.CharField(
+        _("Qaytarish holati"),
+        max_length=20,
+        choices=RefundStatus.choices,
+        default=RefundStatus.NONE,
+    )
+    is_active = models.BooleanField(_("Faol"), default=True)
     received_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
