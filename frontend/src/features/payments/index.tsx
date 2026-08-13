@@ -259,80 +259,117 @@ export function PaymentsList() {
           {/* Payments Table with Mobile Responsive Horizontal Scroll */}
           <TabsContent value='payments'>
             <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
-              <Table className='min-w-[600px] sm:min-w-full'>
+              <Table className='min-w-[750px] sm:min-w-full'>
                 <TableHeader>
                   <TableRow className='bg-muted/30'>
+                    <TableHead className='text-xs font-semibold w-20'>#</TableHead>
                     <TableHead className='text-xs font-semibold'>Bemor</TableHead>
-                    <TableHead className='text-xs font-semibold'>To'lov Summasi (so'm)</TableHead>
-                    <TableHead className='text-xs font-semibold'>To'lov Usuli</TableHead>
-                    <TableHead className='text-xs font-semibold'>Qabul Qilingan Vaqt</TableHead>
-                    <TableHead className='text-xs font-semibold text-end'>Bekor qilish</TableHead>
+                    <TableHead className='text-xs font-semibold'>Muolaja / Shifokor</TableHead>
+                    <TableHead className='text-xs font-semibold'>Summa (so'm)</TableHead>
+                    <TableHead className='text-xs font-semibold'>Usul</TableHead>
+                    <TableHead className='text-xs font-semibold'>Sana</TableHead>
+                    <TableHead className='text-xs font-semibold text-end'>Amallar</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
+                      <TableCell colSpan={7} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
                         To'lovlar yuklanmoqda...
                       </TableCell>
                     </TableRow>
                   ) : payments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className='text-center py-8 text-xs text-muted-foreground'>
+                      <TableCell colSpan={7} className='text-center py-8 text-xs text-muted-foreground'>
                         To'lovlar topilmadi.
                       </TableCell>
                     </TableRow>
                   ) : (
                     payments.map((p: any) => {
-                      const patientName = p?.patientName || p?.patient_name || (p?.patient && p.patient && typeof p.patient === 'object' ? `${p.patient.firstName || p.patient.first_name || ''} ${p.patient.lastName || p.patient.last_name || ''}`.trim() : p?.patient) || 'Bemor'
+                      const patientName = p?.patientName || (p?.patient && typeof p.patient === 'object' ? `${p.patient.firstName || p.patient.first_name || ''} ${p.patient.lastName || p.patient.last_name || ''}`.trim() : '') || 'Bemor'
+                      const patientId = p?.patientId || p?.patient?.id || p?.patient || ''
                       const pMethod = p?.method || 'cash'
                       const createdAt = p?.createdAt || p?.created_at || ''
+                      const shortId = p?.shortId || String(p?.id || '').replace(/-/g, '').toUpperCase().slice(0, 8)
+                      const procedureName = p?.procedureName || ''
+                      const doctorName = p?.doctorName || ''
+                      const isVoided = p?.isActive === false
 
                       return (
-                        <TableRow key={p?.id || Math.random()} className='hover:bg-muted/20'>
+                        <TableRow key={p?.id || Math.random()} className={`hover:bg-muted/20 ${isVoided ? 'opacity-50' : ''}`}>
+                          {/* Short ID */}
+                          <TableCell className='text-[10px] font-mono text-muted-foreground'>
+                            <span className='bg-muted px-1.5 py-0.5 rounded font-medium'>{shortId}</span>
+                          </TableCell>
+
+                          {/* Patient */}
                           <TableCell className='font-medium text-xs'>
                             <Link
-                                to='/patients/$id'
-                                params={{ id: String(p?.patient?.id || p?.patient_id || p?.patient) }}
-                                className='text-primary hover:underline font-bold'
-                              >
-                                {patientName}
-                              </Link>
+                              to='/patients/$id'
+                              params={{ id: String(patientId) }}
+                              className='text-primary hover:underline font-bold'
+                            >
+                              {patientName}
+                            </Link>
                           </TableCell>
+
+                          {/* Procedure + Doctor */}
+                          <TableCell className='text-xs'>
+                            {procedureName ? (
+                              <div>
+                                <p className='font-medium text-foreground'>{procedureName}</p>
+                                {doctorName && <p className='text-muted-foreground text-[10px]'>Dr. {doctorName}</p>}
+                              </div>
+                            ) : doctorName ? (
+                              <span className='text-muted-foreground'>Dr. {doctorName}</span>
+                            ) : (
+                              <span className='text-muted-foreground italic text-[10px]'>Muolajasiz to'lov</span>
+                            )}
+                          </TableCell>
+
+                          {/* Amount */}
                           <TableCell className='text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400'>
                             +{Number(p?.amount || 0).toLocaleString()} so'm
                           </TableCell>
+
+                          {/* Method */}
                           <TableCell className='text-xs'>
                             <Badge variant='outline' className='text-[10px]'>
                               {METHOD_LABELS[pMethod] || pMethod}
                             </Badge>
                           </TableCell>
+
+                          {/* Date */}
                           <TableCell className='text-xs font-mono text-muted-foreground'>
                             {formatDateSafely(createdAt)}
                           </TableCell>
-                          <TableCell className='text-end flex items-center justify-end gap-1.5'>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='h-7 text-xs gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50'
-                              onClick={() => {
-                                const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1/'
-                                const url = `${baseUrl}payments/${p.id}/receipt/`
-                                window.open(url, '_blank')
-                              }}
-                            >
-                              <FileText className='h-3.5 w-3.5' /> Chek (PDF)
-                            </Button>
 
-                            <Button
-                              size='sm'
-                              variant='ghost'
-                              className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
-                              onClick={() => handleVoid(p.id)}
-                              disabled={!isShiftOpen}
-                            >
-                              <Ban className='h-3.5 w-3.5 me-1' /> Bekor qilish
-                            </Button>
+                          {/* Actions */}
+                          <TableCell className='text-end'>
+                            <div className='flex items-center justify-end gap-1'>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                className='h-7 text-xs gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50'
+                                onClick={() => {
+                                  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1/'
+                                  window.open(`${baseUrl}payments/${p.id}/receipt/`, '_blank')
+                                }}
+                              >
+                                <FileText className='h-3.5 w-3.5' /> Chek
+                              </Button>
+                              {!isVoided && (
+                                <Button
+                                  size='sm'
+                                  variant='ghost'
+                                  className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                                  onClick={() => handleVoid(p.id)}
+                                  disabled={!isShiftOpen}
+                                >
+                                  <Ban className='h-3.5 w-3.5 me-1' /> Bekor
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       )

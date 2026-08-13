@@ -75,10 +75,36 @@ class PaymentSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def to_representation(self, instance: Payment) -> dict[str, Any]:
+        # ── Patient name ────────────────────────────────────────────
+        patient = instance.patient
+        patient_name = (
+            f"{patient.first_name} {patient.last_name}".strip()
+            if patient
+            else "Noma'lum bemor"
+        )
+
+        # ── Treatment / procedure info ───────────────────────────────
+        treatment = instance.treatment
+        procedure_name = ""
+        doctor_name = ""
+        if treatment:
+            if treatment.procedure_type_id and hasattr(treatment, "procedure_type") and treatment.procedure_type:
+                procedure_name = treatment.procedure_type.name or ""
+            doc = getattr(treatment, "doctor", None)
+            if doc and hasattr(doc, "user") and doc.user:
+                doctor_name = f"{doc.user.first_name} {doc.user.last_name}".strip()
+
+        # ── Short readable ID (first 8 chars of UUID uppercased) ────
+        short_id = str(instance.id).replace("-", "").upper()[:8]
+
         return {
             "id": str(instance.id),
+            "shortId": short_id,
             "treatmentId": str(instance.treatment_id) if instance.treatment_id else None,
             "patientId": str(instance.patient_id),
+            "patientName": patient_name,
+            "procedureName": procedure_name,
+            "doctorName": doctor_name,
             "amount": _decimal_str(instance.amount),
             "method": instance.method,
             "note": instance.note or "",
@@ -91,6 +117,7 @@ class PaymentSerializer(serializers.ModelSerializer):
                 if instance.received_by_id
                 else None
             ),
+            "refundStatus": instance.refund_status,
             "isActive": instance.is_active,
             "createdAt": instance.created_at.isoformat() if instance.created_at else None,
         }

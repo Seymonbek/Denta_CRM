@@ -20,7 +20,14 @@ from .models import CommissionRecord, Payment
 def payments_qs() -> QuerySet[Payment]:
     """Base queryset for all active payments."""
     return (
-        Payment.objects.select_related("treatment", "patient", "received_by")
+        Payment.objects.select_related(
+            "treatment",
+            "treatment__procedure_type",
+            "treatment__doctor",
+            "treatment__doctor__user",
+            "patient",
+            "received_by",
+        )
         .filter(is_active=True)
         .order_by("-created_at")
     )
