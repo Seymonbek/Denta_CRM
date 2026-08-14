@@ -251,7 +251,7 @@ def record_payment(
             enqueue(
                 user=None,
                 patient=payment.patient,
-                type=NotificationType.PAYMENT_RECEIVED,
+                notification_type=NotificationType.PAYMENT_RECEIVED,
                 channel=NotificationChannel.TELEGRAM,
                 message=msg,
                 context={"payment_id": str(payment.pk)},

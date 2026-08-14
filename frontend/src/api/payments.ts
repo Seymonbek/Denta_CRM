@@ -15,10 +15,11 @@ export async function getPaymentsApi(params?: {
 
 export async function createPaymentApi(
   data: {
-    treatment: string
-    patient: string
+    treatment?: string
+    patientId: string
     amount: string
     method: PaymentMethod
+    note?: string
   },
   idempotencyKey?: string
 ): Promise<Payment> {

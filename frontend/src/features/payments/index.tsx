@@ -153,7 +153,24 @@ export function PaymentsList() {
       setTreatmentId('')
       setPatientId('')
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'To’lovni amalga oshirishda xatolik.')
+      const errData = err?.response?.data
+      let msg = 'To\'lovni amalga oshirishda xatolik.'
+      if (typeof errData === 'string') {
+        msg = errData
+      } else if (errData?.detail) {
+        msg = Array.isArray(errData.detail) ? errData.detail[0] : errData.detail
+      } else if (errData?.amount) {
+        msg = Array.isArray(errData.amount) ? errData.amount[0] : errData.amount
+      } else if (errData?.non_field_errors) {
+        msg = Array.isArray(errData.non_field_errors) ? errData.non_field_errors[0] : errData.non_field_errors
+      } else if (typeof errData === 'object' && errData !== null) {
+        const firstKey = Object.keys(errData)[0]
+        if (firstKey) {
+          const val = errData[firstKey]
+          msg = Array.isArray(val) ? val[0] : String(val)
+        }
+      }
+      toast.error(msg)
     } finally {
       isSubmittingRef.current = false
     }

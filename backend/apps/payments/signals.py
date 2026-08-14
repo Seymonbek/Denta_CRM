@@ -25,20 +25,29 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=Payment, dispatch_uid="payments.payment.refresh_on_save")
 def _on_payment_saved(sender, instance: Payment, created: bool, **kwargs):
-    try:
-        _refresh_payment_status(instance.treatment)
-    except Exception:  # noqa: BLE001
-        logger.exception(
-            "payments: refresh after payment save failed for treatment %s",
-            instance.treatment_id,
-        )
+    # Only refresh treatment status when a treatment is linked
+    if instance.treatment_id:
+        try:
+            _refresh_payment_status(instance.treatment)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "payments: refresh after payment save failed for treatment %s",
+                instance.treatment_id,
+            )
 
-    if created and not instance.is_void:
+    if created and not instance.is_void and instance.treatment_id:
         try:
             from apps.notifications.models import NotificationType
             from apps.notifications.services import enqueue, notify_roles
 
-            patient = instance.treatment.patient
+            treatment = instance.treatment
+            if not treatment:
+                return
+
+            patient = treatment.patient
+            if not patient:
+                return
+
             patient_name = f"{patient.first_name} {patient.last_name}"
             amount_str = f"{instance.amount:,.0f}"
 
@@ -56,7 +65,7 @@ def _on_payment_saved(sender, instance: Payment, created: bool, **kwargs):
             )
 
             # 2. Doctor Notification
-            doc_user = instance.treatment.doctor.user if instance.treatment and instance.treatment.doctor else None
+            doc_user = treatment.doctor.user if treatment.doctor else None
             if doc_user:
                 msg_d = f"💰 Bemoringiz {patient_name} {amount_str} so'm to'lov qildi."
                 enqueue(
@@ -85,6 +94,7 @@ def _on_payment_saved(sender, instance: Payment, created: bool, **kwargs):
                 "payments: failed to enqueue PAYMENT_RECEIVED notification for payment %s",
                 instance.pk,
             )
+
 
 
 @receiver(post_delete, sender=Payment, dispatch_uid="payments.payment.refresh_on_delete")

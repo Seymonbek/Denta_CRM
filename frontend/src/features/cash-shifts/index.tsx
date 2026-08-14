@@ -48,9 +48,9 @@ function ShiftPaymentsModal({ shiftId, open, onOpenChange }: { shiftId: string |
                 <TableBody>
                   {data?.results?.map((payment) => (
                     <TableRow key={payment.id}>
-                      <TableCell className="font-mono text-xs text-muted-foreground">#{payment.id.slice(0, 8).toUpperCase()}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">#{payment.shortId || payment.id.slice(0, 8).toUpperCase()}</TableCell>
                       <TableCell>{format(new Date(payment.createdAt || new Date()), 'dd.MM.yyyy HH:mm')}</TableCell>
-                      <TableCell>{payment.patient?.firstName} {payment.patient?.lastName}</TableCell>
+                      <TableCell>{payment.patientName}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="uppercase">{payment.method}</Badge>
                       </TableCell>
