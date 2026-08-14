@@ -45,15 +45,16 @@ export interface DoctorProfile {
 
 export interface WorkingHours {
   id: string
-  doctor: string
+  userId: string
   weekday: number // 0-6 (Monday-Sunday)
+  weekdayLabel?: string
   startTime: string
   endTime: string
 }
 
 export interface TimeOff {
   id: string
-  doctor: string
+  userId: string
   dateStart: string
   dateEnd: string
   reason: string
@@ -204,12 +205,18 @@ export type PaymentMethod = 'cash' | 'card' | 'payme' | 'click' | 'bank_transfer
 
 export interface Payment {
   id: string
-  treatment: string
-  patient: string
-  patientName?: string
+  shortId: string
+  treatmentId: string | null
+  patientId: string
+  patientName: string
+  procedureName: string
+  doctorName: string
   amount: string
   method: PaymentMethod
-  receivedBy: string
+  note: string
+  receivedBy: { id: string; firstName: string; lastName: string } | null
+  refundStatus: 'none' | 'pending' | 'approved' | 'rejected'
+  isActive: boolean
   createdAt: string
 }
 

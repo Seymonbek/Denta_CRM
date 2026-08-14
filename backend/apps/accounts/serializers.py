@@ -661,26 +661,49 @@ class UserManagementSerializer(serializers.ModelSerializer):
     firstName = serializers.CharField(source='first_name', required=True)
     lastName = serializers.CharField(source='last_name', required=True)
     phoneNumber = serializers.CharField(source='phone_number', required=True)
-    password = serializers.CharField(write_only=True, required=False)
+    password = serializers.CharField(write_only=True, required=False, min_length=6)
 
     class Meta:
         model = User
         fields = (
-            'id', 'firstName', 'lastName', 'phoneNumber', 
+            'id', 'firstName', 'lastName', 'phoneNumber',
             'role', 'password', 'is_active', 'telegram_chat_id', 'two_factor_enabled'
         )
         read_only_fields = ('id', 'telegram_chat_id', 'two_factor_enabled')
 
+    def validate(self, attrs):
+        # Password is required when creating a new user
+        if self.instance is None and not attrs.get('password'):
+            raise serializers.ValidationError({'password': ['Yangi xodim uchun parol majburiy.']})
+        return attrs
+
     def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        user = super().create(validated_data)
-        if password:
-            user.set_password(password)
-            user.save()
+        password = validated_data.pop('password')
+        first_name = validated_data.pop('first_name', '')
+        last_name = validated_data.pop('last_name', '')
+        phone_number = validated_data.pop('phone_number', '')
+        role = validated_data.pop('role', 'doctor')
+        is_active = validated_data.pop('is_active', True)
+
+        user = User.objects.create_user(
+            phone_number=phone_number,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            is_active=is_active,
+        )
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
+        # Map camelCase source fields
+        if 'first_name' in validated_data:
+            instance.first_name = validated_data.pop('first_name')
+        if 'last_name' in validated_data:
+            instance.last_name = validated_data.pop('last_name')
+        if 'phone_number' in validated_data:
+            instance.phone_number = validated_data.pop('phone_number')
         instance = super().update(instance, validated_data)
         if password:
             instance.set_password(password)

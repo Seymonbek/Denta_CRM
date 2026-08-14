@@ -43,8 +43,6 @@ export async function createWorkingHoursApi(
     weekday: data.weekday,
     start_time: data.startTime,
     end_time: data.endTime,
-    startTime: data.startTime,
-    endTime: data.endTime,
   }
   const response = await apiClient.post<WorkingHours>(`auth/users/${doctorId}/working-hours/`, payload)
   return response.data

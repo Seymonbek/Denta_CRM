@@ -109,7 +109,7 @@ function ScheduleDialog({ user, open, onClose }: { user: User; open: boolean; on
                   <div key={wh.id} className='flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs font-mono'>
                     <span className='font-semibold'>{WEEKDAYS[wh.weekday] ?? 'Kun'}</span>
                     <div className='flex items-center gap-2'>
-                      <span className='text-muted-foreground'>{wh.start_time} – {wh.end_time}</span>
+                      <span className='text-muted-foreground'>{wh.startTime} – {wh.endTime}</span>
                       {wh.id && (
                         <Button
                           size='icon' variant='ghost'
@@ -158,7 +158,7 @@ function ScheduleDialog({ user, open, onClose }: { user: User; open: boolean; on
                 (timeOffs as any[]).map((to: any) => (
                   <div key={to.id} className='flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs'>
                     <div>
-                      <span className='font-semibold'>{to.date_start} → {to.date_end}</span>
+                      <span className='font-semibold'>{to.dateStart} → {to.dateEnd}</span>
                       {to.reason && <p className='text-muted-foreground mt-0.5'>{to.reason}</p>}
                     </div>
                     {to.id && (

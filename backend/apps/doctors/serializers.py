@@ -202,9 +202,9 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
-        if request and hasattr(request, "user"):
+        if request and hasattr(request, "user") and getattr(request.user, "is_authenticated", False):
             from apps.accounts.models import User
-            if request.user.role != User.Role.BOSH_SHIFOKOR:
+            if getattr(request.user, "role", None) != User.Role.BOSH_SHIFOKOR:
                 self.fields["commission_basis"].read_only = True
                 self.fields["default_commission_rate"].read_only = True
 
@@ -272,9 +272,10 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             {"id": str(dept.id), "name": dept.name}
             for dept in instance.departments.all()
         ]
+        # WorkingHours is now linked to User, not DoctorProfile
         working_hours = [
             WorkingHoursSerializer(wh).data
-            for wh in instance.working_hours.all()
+            for wh in instance.user.working_hours.all()
         ]
         return {
             "id": str(instance.id),

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from drf_spectacular.utils import OpenApiExample, extend_schema
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
@@ -525,6 +525,9 @@ class UserViewSet(viewsets.ModelViewSet):
     @extend_schema(
         methods=["DELETE"],
         summary="Delete a working-hours entry",
+        parameters=[
+            OpenApiParameter(name="entry_id", location="path", type=str, description="WorkingHours UUID"),
+        ],
         responses={204: None},
     )
     @action(
@@ -584,6 +587,9 @@ class UserViewSet(viewsets.ModelViewSet):
     @extend_schema(
         methods=["DELETE"],
         summary="Delete a time-off entry",
+        parameters=[
+            OpenApiParameter(name="entry_id", location="path", type=str, description="TimeOff UUID"),
+        ],
         responses={204: None},
     )
     @action(
