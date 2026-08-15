@@ -273,6 +273,63 @@ def restock(
         performed_by=performed_by if isinstance(performed_by, User) else None,
         note=(note or "").strip(),
     )
+    
+    # Auto-generate Expense
+    if material.unit_cost:
+        try:
+            from apps.payments.models import Expense, ExpenseCategory, CashShift, CashShiftStatus, PaymentMethod
+            from django.utils import timezone
+            
+            total_cost = material.unit_cost * delta
+            category, _ = ExpenseCategory.objects.get_or_create(
+                name="Materiallar", defaults={"is_active": True}
+            )
+            
+            shift = None
+            if isinstance(performed_by, User):
+                shift = CashShift.objects.filter(
+                    administrator=performed_by, status=CashShiftStatus.OPEN
+                ).first()
+                
+            expense = Expense.objects.create(
+                category=category,
+                amount=total_cost,
+                description=f"{material.name} xaridi ({delta} {material.unit})",
+                date=timezone.now(),
+                recorded_by=performed_by if isinstance(performed_by, User) else None,
+                payment_method=PaymentMethod.CASH,
+                cash_shift=shift,
+            )
+            
+            if shift:
+                shift.cash_expenses += total_cost
+                shift.save(update_fields=["cash_expenses", "updated_at"])
+                
+        except Exception as e:
+            logger.exception("Failed to auto-generate expense for restock: %s", e)
+
+    # Notify admins about restock
+    try:
+        from apps.notifications.services import notify_roles
+        from apps.notifications.models import NotificationType
+        admin_msg = (
+            f"📦 <b>Omborga tovar qo'shildi</b>\n\n"
+            f"Material: {material.name}\n"
+            f"Miqdor: {delta} {material.unit}\n"
+            f"Qabul qildi: {performed_by.get_full_name() if performed_by and hasattr(performed_by, 'get_full_name') else 'Admin'}"
+        )
+        if material.unit_cost:
+            admin_msg += f"\nJami xarajat: {material.unit_cost * delta:,.0f} so'm"
+            
+        notify_roles(
+            ["bosh_shifokor"],
+            notification_type=NotificationType.EXPENSE_CREATED,
+            message=admin_msg,
+            context={"material_id": str(material.pk)},
+        )
+    except Exception as notify_exc:
+        logger.warning("Failed to enqueue restock notification: %s", notify_exc)
+
     return log
 
 

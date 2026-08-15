@@ -8,7 +8,7 @@ export function getErrorMessage(err: unknown, fallback: string = 'Xatolik yuz be
   if (!err) return fallback
 
   if (err instanceof AxiosError || (typeof err === 'object' && err !== null && 'response' in err)) {
-    const data = (err as any)?.response?.data
+    const data = (err as AxiosError<Record<string, unknown>>)?.response?.data || (err as Record<string, { data?: unknown }>).response?.data
     if (data) {
       if (typeof data === 'string' && data.trim().length > 0) {
         return data

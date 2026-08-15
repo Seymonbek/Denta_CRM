@@ -64,7 +64,7 @@ function DiscountsTable() {
 
   return (
     <>
-      <div className="rounded-md border bg-card text-card-foreground overflow-hidden">
+      <div className="rounded-md border bg-card text-card-foreground overflow-x-auto w-full">
         <Table>
           <TableHeader>
             <TableRow>
@@ -87,7 +87,7 @@ function DiscountsTable() {
                 <TableCell colSpan={7} className="text-center py-4">Kutilayotgan chegirmalar yo'q.</TableCell>
               </TableRow>
             ) : (
-              data?.results?.map((item: any) => (
+              data?.results?.map((item: Record<string, unknown>) => (
                 <TableRow key={item.id}>
                   <TableCell>{format(new Date(item.createdAt || new Date()), 'dd.MM.yyyy HH:mm')}</TableCell>
                   <TableCell>{item.patient?.firstName} {item.patient?.lastName}</TableCell>
@@ -152,7 +152,7 @@ function RefundsTable() {
   }
 
   return (
-    <div className="rounded-md border bg-card text-card-foreground overflow-hidden">
+    <div className="rounded-md border bg-card text-card-foreground overflow-x-auto w-full">
       <Table>
         <TableHeader>
           <TableRow>
@@ -174,7 +174,7 @@ function RefundsTable() {
               <TableCell colSpan={6} className="text-center py-4">Kutilayotgan to'lov bekor qilishlari yo'q.</TableCell>
             </TableRow>
           ) : (
-            data?.results?.map((item: any) => (
+            data?.results?.map((item: Record<string, unknown>) => (
               <TableRow key={item.id}>
                 <TableCell>{format(new Date(item.createdAt || new Date()), 'dd.MM.yyyy HH:mm')}</TableCell>
                 <TableCell>{item.patient?.firstName} {item.patient?.lastName}</TableCell>

@@ -16,18 +16,20 @@ import {
   ClipboardCheck,
   Briefcase,
   ShieldAlert,
+  Wallet,
+  Banknote,
 } from 'lucide-react'
 
 export interface NavSubItem {
   title: string
   url: string
-  icon?: any
+  icon?: Record<string, unknown>
 }
 
 export interface NavItem {
   title: string
   url?: string
-  icon?: any
+  icon?: Record<string, unknown>
   badge?: string
   items?: NavSubItem[]
   roles?: string[]
@@ -116,6 +118,18 @@ export const sidebarData: SidebarData = {
           title: 'Kassa Smenalari',
           url: '/cash-shifts',
           icon: Briefcase,
+          roles: ['bosh_shifokor', 'administrator'],
+        },
+        {
+          title: 'Xarajatlar',
+          url: '/expenses',
+          icon: Wallet,
+          roles: ['bosh_shifokor'],
+        },
+        {
+          title: 'Maosh va Ish Haqi',
+          url: '/payroll',
+          icon: Banknote,
           roles: ['bosh_shifokor', 'administrator'],
         },
         {

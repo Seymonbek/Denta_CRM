@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { ProcedureType, PaginatedResponse } from '@/types/api'
+import { type ProcedureType, type PaginatedResponse } from '@/types/api'
 
 export async function getProcedureTypesApi(): Promise<ProcedureType[]> {
   const response = await apiClient.get<ProcedureType[] | PaginatedResponse<ProcedureType>>('procedure-types/')

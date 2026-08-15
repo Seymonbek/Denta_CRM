@@ -6,6 +6,7 @@ import {
   updatePatientApi,
   getPatientHistoryApi,
   getPatientOdontogramApi,
+  getPatientOdontogramHistoryApi,
   getPatientBalanceApi,
 } from '../patients'
 
@@ -39,7 +40,7 @@ export function useCreatePatient() {
 export function useUpdatePatient() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => updatePatientApi(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> | FormData }) => updatePatientApi(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: PATIENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['patients', variables.id] })
@@ -59,6 +60,14 @@ export function usePatientOdontogram(id: string) {
   return useQuery({
     queryKey: ['patients', id, 'odontogram'],
     queryFn: () => getPatientOdontogramApi(id),
+    enabled: Boolean(id),
+  })
+}
+
+export function usePatientOdontogramHistory(id: string, toothNumber?: number) {
+  return useQuery({
+    queryKey: ['patients', id, 'odontogram-history', toothNumber],
+    queryFn: () => getPatientOdontogramHistoryApi(id, toothNumber),
     enabled: Boolean(id),
   })
 }

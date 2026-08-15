@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Plus, Camera, FileText, Activity, Search, CreditCard } from 'lucide-react'
+import { Plus, Camera, FileText, CreditCard } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { format } from 'date-fns'
 import { MobileImageUploader } from '@/components/ui/mobile-image-uploader'
@@ -14,7 +14,7 @@ import { useDoctors } from '@/api/hooks/use-doctors'
 import { usePatients } from '@/api/hooks/use-patients'
 import { useDepartments } from '@/api/hooks/use-departments'
 import { useProcedureTypes } from '@/api/hooks/use-procedure-types'
-import { Treatment } from '@/types/api'
+import { type Treatment } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -128,7 +128,7 @@ export function TreatmentsList() {
       })
       toast.success('Davolash yozuvi yaratildi!')
       setIsModalOpen(false)
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Yaratishda xatolik yuz berdi.'))
     } finally {
       isSubmittingRef.current = false
@@ -151,7 +151,7 @@ export function TreatmentsList() {
       toast.success('Fotosurat yuklandi!')
       setSelectedTreatmentForPhoto(null)
       setSelectedFile(null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Rasm yuklashda xatolik.'))
     }
   }
@@ -180,7 +180,7 @@ export function TreatmentsList() {
         </div>
 
         {/* Treatments Table */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
+        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
           <Table>
             <TableHeader>
               <TableRow className='bg-muted/30'>
@@ -207,13 +207,13 @@ export function TreatmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                treatments.map((t: any) => {
+                treatments.map((t: Record<string, unknown>) => {
                   const patientName = t?.patientName || t?.patient_name || (t?.patient && typeof t.patient === 'object' ? `${t.patient.firstName || t.patient.first_name || ''} ${t.patient.lastName || t.patient.last_name || ''}`.trim() : t?.patient) || 'Bemor'
                   const doctorName = t?.doctorName || t?.doctor_name || (t?.doctor && typeof t.doctor === 'object' ? `${t.doctor.user?.firstName || t.doctor.user?.first_name || ''} ${t.doctor.user?.lastName || t.doctor.user?.last_name || ''}`.trim() : t?.doctor) || 'Shifokor'
                   const procedureTypeName = t?.procedureTypeName || t?.procedure_type_name || (t?.procedureType && typeof t.procedureType === 'object' ? t.procedureType.name : t?.procedureType) || ''
 
                   return (
-                    <TableRow key={t?.id || Math.random()} className='hover:bg-muted/20'>
+                    <TableRow key={t?.id} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
                         <Link
                           to='/patients/$id'
@@ -313,7 +313,7 @@ export function TreatmentsList() {
                   value={appointmentId}
                   onValueChange={(val) => {
                     setAppointmentId(val)
-                    const app = appointments.find((a: any) => a.id === val)
+                    const app = appointments.find((a: Record<string, unknown>) => a.id === val)
                     if (app) {
                       setPatientId(typeof app.patient === 'object' ? app.patient.id : app.patient)
                       setDoctorId(typeof app.doctor === 'object' ? app.doctor.id : app.doctor)
@@ -328,7 +328,7 @@ export function TreatmentsList() {
                     <SelectValue placeholder='Navbatni tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {appointments.map((a: any) => (
+                    {appointments.map((a: Record<string, unknown>) => (
                       <SelectItem key={a.id} value={a.id}>
                         {formatDateSafely(a.scheduledStart || a.scheduled_start)} - {a.patientName || 'Bemor'}
                       </SelectItem>
@@ -341,7 +341,7 @@ export function TreatmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Bemor *</label>
                   <SearchableSelect
-                    options={patients.map((p: any) => ({
+                    options={patients.map((p: Record<string, unknown>) => ({
                       value: String(p.id),
                       label: `${p.firstName || p.first_name || ''} ${p.lastName || p.last_name || ''}`,
                       sublabel: p.phoneNumber || p.phone_number || '',
@@ -356,7 +356,7 @@ export function TreatmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Shifokor *</label>
                   <SearchableSelect
-                    options={doctors.map((d: any) => ({
+                    options={doctors.map((d: Record<string, unknown>) => ({
                       value: String(d.id),
                       label: `Dr. ${d.user?.firstName || d.user?.first_name || ''} ${d.user?.lastName || d.user?.last_name || ''}`,
                       sublabel: d.specialization || 'Stomatolog',
@@ -377,7 +377,7 @@ export function TreatmentsList() {
                       <SelectValue placeholder='Bo’lim' />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((d: any) => (
+                      {departments.map((d: Record<string, unknown>) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
@@ -392,7 +392,7 @@ export function TreatmentsList() {
                     value={procedureTypeId}
                     onValueChange={(val) => {
                       setProcedureTypeId(val)
-                      const proc = procedureTypes.find((p: any) => p.id === val)
+                      const proc = procedureTypes.find((p: Record<string, unknown>) => p.id === val)
                       if (proc) {
                         const dp = proc.defaultPrice || proc.default_price || 0
                         setDefaultPrice(dp)
@@ -404,7 +404,7 @@ export function TreatmentsList() {
                       <SelectValue placeholder='Muolaja' />
                     </SelectTrigger>
                     <SelectContent>
-                      {procedureTypes.map((p: any) => (
+                      {procedureTypes.map((p: Record<string, unknown>) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
                         </SelectItem>
@@ -489,7 +489,7 @@ export function TreatmentsList() {
             <form onSubmit={handleUploadPhoto} className='space-y-4 py-2'>
               <div className='space-y-1'>
                 <label className='text-xs font-medium'>Rasm turi (Photo Type)</label>
-                <Select value={photoType} onValueChange={(val) => setPhotoType(val as any)}>
+                <Select value={photoType} onValueChange={(val) => setPhotoType(val as Record<string, unknown>)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

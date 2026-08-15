@@ -97,7 +97,7 @@ export function AIAssistantPage() {
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'ai',
-        text: response.message || (response as any).answer || 'Javob shakllantirilmadi.',
+        text: response.message || (response as Record<string, unknown>).answer || 'Javob shakllantirilmadi.',
         timestamp: response.timestamp || new Date().toISOString(),
         source: response.source || 'gemini-ai',
       }
@@ -388,7 +388,7 @@ export function AIAssistantPage() {
                               </tr>
                             </thead>
                             <tbody className='divide-y'>
-                              {inventorySummary.criticalItems.map((item: any) => (
+                              {inventorySummary.criticalItems.map((item: Record<string, unknown>) => (
                                 <tr key={item.id || item.name} className='hover:bg-muted/20'>
                                   <td className='p-3 font-bold text-foreground'>{item.name}</td>
                                   <td className='p-3 font-mono font-bold text-rose-600 dark:text-rose-400'>
@@ -433,7 +433,7 @@ export function AIAssistantPage() {
                       AI ruxsatlar sozlamalari yuklanmoqda yoki ruxsatlar mavjud emas...
                     </div>
                   ) : (
-                    permissionsList.map((p: any) => {
+                    permissionsList.map((p: Record<string, unknown>) => {
                       const roleLabel =
                         p.role === 'bosh_shifokor'
                           ? 'Bosh Shifokor'

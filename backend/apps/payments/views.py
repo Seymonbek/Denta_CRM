@@ -16,6 +16,7 @@ Filters:
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Any
 
 from django.utils import timezone
@@ -36,7 +37,7 @@ from apps.core.permissions import (
 from apps.doctors.models import DoctorProfile
 from apps.patients.models import Patient
 
-from .models import Payment
+from .models import Payment, CashShift, PaymentMethod
 from .permissions import (
     CommissionsPermission,
     PatientBalancePermission,
@@ -47,6 +48,7 @@ from .selectors import (
     commissions_for_doctor,
     patient_balance,
     payments_qs,
+    doctor_balances,
 )
 from .serializers import (
     CommissionRecordSerializer,
@@ -54,7 +56,7 @@ from .serializers import (
     PatientBalanceSerializer,
     PaymentSerializer,
 )
-from .services import void_payment
+from .services import void_payment, record_salary_payment
 
 
 # ---------------------------------------------------------------------------
@@ -363,9 +365,19 @@ class CashShiftViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         from rest_framework.exceptions import ValidationError
         from apps.payments.models import CashShift, CashShiftStatus
+        from apps.payments.notifications import notify_bosh_shifokor
         if CashShift.objects.filter(administrator=self.request.user, status=CashShiftStatus.OPEN).exists():
             raise ValidationError({"detail": "Sizda allaqachon ochiq smena mavjud."})
-        serializer.save(administrator=self.request.user)
+        shift = serializer.save(administrator=self.request.user)
+        
+        # Smena ochilganda telegram botga xabar
+        text = (
+            f"🟢 <b>Yangi Kassa Smenasi Ochildi</b>\n\n"
+            f"👤 Mas'ul xodim: {self.request.user.get_full_name()}\n"
+            f"💰 Boshlang'ich qoldiq: <code>{shift.start_balance:,.0f} so'm</code>\n"
+            f"🕒 Ochilgan vaqt: {shift.opened_at.strftime('%d.%m.%Y %H:%M')}"
+        )
+        notify_bosh_shifokor(text)
 
     @extend_schema(
         summary="Get my open cash shift",
@@ -394,20 +406,157 @@ class CashShiftViewSet(viewsets.ModelViewSet):
             )
         shift = self.get_object()
         from django.utils import timezone
+        from apps.payments.notifications import notify_bosh_shifokor
         
         shift.status = "closed"
         shift.closed_at = timezone.now()
         shift.approved_by = request.user
         
+        # Calculate real-time totals to match the frontend view exactly
         from django.db.models import Sum
         cash = shift.payments.filter(method="cash").aggregate(total=Sum("amount"))["total"] or 0
         card = shift.payments.filter(method="card").aggregate(total=Sum("amount"))["total"] or 0
         
+        cash_exp = shift.expenses.filter(payment_method="cash").aggregate(total=Sum("amount"))["total"] or 0
+        card_exp = shift.expenses.filter(payment_method="card").aggregate(total=Sum("amount"))["total"] or 0
+        
         shift.cash_collected = cash
         shift.card_collected = card
-        shift.save(update_fields=["status", "closed_at", "approved_by", "updated_at", "cash_collected", "card_collected"])
+        shift.cash_expenses = cash_exp
+        shift.card_expenses = card_exp
+        shift.save(update_fields=[
+            "status", "closed_at", "approved_by", "updated_at", 
+            "cash_collected", "card_collected", "cash_expenses", "card_expenses"
+        ])
+        
+        # Smena yopilganda telegram botga xabar
+        expected_cash = shift.start_balance + shift.cash_collected - shift.cash_expenses
+        text = (
+            f"🔴 <b>Kassa Smenasi Yopildi</b>\n\n"
+            f"👤 Mas'ul xodim: {shift.administrator.get_full_name()}\n"
+            f"🕒 Yopilgan vaqt: {shift.closed_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+            f"💰 <b>Boshlang'ich qoldiq:</b> <code>{shift.start_balance:,.0f} so'm</code>\n"
+            f"💵 Naqd tushum: <code>{shift.cash_collected:,.0f} so'm</code>\n"
+            f"💳 Karta tushum: <code>{shift.card_collected:,.0f} so'm</code>\n"
+            f"📉 Naqd xarajat: <code>{shift.cash_expenses:,.0f} so'm</code>\n"
+            f"📉 Karta xarajat: <code>{shift.card_expenses:,.0f} so'm</code>\n\n"
+            f"💶 <b>Kutilyotgan Yakuniy Naqd Pul:</b> <code>{expected_cash:,.0f} so'm</code>"
+        )
+        notify_bosh_shifokor(text)
         
         return Response(self.get_serializer(shift).data)
+
+
+class ExpenseCategoryViewSet(viewsets.ModelViewSet):
+    serializer_class = __import__("apps.payments.serializers", fromlist=["ExpenseCategorySerializer"]).ExpenseCategorySerializer
+    queryset = __import__("apps.payments.models", fromlist=["ExpenseCategory"]).ExpenseCategory.objects.all()
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["name"]
+    pagination_class = None
+    # Only bosh_shifokor can manage
+    def get_permissions(self):
+        from apps.core.permissions import IsBoshShifokor
+        return [IsBoshShifokor()]
+
+
+class ExpenseViewSet(viewsets.ModelViewSet):
+    serializer_class = __import__("apps.payments.serializers", fromlist=["ExpenseSerializer"]).ExpenseSerializer
+    queryset = __import__("apps.payments.models", fromlist=["Expense"]).Expense.objects.select_related("category", "recorded_by").all()
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["category", "payment_method", "cash_shift"]
+    
+    def get_permissions(self):
+        from apps.core.permissions import IsBoshShifokor
+        return [IsBoshShifokor()]
+
+    def perform_create(self, serializer):
+        from apps.payments.models import CashShift
+        from apps.payments.notifications import notify_bosh_shifokor
+        shift = CashShift.objects.filter(administrator=self.request.user, status="open").first()
+        expense = serializer.save(recorded_by=self.request.user, cash_shift=shift)
+        
+        # Yangi xarajat kiritilganda telegram botga xabar
+        text = (
+            f"📉 <b>Yangi Xarajat Kiritildi</b>\n\n"
+            f"🔖 <b>Toifa:</b> {expense.category.name if expense.category else 'Boshqa'}\n"
+            f"👤 <b>Kirituvchi:</b> {self.request.user.get_full_name()}\n"
+            f"💰 <b>Summa:</b> <code>{expense.amount:,.0f} so'm</code>\n"
+            f"💳 <b>Usul:</b> {expense.payment_method}\n"
+            f"📝 <b>Izoh:</b> <i>{expense.description or 'Izohsiz'}</i>"
+        )
+        notify_bosh_shifokor(text)
+
+
+class DoctorBalancesView(APIView):
+    """
+    GET /api/v1/payments/doctors/balances/
+    Returns a list of doctors with their total earned, total paid, and balance.
+    Only for admins/head_doctors.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        # Simplified permission: only bosh_shifokor or administrator can see all balances
+        if getattr(request.user, "role", None) not in ["bosh_shifokor", "administrator"]:
+            return Response({"detail": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+            
+        data = doctor_balances()
+        return Response(data)
+
+
+class SalaryPaymentCreateSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.01"))
+    method = serializers.ChoiceField(choices=PaymentMethod.choices, default=PaymentMethod.CASH)
+    shift_id = serializers.IntegerField(required=True)
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class SalaryPaymentCreateView(APIView, IdempotencyMixin):
+    """
+    POST /api/v1/payments/doctors/{id}/pay_salary/
+    Pays salary to a doctor, creating an Expense in the specified CashShift.
+    Only for admins/head_doctors.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    @extend_schema(request=SalaryPaymentCreateSerializer)
+    def post(self, request: Request, pk: str) -> Response:
+        if getattr(request.user, "role", None) not in ["bosh_shifokor", "administrator"]:
+            return Response({"detail": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
+            
+        doctor = get_object_or_404(DoctorProfile.objects.all(), pk=pk)
+        
+        serializer = SalaryPaymentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        data = serializer.validated_data
+        shift = get_object_or_404(CashShift.objects.all(), pk=data["shift_id"])
+        
+        try:
+            salary_payment = record_salary_payment(
+                doctor=doctor,
+                amount=data["amount"],
+                method=data["method"],
+                shift=shift,
+                user=request.user,
+                notes=data["notes"],
+            )
+            
+            # Send notification
+            text = (
+                f"💰 <b>Ish haqi to'landi</b>\n\n"
+                f"Shifokor: {doctor.user.get_full_name()}\n"
+                f"Summa: {salary_payment.amount:,.0f} so'm\n"
+                f"Usul: {salary_payment.payment_method}\n"
+                f"Kiritdi: {request.user.get_full_name()}"
+            )
+            if salary_payment.notes:
+                text += f"\nIzoh: {salary_payment.notes}"
+            notify_bosh_shifokor(text)
+            
+            return Response({"detail": "Success", "id": salary_payment.id}, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({"error": e.detail if hasattr(e, 'detail') else str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 __all__ = [
@@ -417,4 +566,8 @@ __all__ = [
     "DoctorCommissionsSummaryView",
     "PaymentReceiptPDFView",
     "CashShiftViewSet",
+    "ExpenseCategoryViewSet",
+    "ExpenseViewSet",
+    "DoctorBalancesView",
+    "SalaryPaymentCreateView",
 ]

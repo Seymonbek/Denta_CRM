@@ -5,7 +5,7 @@ import {
   useCreateMaterial,
   useRestockMaterial,
 } from '@/api/hooks/use-inventory'
-import { Material, MaterialUnit } from '@/types/api'
+import { type Material, type MaterialUnit } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/lib/get-error-message'
+import { ProcedureBOMsTab } from './procedure-boms-tab'
 
 export function InventoryList() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -60,7 +62,7 @@ export function InventoryList() {
     ? materialsData
     : []
 
-  const filteredMaterials = materialsList.filter((m: any) => {
+  const filteredMaterials = materialsList.filter((m: Record<string, unknown>) => {
     const nameMatch = (m?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
     const stockNum = parseFloat(m?.quantityInStock || m?.quantity_in_stock || '0')
     const thresholdNum = parseFloat(m?.minimumThreshold || m?.minimum_threshold || '0')
@@ -94,7 +96,7 @@ export function InventoryList() {
       setQuantityInStock('')
       setMinimumThreshold('')
       setUnitCost('')
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Material yaratishda xatolik.'))
     }
   }
@@ -111,7 +113,7 @@ export function InventoryList() {
       toast.success('Zaxira to’ldirildi!')
       setRestockMaterial(null)
       setRestockAmount('')
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Zaxira to’ldirishda xatolik.'))
     }
   }
@@ -128,22 +130,20 @@ export function InventoryList() {
       </Header>
 
       <Main>
-        <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
-          <div>
-            <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
-              <Package className='h-6 w-6 text-primary' /> Materiallar Zaxirasi
-            </h1>
-            <p className='text-xs text-muted-foreground mt-1'>
-              Stomatologik sarflash materiallari, minimal chegara xabardorligi va restock.
-            </p>
+        <Tabs defaultValue="materials" className="w-full">
+          <div className="flex justify-between items-center mb-6 border-b pb-2">
+            <TabsList>
+              <TabsTrigger value="materials">Ombor (Sklad)</TabsTrigger>
+              <TabsTrigger value="boms">Muolaja Texkartalari</TabsTrigger>
+            </TabsList>
+            <Button onClick={() => setIsCreateModalOpen(true)} className='shadow text-xs font-bold gap-1.5'>
+              <Plus className='h-4 w-4' /> Yangi Material
+            </Button>
           </div>
-          <Button onClick={() => setIsCreateModalOpen(true)} className='shadow text-xs font-bold gap-1.5'>
-            <Plus className='h-4 w-4' /> Yangi Material Qo'shish
-          </Button>
-        </div>
 
-        {/* Filter Toolbar */}
-        <div className='mb-4 flex flex-col sm:flex-row items-center gap-3'>
+          <TabsContent value="materials" className="space-y-4 m-0">
+            {/* Filter Toolbar */}
+            <div className='flex flex-col sm:flex-row items-center gap-3'>
           <div className='relative flex-1 w-full'>
             <Search className='absolute left-3 top-2.5 h-4 w-4 text-muted-foreground' />
             <Input
@@ -153,7 +153,7 @@ export function InventoryList() {
               className='ps-9 text-xs h-9'
             />
           </div>
-          <Select value={stockFilter} onValueChange={(val: any) => setStockFilter(val)}>
+          <Select value={stockFilter} onValueChange={(val: Record<string, unknown>) => setStockFilter(val)}>
             <SelectTrigger className='w-full sm:w-48 text-xs h-9'>
               <SelectValue placeholder='Zaxira Holati' />
             </SelectTrigger>
@@ -192,7 +192,7 @@ export function InventoryList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredMaterials.map((m: any) => {
+                filteredMaterials.map((m: Record<string, unknown>) => {
                   const stockNum = parseFloat(m?.quantityInStock || m?.quantity_in_stock || '0')
                   const thresholdNum = parseFloat(m?.minimumThreshold || m?.minimum_threshold || '0')
                   const costNum = m?.unitCost || m?.unit_cost
@@ -200,7 +200,7 @@ export function InventoryList() {
                   const isLowStock = stockNum <= thresholdNum
 
                   return (
-                    <TableRow key={m?.id || Math.random()} className='hover:bg-muted/20'>
+                    <TableRow key={m?.id} className='hover:bg-muted/20'>
                       <TableCell className='font-semibold text-xs'>
                         <div className='flex items-center gap-2'>
                           <Package className='h-4 w-4 text-primary' />
@@ -247,6 +247,12 @@ export function InventoryList() {
             </TableBody>
           </Table>
         </div>
+          </TabsContent>
+
+          <TabsContent value="boms" className="m-0">
+            <ProcedureBOMsTab />
+          </TabsContent>
+        </Tabs>
 
         {/* Create Material Modal */}
         <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>

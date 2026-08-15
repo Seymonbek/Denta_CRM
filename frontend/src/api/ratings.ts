@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { LeaderboardEntry, DoctorBadge } from '@/types/api'
+import { type LeaderboardEntry, type DoctorBadge } from '@/types/api'
 
 export async function getLeaderboardApi(): Promise<LeaderboardEntry[]> {
   const response = await apiClient.get<LeaderboardEntry[]>('ratings/leaderboard/')

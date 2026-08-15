@@ -1,9 +1,10 @@
 import { apiClient } from './client'
 import {
-  Patient,
-  PatientBalance,
-  ToothRecord,
-  PaginatedResponse,
+  type Patient,
+  type PatientBalance,
+  type ToothRecord,
+  type PaginatedResponse,
+  type OdontogramHistoryRecord,
 } from '@/types/api'
 
 export async function getPatientsApi(params?: {
@@ -39,13 +40,19 @@ export async function updatePatientApi(id: string, data: Partial<Patient>): Prom
   return response.data
 }
 
-export async function getPatientHistoryApi(id: string): Promise<any[]> {
-  const response = await apiClient.get<any[]>(`patients/${id}/history/`)
+export async function getPatientHistoryApi(id: string): Promise<Record<string, unknown>[]> {
+  const response = await apiClient.get<Record<string, unknown>[]>(`patients/${id}/history/`)
   return response.data
 }
 
 export async function getPatientOdontogramApi(id: string): Promise<ToothRecord[]> {
   const response = await apiClient.get<ToothRecord[]>(`patients/${id}/odontogram/`)
+  return response.data
+}
+
+export async function getPatientOdontogramHistoryApi(id: string, toothNumber?: number): Promise<OdontogramHistoryRecord[]> {
+  const params = toothNumber ? { tooth_number: toothNumber } : {}
+  const response = await apiClient.get<OdontogramHistoryRecord[]>(`patients/${id}/odontogram-history/`, { params })
   return response.data
 }
 

@@ -24,6 +24,8 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedApprovalsRouteImport } from './routes/_authenticated/approvals'
 import { Route as AuthenticatedAuditLogRouteImport } from './routes/_authenticated/audit-log'
 import { Route as AuthenticatedCashShiftsRouteImport } from './routes/_authenticated/cash-shifts'
+import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
+import { Route as AuthenticatedPayrollRouteImport } from './routes/_authenticated/payroll'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedAppointmentsIndexRouteImport } from './routes/_authenticated/appointments/index'
 import { Route as AuthenticatedDepartmentsIndexRouteImport } from './routes/_authenticated/departments/index'
@@ -107,6 +109,16 @@ const AuthenticatedAuditLogRoute = AuthenticatedAuditLogRouteImport.update({
 const AuthenticatedCashShiftsRoute = AuthenticatedCashShiftsRouteImport.update({
   id: '/cash-shifts',
   path: '/cash-shifts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPayrollRoute = AuthenticatedPayrollRouteImport.update({
+  id: '/payroll',
+  path: '/payroll',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedUsersRoute = AuthenticatedUsersRouteImport.update({
@@ -227,6 +239,8 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/cash-shifts': typeof AuthenticatedCashShiftsRoute
+  '/expenses': typeof AuthenticatedExpensesRoute
+  '/payroll': typeof AuthenticatedPayrollRoute
   '/users': typeof AuthenticatedUsersRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/patients/$id': typeof AuthenticatedPatientsIdRoute
@@ -257,6 +271,8 @@ export interface FileRoutesByTo {
   '/approvals': typeof AuthenticatedApprovalsRoute
   '/audit-log': typeof AuthenticatedAuditLogRoute
   '/cash-shifts': typeof AuthenticatedCashShiftsRoute
+  '/expenses': typeof AuthenticatedExpensesRoute
+  '/payroll': typeof AuthenticatedPayrollRoute
   '/users': typeof AuthenticatedUsersRoute
   '/': typeof AuthenticatedIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -290,6 +306,8 @@ export interface FileRoutesById {
   '/_authenticated/approvals': typeof AuthenticatedApprovalsRoute
   '/_authenticated/audit-log': typeof AuthenticatedAuditLogRoute
   '/_authenticated/cash-shifts': typeof AuthenticatedCashShiftsRoute
+  '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
+  '/_authenticated/payroll': typeof AuthenticatedPayrollRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -324,6 +342,8 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/cash-shifts'
+    | '/expenses'
+    | '/payroll'
     | '/users'
     | '/errors/$error'
     | '/patients/$id'
@@ -354,6 +374,8 @@ export interface FileRouteTypes {
     | '/approvals'
     | '/audit-log'
     | '/cash-shifts'
+    | '/expenses'
+    | '/payroll'
     | '/users'
     | '/'
     | '/errors/$error'
@@ -386,6 +408,8 @@ export interface FileRouteTypes {
     | '/_authenticated/approvals'
     | '/_authenticated/audit-log'
     | '/_authenticated/cash-shifts'
+    | '/_authenticated/expenses'
+    | '/_authenticated/payroll'
     | '/_authenticated/users'
     | '/_authenticated/'
     | '/_authenticated/errors/$error'
@@ -509,6 +533,20 @@ declare module '@tanstack/react-router' {
       path: '/cash-shifts'
       fullPath: '/cash-shifts'
       preLoaderRoute: typeof AuthenticatedCashShiftsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/expenses': {
+      id: '/_authenticated/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof AuthenticatedExpensesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/payroll': {
+      id: '/_authenticated/payroll'
+      path: '/payroll'
+      fullPath: '/payroll'
+      preLoaderRoute: typeof AuthenticatedPayrollRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/users': {
@@ -637,6 +675,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedApprovalsRoute: typeof AuthenticatedApprovalsRoute
   AuthenticatedAuditLogRoute: typeof AuthenticatedAuditLogRoute
   AuthenticatedCashShiftsRoute: typeof AuthenticatedCashShiftsRoute
+  AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
+  AuthenticatedPayrollRoute: typeof AuthenticatedPayrollRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -661,6 +701,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedApprovalsRoute: AuthenticatedApprovalsRoute,
   AuthenticatedAuditLogRoute: AuthenticatedAuditLogRoute,
   AuthenticatedCashShiftsRoute: AuthenticatedCashShiftsRoute,
+  AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
+  AuthenticatedPayrollRoute: AuthenticatedPayrollRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

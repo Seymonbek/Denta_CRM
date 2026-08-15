@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { PrescriptionTemplate, Prescription, PaginatedResponse } from '@/types/api'
+import { type PrescriptionTemplate, type Prescription, type PaginatedResponse } from '@/types/api'
 
 export async function getPrescriptionTemplatesApi(): Promise<PrescriptionTemplate[]> {
   const response = await apiClient.get<PrescriptionTemplate[] | PaginatedResponse<PrescriptionTemplate>>('prescription-templates/')

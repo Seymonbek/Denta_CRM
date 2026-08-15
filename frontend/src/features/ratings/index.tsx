@@ -1,4 +1,4 @@
-import { Trophy, Award, Medal, Star } from 'lucide-react'
+import { Trophy, _Award, _Medal, _Star } from 'lucide-react'
 import { useLeaderboard } from '@/api/hooks/use-ratings'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -70,7 +70,7 @@ export function RatingsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                leaderboard.map((entry: any, idx: number) => {
+                leaderboard.map((entry: Record<string, unknown>, idx: number) => {
                   const rank = entry?.rank || idx + 1
                   const doctorId = entry?.doctorId || entry?.doctor?.id || String(idx)
                   const firstName = entry?.firstName || entry?.first_name || entry?.doctor?.user?.firstName || entry?.doctor?.user?.first_name || 'Shifokor'

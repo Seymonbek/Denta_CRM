@@ -206,9 +206,29 @@ class CashShiftSerializer(serializers.ModelSerializer):
         fields = [
             "id", "administrator", "admin_name", "opened_at", "closed_at", 
             "start_balance", "cash_collected", "card_collected", 
+            "cash_expenses", "card_expenses",
             "status", "approved_by"
         ]
-        read_only_fields = ["id", "administrator", "opened_at", "closed_at", "status", "approved_by", "cash_collected", "card_collected"]
+        read_only_fields = ["id", "administrator", "opened_at", "closed_at", "status", "approved_by", "cash_collected", "card_collected", "cash_expenses", "card_expenses"]
+
+
+class ExpenseCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = __import__("apps.payments.models", fromlist=["ExpenseCategory"]).ExpenseCategory
+        fields = ["id", "name", "is_active"]
+
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    recorded_by_name = serializers.CharField(source="recorded_by.get_full_name", read_only=True)
+
+    class Meta:
+        model = __import__("apps.payments.models", fromlist=["Expense"]).Expense
+        fields = [
+            "id", "category", "category_name", "amount", "description",
+            "date", "recorded_by", "recorded_by_name", "payment_method", "cash_shift"
+        ]
+        read_only_fields = ["id", "date", "recorded_by", "cash_shift"]
 
 
 __all__ = [
@@ -217,4 +237,6 @@ __all__ = [
     "CommissionRecordSerializer",
     "CommissionSummarySerializer",
     "CashShiftSerializer",
+    "ExpenseCategorySerializer",
+    "ExpenseSerializer",
 ]

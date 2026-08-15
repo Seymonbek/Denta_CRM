@@ -20,7 +20,7 @@ from rest_framework.response import Response
 
 from apps.core.permissions import ROLE_BOSH_SHIFOKOR
 
-from .models import Material, MaterialUsage
+from .models import Material, MaterialUsage, ProcedureBOM
 from .permissions import MaterialPermission, MaterialUsagePermission
 from .selectors import (
     active_materials,
@@ -34,6 +34,7 @@ from .serializers import (
     MaterialStockLogSerializer,
     MaterialUsageSerializer,
     RestockSerializer,
+    ProcedureBOMSerializer,
 )
 from .services import soft_delete_material
 
@@ -236,4 +237,27 @@ class MaterialUsageViewSet(viewsets.ModelViewSet):
         return qs.order_by("-created_at")
 
 
-__all__ = ["MaterialViewSet", "MaterialUsageViewSet"]
+class ProcedureBOMViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for Procedure BOM (Texkarta).
+    
+    Filter by `procedure_type` to get BOMs for a specific procedure.
+    """
+    serializer_class = ProcedureBOMSerializer
+    permission_classes = [MaterialPermission]
+    queryset = ProcedureBOM.objects.select_related("material", "procedure_type").filter(is_active=True)
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["procedure_type", "material"]
+    
+    # We use a simple permission here, only Head Doctor can modify, others can view.
+    # To keep it simple, we use Django's IsAuthenticated and check roles manually if needed, 
+    # but let's assume we can use a custom permission or just rely on the frontend hiding it.
+    # We will use `MaterialPermission` which works for admins.
+    permission_classes = [MaterialPermission]
+
+    def perform_destroy(self, instance):
+        instance.is_active = False
+        instance.save(update_fields=["is_active", "updated_at"])
+
+
+__all__ = ["MaterialViewSet", "MaterialUsageViewSet", "ProcedureBOMViewSet"]

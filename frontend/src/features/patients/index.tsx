@@ -48,6 +48,7 @@ export function PatientsList() {
 
   // Reset page when filters change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1)
   }, [searchTerm, genderFilter])
 
@@ -101,7 +102,7 @@ export function PatientsList() {
       setPhoneNumber('+998')
       setAddress('')
       setNotes('')
-    } catch (err: any) {
+    } catch (err: unknown) {
       const data = err?.response?.data
       const errorMsg =
         data?.phone_number?.[0] ||
@@ -208,7 +209,7 @@ export function PatientsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                patients.map((patient: any) => {
+                patients.map((patient: Record<string, unknown>) => {
                   const pFirstName = patient?.firstName || patient?.first_name || 'Bemor'
                   const pLastName = patient?.lastName || patient?.last_name || ''
                   const pPhone = patient?.phoneNumber || patient?.phone_number || '-'
@@ -217,7 +218,7 @@ export function PatientsList() {
                   const pCreatedAt = patient?.createdAt || patient?.created_at || ''
 
                   return (
-                    <TableRow key={patient?.id || Math.random()} className='hover:bg-muted/20'>
+                    <TableRow key={patient?.id} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
                         <div className='flex items-center gap-2'>
                           <div className='flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs shrink-0'>

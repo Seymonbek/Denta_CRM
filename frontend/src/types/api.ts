@@ -167,6 +167,17 @@ export interface ToothRecord {
   updatedAt?: string
 }
 
+export interface OdontogramHistoryRecord {
+  id: string
+  toothNumber: number
+  procedure: ToothProcedure | null
+  status: ToothStatus
+  notes: string
+  createdAt: string
+  treatmentId: string
+  doctorName: string | null
+}
+
 export interface PrescriptionTemplate {
   id: string
   name: string
@@ -199,6 +210,15 @@ export interface MaterialUsage {
   material: string
   materialName?: string
   quantityUsed: string
+}
+
+export interface ProcedureBOM {
+  id: string
+  procedureType: string
+  material: string
+  materialName?: string
+  materialUnit?: string
+  defaultQuantity: string
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'payme' | 'click' | 'bank_transfer'
@@ -263,6 +283,8 @@ export interface DashboardReport {
   range?: { start: string; end: string }
   kpi?: {
     revenue?: string | number
+    expenses?: string | number
+    netProfit?: string | number
     appointmentsTotal?: number
     appointmentsCompleted?: number
     newPatients?: number
@@ -318,6 +340,18 @@ export interface DashboardReport {
     revenue?: string | number
     treatments?: number
     patientCount?: number
+  }>
+  expensesByCategory?: Array<{
+    categoryId?: string | null
+    name?: string
+    amount?: string | number
+    count?: number
+  }>
+  expenses_by_category?: Array<{
+    categoryId?: string | null
+    name?: string
+    amount?: string | number
+    count?: number
   }>
 }
 

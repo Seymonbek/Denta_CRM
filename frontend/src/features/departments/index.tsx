@@ -7,7 +7,7 @@ import {
   useUpdateDepartment,
   useDeleteDepartment,
 } from '@/api/hooks/use-departments'
-import { Department } from '@/types/api'
+import { type Department } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -49,7 +49,7 @@ export function DepartmentsList() {
     ? departmentsData
     : []
 
-  const filteredDepartments = departments.filter((d: any) => {
+  const _filteredDepartments = departments.filter((d: Record<string, unknown>) => {
     const text = (d.name || '') + (d.description || '')
     return text.toLowerCase().includes(searchTerm.toLowerCase())
   })
@@ -91,7 +91,7 @@ export function DepartmentsList() {
         toast.success('Yangi bo’lim qo’shildi!')
       }
       setIsModalOpen(false)
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Amalni bajarishda xatolik.'))
     }
   }
@@ -107,7 +107,7 @@ export function DepartmentsList() {
     try {
       await deleteDeptMutation.mutateAsync(id)
       toast.success("Bo'lim o'chirildi.")
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, "O'chirishda xatolik."))
     }
   }
@@ -150,7 +150,7 @@ export function DepartmentsList() {
         </div>
 
         {/* Table */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
+        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
           <Table>
             <TableHeader>
               <TableRow className='bg-muted/30'>
@@ -175,12 +175,12 @@ export function DepartmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                departments.map((dept: any) => {
+                departments.map((dept: Record<string, unknown>) => {
                   const isActive = dept?.isActive ?? dept?.is_active ?? true
                   const createdAt = dept?.createdAt || dept?.created_at || ''
 
                   return (
-                    <TableRow key={dept?.id || Math.random()} className='hover:bg-muted/20'>
+                    <TableRow key={dept?.id} className='hover:bg-muted/20'>
                       <TableCell className='font-semibold text-xs'>
                         <div className='flex items-center gap-2'>
                           <Building2 className='h-4 w-4 text-primary' />

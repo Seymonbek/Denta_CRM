@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Plus, Calendar, Clock, User, Stethoscope, Search, FileText } from 'lucide-react'
+import { Plus, _Calendar, _Clock, User, _Stethoscope, _Search, FileText } from 'lucide-react'
 import { confirmSwal } from '@/lib/sweetalert'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { format } from 'date-fns'
@@ -14,7 +14,7 @@ import { useDoctors, useAvailableSlots } from '@/api/hooks/use-doctors'
 import { usePatients } from '@/api/hooks/use-patients'
 import { useDepartments } from '@/api/hooks/use-departments'
 import { useProcedureTypes } from '@/api/hooks/use-procedure-types'
-import { AvailableSlot } from '@/types/api'
+import { type AvailableSlot } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -102,7 +102,7 @@ export function AppointmentsList() {
     ? format(bookingDate, 'yyyy-MM-dd')
     : format(new Date(), 'yyyy-MM-dd')
 
-  const selectedProcedure = procedureTypes.find((p: any) => p.id === selectedProcedureTypeId)
+  const selectedProcedure = procedureTypes.find((p: Record<string, unknown>) => p.id === selectedProcedureTypeId)
   const procedureDuration = selectedProcedure?.defaultDurationMinutes || selectedProcedure?.default_duration_minutes || undefined
 
   const { data: availableSlotsData = [], isLoading: isLoadingSlots } = useAvailableSlots(
@@ -113,40 +113,40 @@ export function AppointmentsList() {
   )
   const availableSlots = Array.isArray(availableSlotsData)
     ? availableSlotsData
-    : Array.isArray((availableSlotsData as any)?.slots)
-    ? (availableSlotsData as any).slots
+    : Array.isArray((availableSlotsData as Record<string, unknown>)?.slots)
+    ? (availableSlotsData as Record<string, unknown>).slots
     : []
 
   // Cascading logic
-  const availableDepartments = departments.filter((d: any) => {
+  const availableDepartments = departments.filter((d: Record<string, unknown>) => {
     if (selectedDoctorId) {
-      const doc = doctors.find((doc: any) => doc.id === selectedDoctorId)
+      const doc = doctors.find((doc: Record<string, unknown>) => doc.id === selectedDoctorId)
       if (doc?.departments?.length) {
-        return doc.departments.some((dep: any) => dep.id === d.id)
+        return doc.departments.some((dep: Record<string, unknown>) => dep.id === d.id)
       }
     }
     return true
   })
 
-  const availableDoctors = doctors.filter((doc: any) => {
+  const availableDoctors = doctors.filter((doc: Record<string, unknown>) => {
     if (selectedDepartmentId) {
       if (doc.departments?.length) {
-        return doc.departments.some((dep: any) => dep.id === selectedDepartmentId)
+        return doc.departments.some((dep: Record<string, unknown>) => dep.id === selectedDepartmentId)
       }
       return false
     }
     return true
   })
 
-  const availableProcedures = procedureTypes.filter((proc: any) => {
+  const availableProcedures = procedureTypes.filter((proc: Record<string, unknown>) => {
     const procDepId = proc?.department && typeof proc.department === 'object' ? proc.department.id : proc?.department
     if (selectedDepartmentId) {
       return procDepId === selectedDepartmentId
     }
     if (selectedDoctorId) {
-      const doc = doctors.find((d: any) => d.id === selectedDoctorId)
+      const doc = doctors.find((d: Record<string, unknown>) => d.id === selectedDoctorId)
       if (doc?.departments?.length) {
-        return doc.departments.some((dep: any) => dep.id === procDepId)
+        return doc.departments.some((dep: Record<string, unknown>) => dep.id === procDepId)
       }
     }
     return true
@@ -155,7 +155,7 @@ export function AppointmentsList() {
   // Auto-select department if doctor is selected and belongs to only 1 department
   const handleDoctorChange = (docId: string) => {
     setSelectedDoctorId(docId)
-    const doc = doctors.find((d: any) => d.id === docId)
+    const doc = doctors.find((d: Record<string, unknown>) => d.id === docId)
     if (doc?.departments?.length === 1) {
        setSelectedDepartmentId(doc.departments[0].id)
     } else if (!docId) {
@@ -171,7 +171,7 @@ export function AppointmentsList() {
     try {
       await updateAppointmentMutation.mutateAsync({ id, data: { status: newStatus } })
       toast.success(`Navbat holati: ${label}`)
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Holatni o\'zgartirishda xatolik.'))
     }
   }
@@ -194,11 +194,11 @@ export function AppointmentsList() {
         procedureTypeId: selectedProcedureTypeId || undefined,
         scheduledStart: selectedSlot.start,
         scheduledEnd: selectedSlot.end,
-      } as any)
+      } as Record<string, unknown>)
       toast.success('Navbat muvaffaqiyatli band qilindi!')
       setIsModalOpen(false)
       setSelectedSlot(null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Ushbu vaqt oralig’i allaqachon band qilingan yoki xatolik yuz berdi.'))
     }
   }
@@ -214,7 +214,7 @@ export function AppointmentsList() {
     try {
       await cancelAppointmentMutation.mutateAsync({ id, reason: 'Mijoz so’rovi bo’yicha' })
       toast.success('Navbat bekor qilindi.')
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Bekor qilishda xatolik.'))
     }
   }
@@ -288,7 +288,7 @@ export function AppointmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                appointments.map((app: any) => {
+                appointments.map((app: Record<string, unknown>) => {
                   const statusKey = app?.status || 'scheduled'
                   const badge = STATUS_BADGES[statusKey] || { label: statusKey, variant: 'outline' }
 
@@ -299,7 +299,7 @@ export function AppointmentsList() {
                   const startDateStr = app?.scheduledStart || app?.scheduled_start || app?.start
 
                   return (
-                    <TableRow key={app?.id || Math.random()} className='hover:bg-muted/20'>
+                    <TableRow key={app?.id} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
                         {patientId ? (
                           <Link
@@ -324,7 +324,7 @@ export function AppointmentsList() {
                         {formatDateSafely(startDateStr)}
                       </TableCell>
                       <TableCell className='text-xs'>
-                        <Badge variant={badge.variant as any} className='text-[10px]'>
+                        <Badge variant={badge.variant as Record<string, unknown>} className='text-[10px]'>
                           {badge.label}
                         </Badge>
                       </TableCell>
@@ -404,7 +404,7 @@ export function AppointmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Bemor *</label>
                   <SearchableSelect
-                    options={patients.map((p: any) => ({
+                    options={patients.map((p: Record<string, unknown>) => ({
                       value: String(p.id),
                       label: `${p.firstName || p.first_name || ''} ${p.lastName || p.last_name || ''}`,
                       sublabel: p.phoneNumber || p.phone_number || '',
@@ -423,7 +423,7 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Bo’lim tanlang' />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableDepartments.map((d: any) => (
+                      {availableDepartments.map((d: Record<string, unknown>) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
@@ -437,7 +437,7 @@ export function AppointmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Shifokor *</label>
                   <SearchableSelect
-                    options={availableDoctors.map((doc: any) => ({
+                    options={availableDoctors.map((doc: Record<string, unknown>) => ({
                       value: String(doc.id),
                       label: `Dr. ${doc.user?.firstName || doc.user?.first_name || ''} ${doc.user?.lastName || doc.user?.last_name || ''}`,
                       sublabel: doc.specialization || 'Stomatolog',
@@ -456,7 +456,7 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Muolaja turi' />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableProcedures.map((proc: any) => (
+                      {availableProcedures.map((proc: Record<string, unknown>) => (
                         <SelectItem key={proc.id} value={proc.id}>
                           {proc.name} ({proc.defaultDurationMinutes || proc.default_duration_minutes || 30} daq, {Number(proc.defaultPrice || proc.default_price || 0).toLocaleString()} so'm)
                         </SelectItem>
@@ -466,7 +466,7 @@ export function AppointmentsList() {
                 </div>
               </div>
 
-              {/* Interactive Calendar & Slots picker */}
+              {/* Interactive _Calendar & Slots picker */}
               {selectedDoctorId ? (
                 <ScheduleCalendar
                   availableSlots={availableSlots}

@@ -15,6 +15,7 @@ from rest_framework import serializers
 
 from .models import (
     Material,
+    ProcedureBOM,
     MaterialStockLog,
     MaterialUnit,
     MaterialUsage,
@@ -355,8 +356,53 @@ class MaterialUsageSerializer(serializers.ModelSerializer):
             ) from exc
 
 
+class ProcedureBOMSerializer(serializers.ModelSerializer):
+    """Serializer for ProcedureBOM (Texkarta)."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        from apps.doctors.models import ProcedureType
+        
+        self.fields["procedure_type"] = serializers.PrimaryKeyRelatedField(
+            queryset=ProcedureType.objects.filter(is_active=True),
+        )
+        self.fields["material"] = serializers.PrimaryKeyRelatedField(
+            queryset=Material.objects.filter(is_active=True),
+        )
+
+    _CAMEL_ALIASES = {
+        "procedureType": "procedure_type",
+        "defaultQuantity": "default_quantity",
+    }
+
+    def to_internal_value(self, data: Any) -> Any:
+        # Standard camelCase ' snake_case alias translation
+        if isinstance(data, dict):
+            data = dict(data)
+            for camel, snake in self._CAMEL_ALIASES.items():
+                if camel in data and snake not in data:
+                    data[snake] = data.pop(camel)
+        return super().to_internal_value(data)
+
+    class Meta:
+        model = ProcedureBOM
+        fields = ["id", "procedure_type", "material", "default_quantity"]
+        read_only_fields = ["id"]
+
+    def to_representation(self, instance: ProcedureBOM) -> dict[str, Any]:
+        return {
+            "id": str(instance.id),
+            "procedureType": str(instance.procedure_type_id),
+            "material": str(instance.material_id),
+            "materialName": instance.material.name if instance.material else None,
+            "materialUnit": instance.material.unit if instance.material else None,
+            "defaultQuantity": _decimal_str(instance.default_quantity),
+        }
+
+
 __all__ = [
     "MaterialSerializer",
+    "ProcedureBOMSerializer",
     "RestockSerializer",
     "AdjustStockSerializer",
     "MaterialStockLogSerializer",

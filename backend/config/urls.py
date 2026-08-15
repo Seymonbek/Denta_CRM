@@ -24,6 +24,9 @@ from apps.inventory.urls import (
 from apps.inventory.urls import (
     usage_urlpatterns as inventory_usage_urls,
 )
+from apps.inventory.urls import (
+    procedure_bom_urlpatterns as inventory_procedure_bom_urls,
+)
 from apps.payments.urls import (
     doctor_commission_urlpatterns as payments_doctor_commission_urls,
 )
@@ -35,6 +38,8 @@ from apps.payments.urls import (
 )
 from apps.payments.urls import (
     cash_shift_urlpatterns,
+    expense_category_urlpatterns,
+    expense_urlpatterns,
 )
 from apps.prescriptions.urls import (
     action_urlpatterns as prescription_action_urls,
@@ -73,7 +78,7 @@ api_v1_patterns: list = [
     path("departments/", include("apps.departments.urls", namespace="departments")),
     path("doctors/", include("apps.doctors.urls", namespace="doctors")),
     path(
-        "doctors/",
+        "payments/doctors/",
         include((payments_doctor_commission_urls, "payments-doctor-commissions")),
     ),
     path(
@@ -101,6 +106,10 @@ api_v1_patterns: list = [
         include((inventory_usage_urls, "inventory-usages")),
     ),
     path(
+        "procedure-boms/",
+        include((inventory_procedure_bom_urls, "inventory-procedure-boms")),
+    ),
+    path(
         "prescription-templates/",
         include((prescription_template_urls, "prescription-templates")),
     ),
@@ -115,6 +124,14 @@ api_v1_patterns: list = [
     path(
         "cash-shifts/",
         include((cash_shift_urlpatterns, "cash-shifts")),
+    ),
+    path(
+        "expense-categories/",
+        include((expense_category_urlpatterns, "expense-categories")),
+    ),
+    path(
+        "expenses/",
+        include((expense_urlpatterns, "expenses")),
     ),
     path(
         "ratings/",

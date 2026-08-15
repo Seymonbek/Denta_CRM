@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Send, Plus, Search, Eye, Pill, Calendar, User, Stethoscope } from 'lucide-react'
+import { FileText, Send, Plus, Search, Eye, Pill, Calendar, User, _Stethoscope } from 'lucide-react'
 import {
   usePrescriptionTemplates,
   useCreatePrescriptionTemplate,
@@ -45,7 +45,7 @@ import { toast } from 'sonner'
 export function PrescriptionsList() {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false)
-  const [selectedPrescriptionDetail, setSelectedPrescriptionDetail] = useState<any>(null)
+  const [selectedPrescriptionDetail, setSelectedPrescriptionDetail] = useState<Record<string, unknown>>(null)
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('')
@@ -86,7 +86,7 @@ export function PrescriptionsList() {
   const issuePrescriptionMutation = useIssuePrescription()
 
   // Filter Prescriptions
-  const filteredPrescriptions = prescriptionsList.filter((p: any) => {
+  const filteredPrescriptions = prescriptionsList.filter((p: Record<string, unknown>) => {
     const text = (p?.content || '') + (p?.treatment && typeof p.treatment === 'object' ? p.treatment.patient_name || '' : '')
     const matchesSearch = text.toLowerCase().includes(searchTerm.toLowerCase())
     const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || p?.sent_at
@@ -99,7 +99,7 @@ export function PrescriptionsList() {
     return matchesSearch && matchesStatus
   })
 
-  const treatmentSelectOptions = treatments.map((t: any) => {
+  const treatmentSelectOptions = treatments.map((t: Record<string, unknown>) => {
     const pName = t?.patient && typeof t.patient === 'object' ? `${t.patient.first_name || ''} ${t.patient.last_name || ''}` : `Bemor #${t.patient || ''}`
     const proc = t?.procedure_type?.name || 'Muolaja'
     return {
@@ -109,7 +109,7 @@ export function PrescriptionsList() {
     }
   })
 
-  const templateSelectOptions = templates.map((tpl: any) => ({
+  const templateSelectOptions = templates.map((tpl: Record<string, unknown>) => ({
     value: String(tpl.id),
     label: tpl.name || 'Shablon',
     sublabel: tpl.content ? tpl.content.slice(0, 40) + '...' : '',
@@ -253,7 +253,7 @@ export function PrescriptionsList() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredPrescriptions.map((p: any) => {
+                    filteredPrescriptions.map((p: Record<string, unknown>) => {
                       const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || p?.sent_at || ''
                       const treatmentDisplay = p?.treatment && typeof p.treatment === 'object'
                         ? (p.treatment.patient_name || p.treatment.diagnosis || 'Davolash yozuvi')
@@ -262,7 +262,7 @@ export function PrescriptionsList() {
 
                       return (
                         <TableRow
-                          key={p?.id || Math.random()}
+                          key={p?.id}
                           className='hover:bg-muted/20 cursor-pointer transition-colors'
                           onClick={() => setSelectedPrescriptionDetail(p)}
                         >
@@ -320,8 +320,8 @@ export function PrescriptionsList() {
                   Hali hech qanday shablon yaratilmagan.
                 </div>
               ) : (
-                templates.map((tpl: any) => (
-                  <div key={tpl?.id || Math.random()} className='flex flex-col justify-between rounded-xl border bg-card p-4 shadow-sm hover:shadow transition-shadow'>
+                templates.map((tpl: Record<string, unknown>) => (
+                  <div key={tpl?.id} className='flex flex-col justify-between rounded-xl border bg-card p-4 shadow-sm hover:shadow transition-shadow'>
                     <div>
                       <h4 className='font-bold text-sm mb-2 flex items-center gap-2'>
                         <FileText className='h-4 w-4 text-primary' /> {tpl?.name || 'Shablon'}
@@ -416,7 +416,7 @@ export function PrescriptionsList() {
                   value={selectedTemplateId}
                   onValueChange={(val) => {
                     setSelectedTemplateId(val)
-                    const found = templates.find((t: any) => String(t.id) === val)
+                    const found = templates.find((t: Record<string, unknown>) => String(t.id) === val)
                     if (found?.content) {
                       setIssueContent(found.content)
                     }

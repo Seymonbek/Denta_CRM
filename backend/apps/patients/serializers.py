@@ -212,8 +212,29 @@ class PatientOdontogramToothSerializer(serializers.Serializer):
     notes = serializers.CharField(allow_blank=True, required=False)
 
 
+class PatientOdontogramHistorySerializer(serializers.Serializer):
+    """A single historical tooth record for the patient's odontogram history."""
+
+    id = serializers.UUIDField()
+    toothNumber = serializers.IntegerField(source="tooth_number")  # noqa: N815
+    status = serializers.CharField()
+    procedure = serializers.CharField(allow_null=True, required=False)
+    notes = serializers.CharField(allow_blank=True)
+    createdAt = serializers.DateTimeField(source="created_at")  # noqa: N815
+    treatmentId = serializers.UUIDField(source="treatment_id")  # noqa: N815
+    doctorName = serializers.SerializerMethodField()  # noqa: N815
+
+    def get_doctorName(self, obj: Any) -> str | None:
+        """Extract doctor name via treatment -> doctor -> user."""
+        try:
+            return obj.treatment.doctor.user.get_full_name()
+        except AttributeError:
+            return None
+
+
 __all__ = [
     "PatientSerializer",
     "PatientHistoryEventSerializer",
     "PatientOdontogramToothSerializer",
+    "PatientOdontogramHistorySerializer",
 ]

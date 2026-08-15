@@ -15,11 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { useCashShifts, CashShift } from '@/api/hooks/use-cash-shifts'
+import { useCashShifts, useCloseCashShift, type CashShift } from '@/api/hooks/use-cash-shifts'
 import { usePayments } from '@/api/hooks/use-payments'
+import { useAuthStore } from '@/stores/auth-store'
 
 function ShiftPaymentsModal({ shiftId, open, onOpenChange }: { shiftId: string | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { data, isLoading } = usePayments({ cash_shift: shiftId || undefined })
@@ -34,7 +36,7 @@ function ShiftPaymentsModal({ shiftId, open, onOpenChange }: { shiftId: string |
           {isLoading ? (
             <p>Yuklanmoqda...</p>
           ) : (
-            <div className="rounded-md border bg-card text-card-foreground overflow-hidden">
+            <div className="rounded-md border bg-card text-card-foreground overflow-x-auto w-full">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -76,6 +78,10 @@ export function CashShiftsFeature() {
   const [status, setStatus] = useState<string>('')
   const { data, isLoading } = useCashShifts({ status: status || undefined })
   const [selectedShift, setSelectedShift] = useState<string | null>(null)
+  
+  const isBoshShifokor = useAuthStore(s => s.isBoshShifokor())
+  const { mutate: closeShift, isPending: isClosing } = useCloseCashShift()
+  const [shiftToClose, setShiftToClose] = useState<string | null>(null)
 
   return (
     <>
@@ -97,7 +103,7 @@ export function CashShiftsFeature() {
         </div>
       </Header>
       <Main>
-        <div className='rounded-md border bg-card text-card-foreground overflow-hidden'>
+        <div className='rounded-md border bg-card text-card-foreground overflow-x-auto w-full'>
           <Table>
             <TableHeader>
               <TableRow>
@@ -106,8 +112,9 @@ export function CashShiftsFeature() {
                 <TableHead>Ochilgan</TableHead>
                 <TableHead>Yopilgan</TableHead>
                 <TableHead>Boshlang'ich</TableHead>
-                <TableHead>Naqd tushum</TableHead>
-                <TableHead>Karta tushum</TableHead>
+                <TableHead>Tushumlar</TableHead>
+                <TableHead>Xarajatlar</TableHead>
+                <TableHead>Kassada Qoldi (Naqd)</TableHead>
                 <TableHead>Holati</TableHead>
               </TableRow>
             </TableHeader>
@@ -134,11 +141,35 @@ export function CashShiftsFeature() {
                       {shift.closed_at ? format(new Date(shift.closed_at), 'dd.MM.yy HH:mm') : '-'}
                     </TableCell>
                     <TableCell>{Number(shift.start_balance).toLocaleString()}</TableCell>
-                    <TableCell className="text-green-600 font-medium">{Number(shift.cash_collected).toLocaleString()}</TableCell>
-                    <TableCell className="text-blue-600 font-medium">{Number(shift.card_collected).toLocaleString()}</TableCell>
                     <TableCell>
+                      <div className="text-green-600 font-medium">Naqd: {Number(shift.cash_collected).toLocaleString()}</div>
+                      <div className="text-blue-600 font-medium text-xs">Karta: {Number(shift.card_collected).toLocaleString()}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-red-500 font-medium">Naqd: {Number(shift.cash_expenses).toLocaleString()}</div>
+                      <div className="text-orange-500 font-medium text-xs">Karta: {Number(shift.card_expenses).toLocaleString()}</div>
+                    </TableCell>
+                    <TableCell className="font-bold">
+                      {(Number(shift.start_balance) + Number(shift.cash_collected) - Number(shift.cash_expenses)).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="flex items-center gap-2">
                       {shift.status === 'open' ? (
-                        <Badge variant="default" className="bg-green-500">Ochiq</Badge>
+                        <>
+                          <Badge variant="default" className="bg-green-500">Ochiq</Badge>
+                          {isBoshShifokor && (
+                            <Button 
+                              variant="destructive" 
+                              size="sm" 
+                              className="h-6 text-[10px] px-2"
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setShiftToClose(shift.id); 
+                              }}
+                            >
+                              Yopish
+                            </Button>
+                          )}
+                        </>
                       ) : (
                         <Badge variant="secondary">Yopiq</Badge>
                       )}
@@ -149,11 +180,41 @@ export function CashShiftsFeature() {
             </TableBody>
           </Table>
         </div>
+
         <ShiftPaymentsModal 
           shiftId={selectedShift} 
           open={!!selectedShift} 
-          onOpenChange={(o) => !o && setSelectedShift(null)} 
+          onOpenChange={(open) => !open && setSelectedShift(null)} 
         />
+
+        <Dialog open={!!shiftToClose} onOpenChange={(open) => !open && setShiftToClose(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Smenani majburiy yopish</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground">
+                Haqiqatdan ham ushbu smenani yopmoqchimisiz? Bu jarayon barcha tushumlarni yakuniy hisoblaydi va smenani yopadi. Bu amalni orqaga qaytarib bo'lmaydi.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShiftToClose(null)}>Bekor qilish</Button>
+              <Button 
+                variant="destructive" 
+                disabled={isClosing}
+                onClick={() => {
+                  if (shiftToClose) {
+                    closeShift(shiftToClose, {
+                      onSuccess: () => setShiftToClose(null)
+                    })
+                  }
+                }}
+              >
+                {isClosing ? 'Yopilmoqda...' : 'Smenani Yopish'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </Main>
     </>
   )

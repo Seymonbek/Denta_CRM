@@ -43,7 +43,7 @@ export function useCreateDoctor() {
 export function useUpdateDoctor() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => updateDoctorApi(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> | FormData }) => updateDoctorApi(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: DOCTORS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['doctors', variables.id] })

@@ -2,7 +2,7 @@ import { format } from 'date-fns'
 import { Calendar, Activity, CreditCard, FileText, Camera } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
-export function PatientTimeline({ history = [] }: { history: any[] }) {
+export function PatientTimeline({ history = [] }: { history: Record<string, unknown>[] }) {
   const items = Array.isArray(history) ? history : []
 
   if (!items || items.length === 0) {
@@ -16,7 +16,7 @@ export function PatientTimeline({ history = [] }: { history: any[] }) {
 
   return (
     <div className='relative ps-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-border'>
-      {items.map((item: any, idx: number) => {
+      {items.map((item: Record<string, unknown>, idx: number) => {
         const itemType = item?.type || 'appointment'
         const icon = getTimelineIcon(itemType)
         const dateStr = item?.date || item?.createdAt || item?.created_at || item?.scheduledStart || item?.scheduled_start || ''

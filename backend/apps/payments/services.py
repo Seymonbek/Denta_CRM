@@ -26,14 +26,19 @@ from typing import Any
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from apps.doctors.models import CommissionBasis
+from apps.doctors.models import CommissionBasis, DoctorProfile
 from apps.treatments.models import PaymentStatus, Treatment
 
 from .models import (
+    CashShift,
+    CashShiftStatus,
     CommissionBasisSnapshot,
     CommissionRecord,
+    Expense,
+    ExpenseCategory,
     Payment,
     PaymentMethod,
+    SalaryPayment,
 )
 from .selectors import total_paid_for_treatment
 
@@ -238,16 +243,16 @@ def record_payment(
         _refresh_payment_status(treatment)
 
     # Enqueue Telegram notification for the patient if possible
-    if payment.patient and payment.patient.telegram_chat_id:
-        try:
-            from apps.notifications.services import enqueue
-            from apps.notifications.models import NotificationType, NotificationChannel
-            from django.utils.dateformat import format as date_format
-            from django.utils import timezone
+    try:
+        from apps.notifications.services import enqueue, notify_roles
+        from apps.notifications.models import NotificationType, NotificationChannel
+        from django.utils.dateformat import format as date_format
+        from django.utils import timezone
 
-            date_str = date_format(timezone.localtime(payment.created_at), "d.m.Y H:i")
-            msg = f"🧾 To'lov qabul qilindi (Elektron Chek)\n\n💰 Summa: {payment.amount:,.0f} so'm\n💳 Usul: {payment.get_method_display()}\n📅 Sana: {date_str}"
+        date_str = date_format(timezone.localtime(payment.created_at), "d.m.Y H:i")
+        msg = f"🧾 To'lov qabul qilindi (Elektron Chek)\n\n💰 Summa: {payment.amount:,.0f} so'm\n💳 Usul: {payment.get_method_display()}\n📅 Sana: {date_str}"
 
+        if payment.patient and payment.patient.telegram_chat_id:
             enqueue(
                 user=None,
                 patient=payment.patient,
@@ -256,9 +261,24 @@ def record_payment(
                 message=msg,
                 context={"payment_id": str(payment.pk)},
             )
-        except Exception as notify_exc:
-            import logging
-            logging.getLogger(__name__).warning("Failed to enqueue payment notification: %s", notify_exc)
+            
+        # Notify admins as well
+        admin_msg = (
+            f"💰 <b>Yangi to'lov qabul qilindi</b>\n\n"
+            f"Bemor: {resolved_patient.full_name if resolved_patient else 'Noma`lum'}\n"
+            f"Summa: {payment.amount:,.0f} so'm\n"
+            f"Usul: {payment.get_method_display()}\n"
+            f"Qabul qildi: {received_by.get_full_name() if received_by else 'Admin'}"
+        )
+        notify_roles(
+            ["bosh_shifokor"],
+            notification_type=NotificationType.PAYMENT_RECEIVED,
+            message=admin_msg,
+            context={"payment_id": str(payment.pk)},
+        )
+    except Exception as notify_exc:
+        import logging
+        logging.getLogger(__name__).warning("Failed to enqueue payment notification: %s", notify_exc)
 
     return payment
 
@@ -312,9 +332,72 @@ def _refresh_payment_status(treatment: Treatment) -> Treatment:
     return treatment
 
 
+@transaction.atomic
+def record_salary_payment(
+    *,
+    doctor: DoctorProfile,
+    amount: Decimal,
+    method: str,
+    shift: CashShift,
+    user: Any,
+    notes: str = "",
+) -> SalaryPayment:
+    """Record a salary payment to a doctor and create the corresponding Expense."""
+    if amount <= 0:
+        raise ValidationError("Maosh summasi musbat bo'lishi kerak.")
+    
+    if shift.status != CashShiftStatus.OPEN:
+        raise ValidationError("Kassa smenasi ochiq emas, to'lov qilib bo'lmaydi.")
+
+    # 1. Get or create 'Ish haqi' expense category
+    category, _ = ExpenseCategory.objects.get_or_create(
+        name="Ish haqi",
+        defaults={"is_active": True}
+    )
+
+    # 2. Create the Expense
+    expense_desc = f"{doctor.user.get_full_name()} uchun ish haqi. {notes}"
+    expense = Expense.objects.create(
+        category=category,
+        amount=amount,
+        description=expense_desc.strip(),
+        recorded_by=user,
+        payment_method=method,
+        cash_shift=shift,
+    )
+
+    # 3. Create the SalaryPayment
+    salary_payment = SalaryPayment.objects.create(
+        doctor=doctor,
+        amount=amount,
+        payment_method=method,
+        expense=expense,
+        cash_shift=shift,
+        recorded_by=user,
+        notes=notes,
+    )
+
+    # 4. Update CashShift totals
+    if method == PaymentMethod.CASH:
+        shift.cash_expenses += amount
+    else:
+        shift.card_expenses += amount
+    shift.save(update_fields=["cash_expenses", "card_expenses", "updated_at"])
+
+    logger.info(
+        "payments: recorded salary payment pk=%d (amount=%s) for doctor=%s",
+        salary_payment.pk,
+        amount,
+        doctor.pk,
+    )
+    
+    return salary_payment
+
+
 __all__ = [
     "calculate_commission_for",
     "recalculate_commission",
     "record_payment",
     "void_payment",
+    "record_salary_payment",
 ]

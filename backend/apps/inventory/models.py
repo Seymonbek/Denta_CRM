@@ -137,6 +137,58 @@ class Material(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# ProcedureBOM (Texkarta)
+# ---------------------------------------------------------------------------
+class ProcedureBOM(BaseModel):
+    """Bill of Materials (Texkarta) for a clinical procedure.
+    
+    Defines the default materials and quantities expected to be consumed
+    when a specific ProcedureType is performed.
+    """
+
+    procedure_type = models.ForeignKey(
+        "doctors.ProcedureType",
+        on_delete=models.CASCADE,
+        related_name="boms",
+        related_query_name="bom",
+        verbose_name=_("Muolaja turi"),
+    )
+    material = models.ForeignKey(
+        Material,
+        on_delete=models.CASCADE,
+        related_name="procedure_boms",
+        related_query_name="procedure_bom",
+        verbose_name=_("Material"),
+    )
+    default_quantity = models.DecimalField(
+        _("Standart miqdor"),
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal("0.001"))],
+        help_text=_("Ushbu muolaja uchun odatda sarflanadigan miqdor."),
+    )
+
+    class Meta:
+        verbose_name = _("Muolaja texkartasi")
+        verbose_name_plural = _("Muolaja texkartalari")
+        ordering = ["procedure_type", "material"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["procedure_type", "material"],
+                condition=models.Q(is_active=True),
+                name="inv_procedurebom_unique_active",
+            ),
+            models.CheckConstraint(
+                check=models.Q(default_quantity__gt=0),
+                name="inv_procedurebom_qty_positive",
+            ),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.procedure_type_id} - {self.material_id} ({self.default_quantity})"
+
+
+# ---------------------------------------------------------------------------
 # MaterialUsage
 # ---------------------------------------------------------------------------
 class MaterialUsage(BaseModel):
@@ -309,6 +361,7 @@ class MaterialStockLog(BaseModel):
 
 __all__ = [
     "Material",
+    "ProcedureBOM",
     "MaterialUsage",
     "MaterialStockLog",
     "MaterialUnit",

@@ -1,10 +1,10 @@
 import { apiClient } from './client'
 import {
-  DoctorProfile,
-  WorkingHours,
-  TimeOff,
-  AvailableSlot,
-  PaginatedResponse,
+  type DoctorProfile,
+  type WorkingHours,
+  type TimeOff,
+  type AvailableSlot,
+  type PaginatedResponse,
 } from '@/types/api'
 
 export async function getDoctorsApi(): Promise<DoctorProfile[]> {
@@ -20,12 +20,12 @@ export async function getDoctorApi(id: string): Promise<DoctorProfile> {
   return response.data
 }
 
-export async function createDoctorApi(data: any): Promise<DoctorProfile> {
+export async function createDoctorApi(data: Record<string, unknown> | FormData): Promise<DoctorProfile> {
   const response = await apiClient.post<DoctorProfile>('doctors/', data)
   return response.data
 }
 
-export async function updateDoctorApi(id: string, data: any): Promise<DoctorProfile> {
+export async function updateDoctorApi(id: string, data: Record<string, unknown> | FormData): Promise<DoctorProfile> {
   const response = await apiClient.patch<DoctorProfile>(`doctors/${id}/`, data)
   return response.data
 }
@@ -75,7 +75,7 @@ export async function getAvailableSlotsApi(
   slotMinutes?: number,
   procedureTypeId?: string
 ): Promise<AvailableSlot[]> {
-  const response = await apiClient.get<any>(`doctors/${doctorId}/available-slots/`, {
+  const response = await apiClient.get<Record<string, unknown>>(`doctors/${doctorId}/available-slots/`, {
     params: {
       date,
       ...(slotMinutes ? { slot_minutes: slotMinutes } : {}),

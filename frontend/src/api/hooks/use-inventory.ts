@@ -7,6 +7,9 @@ import {
   getMaterialLogsApi,
   getMaterialUsagesApi,
   createMaterialUsageApi,
+  getProcedureBOMsApi,
+  createProcedureBOMApi,
+  deleteProcedureBOMApi,
 } from '../inventory'
 
 export const MATERIALS_QUERY_KEY = ['materials']
@@ -74,3 +77,33 @@ export function useCreateMaterialUsage() {
     },
   })
 }
+
+export const PROCEDURE_BOMS_QUERY_KEY = ['procedure-boms']
+
+export function useProcedureBOMs(params?: { procedure_type?: string }) {
+  return useQuery({
+    queryKey: [...PROCEDURE_BOMS_QUERY_KEY, params],
+    queryFn: () => getProcedureBOMsApi(params),
+  })
+}
+
+export function useCreateProcedureBOM() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: createProcedureBOMApi,
+    onSuccess: (_, _variables) => {
+      queryClient.invalidateQueries({ queryKey: PROCEDURE_BOMS_QUERY_KEY })
+    },
+  })
+}
+
+export function useDeleteProcedureBOM() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteProcedureBOMApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PROCEDURE_BOMS_QUERY_KEY })
+    },
+  })
+}
+

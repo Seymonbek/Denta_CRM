@@ -9,9 +9,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from django.db.models import QuerySet, Sum
+from django.db.models import QuerySet, Sum, Value, DecimalField
+from django.db.models.functions import Coalesce
 
-from .models import CommissionRecord, Payment
+from .models import CommissionRecord, Payment, SalaryPayment
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +125,44 @@ def commission_summary_for_doctor(
         "dateTo": date_to.isoformat() if date_to else None,
     }
 
+def doctor_balances() -> list[dict[str, Any]]:
+    """Return all active doctors with their total earnings, paid salaries, and current balance."""
+    from apps.doctors.models import DoctorProfile
+    
+    doctors = DoctorProfile.objects.select_related("user").filter(is_active=True)
+    results = []
+    
+    for doc in doctors:
+        # Compute total commission earned
+        total_earned = CommissionRecord.objects.filter(
+            doctor=doc, 
+            # only consider completed treatments or paid treatments depending on policy?
+            # the CommissionRecord is only updated when fully paid, so it's safe to just sum.
+        ).aggregate(total=Coalesce(Sum("amount"), Value(0, output_field=DecimalField())))["total"]
+        
+        # Compute total salary paid
+        total_paid = SalaryPayment.objects.filter(
+            doctor=doc
+        ).aggregate(total=Coalesce(Sum("amount"), Value(0, output_field=DecimalField())))["total"]
+        
+        balance = total_earned - total_paid
+        
+        results.append({
+            "id": str(doc.id),
+            "firstName": doc.user.first_name if doc.user else "",
+            "lastName": doc.user.last_name if doc.user else "",
+            "phone": doc.user.phone_number if doc.user else "",
+            "totalEarned": total_earned,
+            "totalPaid": total_paid,
+            "balance": balance,
+            "commissionBasis": doc.commission_basis,
+            "defaultRate": doc.default_commission_rate,
+        })
+        
+    # Sort by balance descending
+    results.sort(key=lambda x: x["balance"], reverse=True)
+    return results
+
 
 __all__ = [
     "payments_qs",
@@ -134,4 +173,5 @@ __all__ = [
     "commissions_qs",
     "commissions_for_doctor",
     "commission_summary_for_doctor",
+    "doctor_balances",
 ]

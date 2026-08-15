@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { NotificationLog, PaginatedResponse } from '@/types/api'
+import { type NotificationLog, type PaginatedResponse } from '@/types/api'
 
 export async function getNotificationsApi(params?: {
   type?: string

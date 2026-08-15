@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { PaginatedResponse } from '@/types/api'
+import { type PaginatedResponse } from '@/types/api'
 
 export interface AuditLog {
   id: string
@@ -12,7 +12,7 @@ export interface AuditLog {
   }
   model_name: string
   object_id: string
-  changes: Record<string, { old: any; new: any }>
+  changes: Record<string, { old: unknown; new: unknown }>
   ip_address: string
   timestamp: string
 }

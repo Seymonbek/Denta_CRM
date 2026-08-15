@@ -143,12 +143,19 @@ def format_daily_financial_summary(summary_data: dict[str, Any]) -> str:
     today_str = timezone.now().strftime("%d.%m.%Y")
     total_income = summary_data.get("total_income", 0)
     payments_count = summary_data.get("payments_count", 0)
+    total_expense = summary_data.get("total_expense", 0)
+    expenses_count = summary_data.get("expenses_count", 0)
+    
+    net_profit = total_income - total_expense
 
     return (
         f"<b>📊 Kunlik Moliya va Tushum Hisoboti</b>\n"
         f"Sana: <b>{today_str}</b>\n\n"
-        f"💰 <b>Bugungi Jami Tushum:</b> <code>{total_income:,.2f} so'm</code>\n"
-        f"💳 <b>Amalga Oshirilgan To'lovlar:</b> <b>{payments_count}</b> ta\n"
+        f"💰 <b>Bugungi Jami Tushum:</b> <code>{total_income:,.0f} so'm</code>\n"
+        f"💳 <b>Amalga Oshirilgan To'lovlar:</b> <b>{payments_count}</b> ta\n\n"
+        f"📉 <b>Bugungi Jami Xarajatlar:</b> <code>{total_expense:,.0f} so'm</code>\n"
+        f"🧾 <b>Kiritilgan Xarajatlar Soni:</b> <b>{expenses_count}</b> ta\n\n"
+        f"💵 <b>Kunlik Sof Qoldiq (Foyda):</b> <code>{net_profit:,.0f} so'm</code>\n"
     )
 
 

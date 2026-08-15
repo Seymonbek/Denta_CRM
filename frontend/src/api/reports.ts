@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { DashboardReport } from '@/types/api'
+import { type DashboardReport } from '@/types/api'
 
 export interface DoctorAnalyticsPayload {
   period: string
@@ -59,21 +59,21 @@ export async function getDashboardReportApi(period: string = 'month'): Promise<D
   return response.data
 }
 
-export async function getRevenueReportApi(period: string = 'month'): Promise<any> {
+export async function getRevenueReportApi(period: string = 'month'): Promise<Record<string, unknown>> {
   const response = await apiClient.get('reports/revenue/', {
     params: { period },
   })
   return response.data
 }
 
-export async function getProceduresReportApi(period: string = 'month', limit: number = 10): Promise<any> {
+export async function getProceduresReportApi(period: string = 'month', limit: number = 10): Promise<Record<string, unknown>> {
   const response = await apiClient.get('reports/procedures/', {
     params: { period, limit },
   })
   return response.data
 }
 
-export async function getDepartmentsReportApi(period: string = 'month'): Promise<any> {
+export async function getDepartmentsReportApi(period: string = 'month'): Promise<Record<string, unknown>> {
   const response = await apiClient.get('reports/departments/', {
     params: { period },
   })

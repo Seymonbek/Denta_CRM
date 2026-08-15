@@ -30,6 +30,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from simple_history.models import HistoricalRecords
 
@@ -295,6 +296,12 @@ class CashShift(BaseModel):
     card_collected = models.DecimalField(
         _("Karta/Plastik tushum"), max_digits=12, decimal_places=2, default=Decimal("0.00")
     )
+    cash_expenses = models.DecimalField(
+        _("Naqd xarajatlar"), max_digits=12, decimal_places=2, default=Decimal("0.00")
+    )
+    card_expenses = models.DecimalField(
+        _("Karta xarajatlar"), max_digits=12, decimal_places=2, default=Decimal("0.00")
+    )
     status = models.CharField(
         _("Holati"), max_length=10, choices=CashShiftStatus.choices, default=CashShiftStatus.OPEN
     )
@@ -316,6 +323,117 @@ class CashShift(BaseModel):
         return f"Shift {self.pk} - {self.administrator.get_full_name()}"
 
 
+# ---------------------------------------------------------------------------
+# Expenses
+# ---------------------------------------------------------------------------
+class ExpenseCategory(BaseModel):
+    name = models.CharField(_("Toifa nomi"), max_length=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = _("Xarajat toifasi")
+        verbose_name_plural = _("Xarajat toifalari")
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Expense(BaseModel):
+    category = models.ForeignKey(
+        ExpenseCategory, on_delete=models.PROTECT, related_name="expenses", verbose_name=_("Toifa")
+    )
+    amount = models.DecimalField(_("Summa"), max_digits=12, decimal_places=2)
+    description = models.TextField(_("Izoh"), blank=True, default="")
+    date = models.DateTimeField(_("Sana"), default=timezone.now)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recorded_expenses",
+        verbose_name=_("Kiritgan shaxs"),
+    )
+    payment_method = models.CharField(
+        _("To'lov usuli"), max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.CASH
+    )
+    cash_shift = models.ForeignKey(
+        CashShift,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="expenses",
+        verbose_name=_("Smena"),
+    )
+
+    class Meta:
+        verbose_name = _("Xarajat")
+        verbose_name_plural = _("Xarajatlar")
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"{self.category.name} - {self.amount}"
+
+
+# ---------------------------------------------------------------------------
+# Payroll / Salary
+# ---------------------------------------------------------------------------
+class SalaryPayment(BaseModel):
+    """Records a salary/commission payout to a doctor."""
+    doctor = models.ForeignKey(
+        "doctors.DoctorProfile",
+        on_delete=models.PROTECT,
+        related_name="salary_payments",
+        verbose_name=_("Shifokor"),
+    )
+    amount = models.DecimalField(
+        _("To'langan summa"), 
+        max_digits=12, 
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.00"))]
+    )
+    payment_method = models.CharField(
+        _("To'lov usuli"), 
+        max_length=20, 
+        choices=PaymentMethod.choices, 
+        default=PaymentMethod.CASH
+    )
+    expense = models.OneToOneField(
+        Expense,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="salary_payment",
+        verbose_name=_("Xarajat yozuvi")
+    )
+    cash_shift = models.ForeignKey(
+        CashShift,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="salary_payments",
+        verbose_name=_("Kassa Smenasi"),
+    )
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recorded_salaries",
+        verbose_name=_("Kiritgan shaxs"),
+    )
+    notes = models.TextField(_("Izoh"), blank=True, default="")
+    date = models.DateTimeField(_("Sana"), default=timezone.now)
+
+    class Meta:
+        verbose_name = _("Ish haqi to'lovi")
+        verbose_name_plural = _("Ish haqi to'lovlari")
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"SalaryPayment({self.doctor_id}, {self.amount})"
+
+
 __all__ = [
     "Payment",
     "CommissionRecord",
@@ -323,4 +441,8 @@ __all__ = [
     "PaymentMethod",
     "CommissionBasisSnapshot",
     "CashShiftStatus",
+    "RefundStatus",
+    "ExpenseCategory",
+    "Expense",
+    "SalaryPayment",
 ]

@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { Payment, CommissionRecord, PaginatedResponse, PaymentMethod } from '@/types/api'
+import { type Payment, type CommissionRecord, type PaginatedResponse, type PaymentMethod } from '@/types/api'
 
 export async function getPaymentsApi(params?: {
   patient?: string

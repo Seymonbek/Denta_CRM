@@ -16,6 +16,7 @@ export function ClinicSettingsCard() {
 
   useEffect(() => {
     if (settings) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setName(settings.name || '')
       setInn(settings.inn || '')
       setAddress(settings.address || '')

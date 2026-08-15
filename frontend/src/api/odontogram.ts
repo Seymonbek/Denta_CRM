@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { ToothRecord, PaginatedResponse } from '@/types/api'
+import { type ToothRecord, type PaginatedResponse } from '@/types/api'
 
 export async function getToothRecordsApi(params?: {
   treatment?: string

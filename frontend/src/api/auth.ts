@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { LoginResponse, User } from '@/types/api'
+import { type LoginResponse, type User } from '@/types/api'
 
 export async function loginApi(phoneNumber: string, password: string): Promise<LoginResponse> {
   const response = await apiClient.post<LoginResponse>('auth/login/', {

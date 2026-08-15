@@ -43,7 +43,7 @@ export function useCreateAppointment() {
 export function useUpdateAppointment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => updateAppointmentApi(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> | FormData }) => updateAppointmentApi(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: APPOINTMENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['appointments', variables.id] })

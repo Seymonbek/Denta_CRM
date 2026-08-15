@@ -39,7 +39,7 @@ export interface AIPermissionConfig {
 }
 
 export async function postAIChatApi(message: string): Promise<AIChatResponse> {
-  const response = await apiClient.post<any>('ai/chat/', { message })
+  const response = await apiClient.post<Record<string, unknown>>('ai/chat/', { message })
   const data = response.data
   return {
     message: data.answer || data.message || '',
@@ -55,7 +55,7 @@ export async function getAIInventorySummaryApi(): Promise<AIInventorySummary> {
 }
 
 export async function getAIPermissionConfigsApi(): Promise<AIPermissionConfig[]> {
-  const response = await apiClient.get<any>('ai/permissions/')
+  const response = await apiClient.get<Record<string, unknown>>('ai/permissions/')
   const results = Array.isArray(response.data) ? response.data : (response.data?.results || [])
   return results
 }

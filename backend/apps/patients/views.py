@@ -38,6 +38,7 @@ from .selectors import (
 from .serializers import (
     PatientHistoryEventSerializer,
     PatientOdontogramToothSerializer,
+    PatientOdontogramHistorySerializer,
     PatientSerializer,
 )
 from .services import soft_delete_patient
@@ -222,6 +223,44 @@ class PatientViewSet(viewsets.ModelViewSet):
         patient: Patient = self.get_object()
         teeth = _collect_odontogram(patient)
         serializer = PatientOdontogramToothSerializer(teeth, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------
+    # /patients/{id}/odontogram-history/
+    # ------------------------------------------------------------------
+    @extend_schema(
+        summary="Patient odontogram history",
+        responses={200: PatientOdontogramHistorySerializer(many=True)},
+        parameters=[
+            OpenApiParameter(
+                name="tooth_number",
+                required=False,
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Filter by FDI tooth number.",
+            ),
+        ],
+    )
+    @action(detail=True, methods=["get"], url_path="odontogram-history")
+    def odontogram_history(self, request: Request, pk: str | None = None) -> Response:
+        """Return historical tooth records for the patient."""
+        patient: Patient = self.get_object()
+        
+        from django.apps import apps as django_apps
+        if not django_apps.is_installed("apps.odontogram"):
+            return Response([])
+            
+        ToothRecord = django_apps.get_model("odontogram", "ToothRecord")
+        
+        queryset = ToothRecord.objects.filter(treatment__patient=patient).select_related(
+            "treatment", "treatment__doctor", "treatment__doctor__user"
+        ).order_by("-created_at")
+        
+        tooth_number = request.query_params.get("tooth_number")
+        if tooth_number and tooth_number.isdigit():
+            queryset = queryset.filter(tooth_number=int(tooth_number))
+            
+        serializer = PatientOdontogramHistorySerializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 

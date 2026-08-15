@@ -21,7 +21,7 @@ def _default_doctor_queryset() -> QuerySet[DoctorProfile]:
         .prefetch_related(
             "departments",
             Prefetch(
-                "working_hours",
+                "user__working_hours",
                 queryset=WorkingHours.objects.order_by("weekday", "start_time"),
             ),
         )

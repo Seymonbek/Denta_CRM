@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Plus, Ban, FileText, Wallet, Search, CreditCard, AlertCircle } from 'lucide-react'
+import { Plus, Ban, FileText, _Wallet, _Search, CreditCard, AlertCircle } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { confirmSwal } from '@/lib/sweetalert'
 import { format } from 'date-fns'
@@ -14,7 +14,7 @@ import { useShiftStore } from '@/stores/shift-store'
 import { useTreatments } from '@/api/hooks/use-treatments'
 import { usePatients } from '@/api/hooks/use-patients'
 import { useDoctors } from '@/api/hooks/use-doctors'
-import { PaymentMethod } from '@/types/api'
+import { type PaymentMethod } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -115,7 +115,7 @@ export function PaymentsList() {
   )
 
   const filteredTreatments = patientId 
-    ? allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === patientId)
+    ? allModalTreatments.filter((t: Record<string, unknown>) => (t.patient?.id || t.patient) === patientId)
     : allModalTreatments
 
   const openPaymentModal = (tId: string, pId: string, amt: string) => {
@@ -135,7 +135,7 @@ export function PaymentsList() {
     if (isSubmittingRef.current) return
     isSubmittingRef.current = true
 
-    const idempotencyKey = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    const idempotencyKey = `pay_${Date.now()}_${crypto.randomUUID().toString(36).substring(2, 9)}`
 
     try {
       await createPaymentMutation.mutateAsync({
@@ -152,7 +152,7 @@ export function PaymentsList() {
       setAmount('')
       setTreatmentId('')
       setPatientId('')
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errData = err?.response?.data
       let msg = 'To\'lovni amalga oshirishda xatolik.'
       if (typeof errData === 'string') {
@@ -222,7 +222,7 @@ export function PaymentsList() {
               <AlertCircle className="w-4 h-4" /> To'lov Kutilmoqda ({pendingTreatments.length})
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {pendingTreatments.map((pt: any) => {
+              {pendingTreatments.map((pt: Record<string, unknown>) => {
                 const pName = pt.patientName || pt.patient_name || (pt.patient && typeof pt.patient === 'object' ? `${pt.patient.firstName || pt.patient.first_name || ''} ${pt.patient.lastName || pt.patient.last_name || ''}`.trim() : pt.patient) || 'Bemor'
                 const doctorName = pt.doctorName || pt.doctor_name || (pt.doctor && typeof pt.doctor === 'object' ? pt.doctor.user?.first_name : '') || 'Shifokor'
                 const pId = pt.patient && typeof pt.patient === 'object' ? pt.patient.id : pt.patient
@@ -302,7 +302,7 @@ export function PaymentsList() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    payments.map((p: any) => {
+                    payments.map((p: Record<string, unknown>) => {
                       const patientName = p?.patientName || (p?.patient && typeof p.patient === 'object' ? `${p.patient.firstName || p.patient.first_name || ''} ${p.patient.lastName || p.patient.last_name || ''}`.trim() : '') || 'Bemor'
                       const patientId = p?.patientId || p?.patient?.id || p?.patient || ''
                       const pMethod = p?.method || 'cash'
@@ -313,7 +313,7 @@ export function PaymentsList() {
                       const isVoided = p?.isActive === false
 
                       return (
-                        <TableRow key={p?.id || Math.random()} className={`hover:bg-muted/20 ${isVoided ? 'opacity-50' : ''}`}>
+                        <TableRow key={p?.id} className={`hover:bg-muted/20 ${isVoided ? 'opacity-50' : ''}`}>
                           {/* Short ID */}
                           <TableCell className='text-[10px] font-mono text-muted-foreground'>
                             <span className='bg-muted px-1.5 py-0.5 rounded font-medium'>{shortId}</span>
@@ -407,7 +407,7 @@ export function PaymentsList() {
                     <SelectValue placeholder='Shifokor' />
                   </SelectTrigger>
                   <SelectContent>
-                    {doctors.map((d: any) => (
+                    {doctors.map((d: Record<string, unknown>) => (
                       <SelectItem key={d.id} value={d.id}>
                         Dr. {d.user?.firstName || d.user?.first_name || ''} {d.user?.lastName || d.user?.last_name || ''} ({d.specialization})
                       </SelectItem>
@@ -425,7 +425,7 @@ export function PaymentsList() {
                 )}
               </div>
 
-              <div className='rounded-xl border bg-card shadow-sm overflow-hidden'>
+              <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
                 <Table>
                   <TableHeader>
                     <TableRow className='bg-muted/30'>
@@ -449,12 +449,12 @@ export function PaymentsList() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      commissions.map((c: any) => {
+                      commissions.map((c: Record<string, unknown>) => {
                         const doctorName = c?.doctorName || c?.doctor_name || (c?.doctor && typeof c.doctor === 'object' ? `${c.doctor.user?.firstName || c.doctor.user?.first_name || ''} ${c.doctor.user?.lastName || c.doctor.user?.last_name || ''}`.trim() : c?.doctor) || 'Shifokor'
                         const calcAt = c?.calculatedAt || c?.calculated_at || ''
 
                         return (
-                          <TableRow key={c?.id || Math.random()}>
+                          <TableRow key={c?.id}>
                             <TableCell className='text-xs font-medium'>{doctorName}</TableCell>
                             <TableCell className='text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400'>
                               +{Number(c?.amount || 0).toLocaleString()} so'm
@@ -486,13 +486,13 @@ export function PaymentsList() {
             </DialogHeader>
 
             <form onSubmit={handleCreatePayment} className='space-y-3 py-2'>
-              <div className='space-y-1'>
+              <div className='space-y-1 overflow-x-auto w-full'>
                 <label className='text-xs font-medium'>Bemor *</label>
                 <Select 
                   value={patientId} 
                   onValueChange={(val) => {
                     setPatientId(val)
-                    const patientTreatments = allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === val)
+                    const patientTreatments = allModalTreatments.filter((t: Record<string, unknown>) => (t.patient?.id || t.patient) === val)
                     if (patientTreatments.length === 1) {
                       setTreatmentId(patientTreatments[0].id)
                       setAmount(patientTreatments[0].price || '')
@@ -506,7 +506,7 @@ export function PaymentsList() {
                     <SelectValue placeholder='Bemor' />
                   </SelectTrigger>
                   <SelectContent>
-                    {patients.map((p: any) => (
+                    {patients.map((p: Record<string, unknown>) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.firstName || p.first_name} {p.lastName || p.last_name}
                       </SelectItem>
@@ -515,13 +515,13 @@ export function PaymentsList() {
                 </Select>
               </div>
 
-              <div className='space-y-1'>
+              <div className='space-y-1 overflow-x-auto w-full'>
                 <label className='text-xs font-medium'>Davolash Ishi (Treatment) *</label>
                 <Select
                   value={treatmentId}
                   onValueChange={(val) => {
                     setTreatmentId(val)
-                    const tr = allModalTreatments.find((t: any) => t.id === val)
+                    const tr = allModalTreatments.find((t: Record<string, unknown>) => t.id === val)
                     if (tr) {
                       setPatientId(tr.patient?.id || tr.patient)
                       setAmount(tr.price || '')
@@ -532,7 +532,7 @@ export function PaymentsList() {
                     <SelectValue placeholder='Davolash ishini tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredTreatments.map((t: any) => {
+                    {filteredTreatments.map((t: Record<string, unknown>) => {
                       const patientName = t.patient ? `${t.patient.firstName || t.patient.first_name || ''} ${t.patient.lastName || t.patient.last_name || ''}`.trim() : 'Bemor'
                       const procedureName = t.procedureType?.name || t.procedure_type?.name || 'Umumiy Muolaja'
                       const dateStr = t.createdAt || t.created_at || ''
@@ -559,7 +559,7 @@ export function PaymentsList() {
                   />
                 </div>
 
-                <div className='space-y-1'>
+                <div className='space-y-1 overflow-x-auto w-full'>
                   <label className='text-xs font-medium'>To'lov Usuli *</label>
                   <Select value={method} onValueChange={(val) => setMethod(val as PaymentMethod)}>
                     <SelectTrigger>

@@ -1,10 +1,10 @@
 import { apiClient } from './client'
 import {
-  Treatment,
-  TreatmentPhoto,
-  ToothRecord,
-  PaginatedResponse,
-  PhotoType,
+  type Treatment,
+  type TreatmentPhoto,
+  type ToothRecord,
+  type PaginatedResponse,
+  type PhotoType,
 } from '@/types/api'
 
 export async function getTreatmentsApi(params?: {

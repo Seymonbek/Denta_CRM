@@ -64,6 +64,8 @@ class NotificationType(models.TextChoices):
     )
     PRESCRIPTION_SENT = "prescriptions.sent", _("Retsept yuborildi")
     PAYMENT_RECEIVED = "payments.received", _("To'lov qabul qilindi")
+    EXPENSE_CREATED = "finance.expense_created", _("Xarajat kiritildi")
+    TREATMENT_COMPLETED = "treatments.completed", _("Muolaja yakunlandi")
     FOLLOWUP_INVITE = "patients.followup_invite", _("Profilaktik taklif")
     NEW_PATIENT = "patients.new", _("Yangi bemor")
     RATING_MILESTONE = "ratings.milestone", _("Reyting yutugi")

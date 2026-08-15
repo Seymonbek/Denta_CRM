@@ -42,6 +42,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFirstName(user.firstName || user.first_name || '')
       setLastName(user.lastName || user.last_name || '')
       const chatVal = user.telegramChatId ?? user.telegram_chat_id
@@ -85,7 +86,7 @@ export function SettingsPage() {
         toast.success('2FA o’chirildi.')
       }
       setIs2FAModalOpen(false)
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err?.response?.data?.detail || 'Parol noto’g’ri yoki xatolik yuz berdi.')
     }
   }

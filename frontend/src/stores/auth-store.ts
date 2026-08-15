@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { User } from '@/types/api'
+import { type User } from '@/types/api'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
 const ACCESS_TOKEN_KEY = 'dentacrm_access_token'

@@ -37,6 +37,8 @@ from django.db import transaction
 
 from apps.departments.models import Department
 from apps.doctors.models import DoctorProfile, ProcedureType
+from apps.inventory.models import ProcedureBOM
+from apps.inventory.services import record_usage
 from apps.patients.models import Patient
 from apps.scheduling.models import Appointment
 
@@ -389,7 +391,7 @@ def create_treatment(
     if resolved_stage == TreatmentStage.COMPLETED and approval_status == Treatment.ApprovalStatus.PENDING:
         raise ValidationError({"stage": ["Tasdiqlanmagan chegirma bilan muolajani yakunlab bo'lmaydi."]})
 
-    return Treatment.objects.create(
+    treatment = Treatment.objects.create(
         doctor=doctor_obj,
         patient=patient_obj,
         department=department_obj,
@@ -413,6 +415,30 @@ def create_treatment(
         created_by=created_by if isinstance(created_by, User) else None,
         is_active=True,
     )
+
+    if resolved_stage == TreatmentStage.COMPLETED and procedure_obj is not None:
+        boms = ProcedureBOM.objects.filter(procedure_type=procedure_obj, is_active=True)
+        if boms.exists():
+            # Check stock
+            errors = []
+            for bom in boms:
+                if bom.material.quantity_in_stock < bom.default_quantity:
+                    errors.append(f"{bom.material.name} (kerak: {bom.default_quantity}, bor: {bom.material.quantity_in_stock} {bom.material.unit})")
+            
+            if errors:
+                raise ValidationError(
+                    {"stage": [f"Omborda yetarli material yo'q: {', '.join(errors)}"]}
+                )
+                
+            # Deduct stock
+            for bom in boms:
+                record_usage(
+                    treatment=treatment,
+                    material=bom.material,
+                    quantity_used=bom.default_quantity,
+                )
+
+    return treatment
 
 
 @transaction.atomic
@@ -468,11 +494,35 @@ def update_treatment(
                 ]}
             )
             
-        # Material Usage Guard
+        # Material Usage Guard & Auto-Deduction
         if new_stage == TreatmentStage.COMPLETED and not treatment.usages.exists():
-            raise ValidationError(
-                {"stage": ["Davolashni yakunlash uchun ishlatilingan materiallarni kiriting."]}
-            )
+            proc_type = getattr(treatment, "procedure_type", None)
+            if not proc_type:
+                raise ValidationError(
+                    {"stage": ["Davolashni yakunlash uchun ishlatilingan materiallarni kiriting yoki muolaja turini tanlang."]}
+                )
+            
+            boms = ProcedureBOM.objects.filter(procedure_type=proc_type, is_active=True)
+            if boms.exists():
+                # Check stock
+                errors = []
+                for bom in boms:
+                    if bom.material.quantity_in_stock < bom.default_quantity:
+                        errors.append(f"{bom.material.name} (kerak: {bom.default_quantity}, bor: {bom.material.quantity_in_stock} {bom.material.unit})")
+                
+                if errors:
+                    raise ValidationError(
+                        {"stage": [f"Omborda yetarli material yo'q: {', '.join(errors)}"]}
+                    )
+                    
+                # Deduct stock
+                for bom in boms:
+                    record_usage(
+                        treatment=treatment,
+                        material=bom.material,
+                        quantity_used=bom.default_quantity,
+                    )
+            
             
         treatment.stage = new_stage
         update_fields.append("stage")
@@ -524,6 +574,35 @@ def update_treatment(
 
     if update_fields:
         treatment.save(update_fields=update_fields + ["updated_at"])
+        
+        # Trigger notification if it was just completed
+        if "stage" in update_fields and treatment.stage == TreatmentStage.COMPLETED:
+            try:
+                from apps.notifications.services import notify_roles
+                from apps.notifications.models import NotificationType
+                
+                doc_name = treatment.doctor.user.get_full_name() if (treatment.doctor and treatment.doctor.user) else "Noma'lum shifokor"
+                pat_name = treatment.patient.full_name if treatment.patient else "Noma'lum bemor"
+                proc_name = treatment.procedure_type.name if treatment.procedure_type else "Umumiy muolaja"
+                
+                admin_msg = (
+                    f"🩺 <b>Muolaja Yakunlandi</b>\n\n"
+                    f"Bemor: {pat_name}\n"
+                    f"Shifokor: {doc_name}\n"
+                    f"Muolaja: {proc_name}\n"
+                    f"Narx: {treatment.price:,.0f} so'm"
+                )
+                
+                notify_roles(
+                    ["bosh_shifokor"],
+                    notification_type=NotificationType.TREATMENT_COMPLETED,
+                    message=admin_msg,
+                    context={"treatment_id": str(treatment.pk)},
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("Failed to enqueue treatment completed notification: %s", e)
+
     return treatment
 
 

@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { Appointment, PaginatedResponse } from '@/types/api'
+import { type Appointment, type PaginatedResponse } from '@/types/api'
 
 export async function getAppointmentsApi(params?: {
   doctor?: string

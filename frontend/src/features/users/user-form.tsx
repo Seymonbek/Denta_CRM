@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -26,7 +26,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useCreateUser, useUpdateUser } from '@/api/hooks/use-users'
 import { useDoctors, useCreateDoctor, useUpdateDoctor, DOCTORS_QUERY_KEY } from '@/api/hooks/use-doctors'
 import { useDepartments } from '@/api/hooks/use-departments'
-import { User } from '@/types/api'
+import { type User } from '@/types/api'
 
 const userFormSchema = z.object({
   firstName: z.string().min(1, 'Ism kiritish majburiy.'),
@@ -77,13 +77,16 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
       role: user?.role || 'administrator',
       password: '',
       departmentIds: existingDoctorProfile?.departments?.map(d => d.id) || [],
-      commissionBasis: (existingDoctorProfile?.commissionBasis as any) || 'from_total',
+      commissionBasis: (existingDoctorProfile?.commissionBasis as Record<string, unknown>) || 'from_total',
       defaultCommissionRate: existingDoctorProfile?.defaultCommissionRate || '30.00',
       specialization: existingDoctorProfile?.specialization || '',
     },
   })
 
-  const watchRole = form.watch('role')
+  const watchRole = useWatch({
+    control: form.control,
+    name: 'role',
+  })
   const isDoctorRole = watchRole === 'doctor' || watchRole === 'bosh_shifokor'
 
   useEffect(() => {
@@ -95,7 +98,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
         role: user.role,
         password: '',
         departmentIds: existingDoctorProfile?.departments?.map(d => d.id) || [],
-        commissionBasis: (existingDoctorProfile?.commissionBasis as any) || 'from_total',
+        commissionBasis: (existingDoctorProfile?.commissionBasis as Record<string, unknown>) || 'from_total',
         defaultCommissionRate: existingDoctorProfile?.defaultCommissionRate || '30.00',
         specialization: existingDoctorProfile?.specialization || '',
       })
@@ -110,7 +113,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
       
       if (user) {
         // --- UPDATE ---
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           firstName: data.firstName,
           lastName: data.lastName,
           phoneNumber: data.phoneNumber,
@@ -171,7 +174,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
             phoneNumber: data.phoneNumber,
             role: data.role,
             password: data.password || 'password123',
-          } as any)
+          } as Record<string, unknown>)
         }
         toast.success("Yangi xodim qo'shildi!")
       }
@@ -180,9 +183,9 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
       queryClient.invalidateQueries({ queryKey: DOCTORS_QUERY_KEY })
       onSuccess()
       
-    } catch (error) {
+    } catch (_error) {
       toast.error("Xatolik yuz berdi. Iltimos tekshirib qayta urinib ko'ring.")
-      console.error(error)
+      // console.error(error)
     } finally {
       setIsSubmitting(false)
     }

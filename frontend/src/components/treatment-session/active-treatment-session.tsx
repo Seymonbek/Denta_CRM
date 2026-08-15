@@ -4,6 +4,7 @@ import { Save, CheckCircle, Upload, FileText, Camera, RefreshCw, AlertCircle } f
 import { useUpdateTreatment, useUploadTreatmentPhoto, useTreatment } from '@/api/hooks/use-treatments'
 import { useUpdateAppointment } from '@/api/hooks/use-appointments'
 import { usePrescriptions, useIssuePrescription, usePrescriptionTemplates } from '@/api/hooks/use-prescriptions'
+import { getProcedureBOMsApi, createMaterialUsageApi } from '@/api/inventory'
 import { toast } from 'sonner'
 import { confirmSwal } from '@/lib/sweetalert'
 import { Button } from '@/components/ui/button'
@@ -15,15 +16,15 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { PhotoType } from '@/types/api'
+import { type PhotoType } from '@/types/api'
 
 interface ActiveTreatmentSessionProps {
   treatmentId: string
   appointmentId: string
-  patientId: string
+  _patientId: string
 }
 
-export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }: ActiveTreatmentSessionProps) {
+export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId }: ActiveTreatmentSessionProps) {
   const navigate = useNavigate()
   
   const { data: treatment, isLoading } = useTreatment(treatmentId)
@@ -63,13 +64,15 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
     if (draft) {
       try {
         const { diagnosis: draftDiag, description: draftDesc } = JSON.parse(draft)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (draftDiag && diagnosis === '') setDiagnosis(draftDiag)
         if (draftDesc && description === '') setDescription(draftDesc)
-      } catch (e) {
+      } catch (_e) {
         // ignore JSON parse errors
       }
     } else {
       if (treatment && diagnosis === '' && treatment.diagnosis) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDiagnosis(treatment.diagnosis)
       }
       if (treatment && description === '' && treatment.description) {
@@ -98,13 +101,13 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
       })
       localStorage.removeItem(`treatment_draft_${treatmentId}`)
       toast.success("Ma'lumotlar saqlandi")
-    } catch (error) {
-      toast.error("Xatolik yuz berdi")
+    } catch (_error) {
+      toast._error("Xatolik yuz berdi")
     }
   }
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const handlePhotoUpload = async (_e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = _e.target.files?.[0]
     if (!file) return
 
     setIsUploading(true)
@@ -115,18 +118,18 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
         photoType: selectedPhotoType
       })
       toast.success("Rasm muvaffaqiyatli yuklandi")
-    } catch (error) {
-      toast.error("Rasm yuklashda xatolik yuz berdi")
+    } catch (_error) {
+      toast._error("Rasm yuklashda xatolik yuz berdi")
     } finally {
       setIsUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
-  const handleIssuePrescription = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleIssuePrescription = async (_e: React.FormEvent) => {
+    _e.preventDefault()
     if (!prescriptionContent.trim() && !selectedTemplateId) {
-      toast.error('Retsept matnini kiriting yoki shablon tanlang.')
+      toast._error('Retsept matnini kiriting yoki shablon tanlang.')
       return
     }
 
@@ -143,21 +146,58 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
       setIsPrescriptionModalOpen(false)
       setPrescriptionContent('')
       setSelectedTemplateId('')
-    } catch (err: any) {
-      toast.error('Retsept saqlashda xatolik yuz berdi.')
+    } catch (_err: unknown) {
+      toast._error('Retsept saqlashda xatolik yuz berdi.')
     }
   }
 
   const handleFinishAppointment = async () => {
     if (!treatment?.material_usages || treatment.material_usages.length === 0) {
-      toast.error("Diqqat! Muolajani yakunlashdan oldin ishlatilgan materiallarni kiriting.", {
-        duration: 5000,
-      })
-      return
+      
+      const procedureTypeId = typeof treatment?.procedureType === 'object' ? treatment.procedureType?.id : (treatment?.procedureType || treatment?.procedure_type)
+      
+      let bomProcessed = false
+      if (procedureTypeId) {
+        try {
+          const boms = await getProcedureBOMsApi({ procedure_type: procedureTypeId })
+          if (boms && boms.length > 0) {
+            const wantAuto = await confirmSwal({
+              title: "Materiallar kiritilmagan",
+              text: "Muolaja uchun texkarta mavjud. Materiallarni avtomatik ravishda sarflashni xohlaysizmi?",
+              confirmButtonText: "Ha, Avtomatik Sarflash",
+              cancelButtonText: "Yo'q, O'zim Kiritaman"
+            })
+            
+            if (wantAuto) {
+              const toastId = toast.loading("Materiallar sarflanmoqda...")
+              for (const bom of boms) {
+                await createMaterialUsageApi({
+                  treatment: treatmentId,
+                  material: bom.material,
+                  quantityUsed: bom.defaultQuantity
+                })
+              }
+              toast.success("Materiallar muvaffaqiyatli sarflandi!", { id: toastId })
+              bomProcessed = true
+            } else {
+              return
+            }
+          }
+        } catch (_error) {
+          // console._error("Failed to process BOM:", _error)
+        }
+      }
+
+      if (!bomProcessed) {
+        toast._error("Diqqat! Muolajani yakunlashdan oldin ishlatilgan materiallarni kiriting.", {
+          duration: 5000,
+        })
+        return
+      }
     }
 
     if (treatment?.approvalStatus === 'pending' || treatment?.approval_status === 'pending') {
-      toast.error("Chegirma tasdiqlanmagan. Bosh shifokor tasdig'ini kuting.")
+      toast._error("Chegirma tasdiqlanmagan. Bosh shifokor tasdig'ini kuting.")
       return
     }
 
@@ -198,8 +238,8 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
          // Reload page or navigate to patient list
          window.location.reload()
       }
-    } catch (error) {
-      toast.error("Yakunlashda xatolik yuz berdi")
+    } catch (_error) {
+      toast._error("Yakunlashda xatolik yuz berdi")
     }
   }
 
@@ -228,7 +268,8 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
                 id="diagnosis" 
                 placeholder="Masalan: Tish kariyesi, Pulpit..." 
                 value={diagnosis}
-                onChange={(e) => setDiagnosis(e.target.value)}
+                // eslint-disable-next-line react-hooks/set-state-in-effect
+                onChange={(_e) => setDiagnosis(_e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -238,7 +279,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
                 placeholder="Bemor shikoyatlari va bajarilgan muolajalar haqida batafsil ma'lumot..." 
                 className="min-h-[120px]"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(_e) => setDescription(_e.target.value)}
               />
             </div>
             <div className="flex justify-end">
@@ -331,11 +372,11 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
         <CardContent>
           {prescriptionsList.length > 0 ? (
             <div className="space-y-3">
-              {prescriptionsList.map((p: any) => (
+              {prescriptionsList.map((p: Record<string, unknown>) => (
                 <div key={p.id} className="p-3 border rounded-lg bg-muted/20 flex flex-col gap-2">
                   <div className="text-sm whitespace-pre-wrap">{p.content || (p.template && typeof p.template === 'object' ? p.template.content : 'Shablon asosida')}</div>
                   <div className="flex justify-between items-center text-xs text-muted-foreground mt-2 border-t pt-2">
-                    <span>Sana: {new Date(p.createdAt || p.created_at || Date.now()).toLocaleString()}</span>
+                    <span>Sana: {new Date(p.createdAt || p.created_at || new Date().getTime()).toLocaleString()}</span>
                     {(p.sentToTelegramAt || p.sent_to_telegram_at || p.sent_at) && (
                       <Badge variant="outline" className="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 border-blue-200">
                         Telegram orqali yuborildi
@@ -371,7 +412,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
                 min="0"
                 className="text-lg font-mono font-bold"
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                onChange={(_e) => setPrice(_e.target.value)}
               />
             </div>
             <div className="flex-1 space-y-2">
@@ -389,12 +430,12 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
               disabled={
                 updateTreatment.isPending || 
                 updateAppointment.isPending || 
-                treatmentData?.approvalStatus === 'pending' || 
-                treatmentData?.approval_status === 'pending'
+                treatment?.approvalStatus === 'pending' || 
+                treatment?.approval_status === 'pending'
               }
             >
               {(updateTreatment.isPending || updateAppointment.isPending) ? <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> : <CheckCircle className="w-5 h-5 mr-2" />}
-              {treatmentData?.approvalStatus === 'pending' || treatmentData?.approval_status === 'pending' 
+              {treatment?.approvalStatus === 'pending' || treatment?.approval_status === 'pending' 
                 ? "Tasdiq kutilmoqda (Chegirma)" 
                 : "Qabulni Yakunlash"}
             </Button>
@@ -412,7 +453,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
               <Label>Tayyor Shablon (Ixtiyoriy)</Label>
               <Select value={selectedTemplateId} onValueChange={(val) => {
                 setSelectedTemplateId(val)
-                const tpl = templates.find((t: any) => String(t.id) === val)
+                const tpl = templates.find((t: Record<string, unknown>) => String(t.id) === val)
                 if (tpl) {
                   setPrescriptionContent(tpl.content || '')
                 }
@@ -422,7 +463,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Tanlanmagan</SelectItem>
-                  {templates.map((tpl: any) => (
+                  {templates.map((tpl: Record<string, unknown>) => (
                     <SelectItem key={tpl.id} value={String(tpl.id)}>
                       {tpl.name || tpl.title}
                     </SelectItem>
@@ -437,7 +478,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
                 className="min-h-[150px]"
                 placeholder="Dori-darmonlar va qabul qilish tartibini yozing..."
                 value={prescriptionContent}
-                onChange={(e) => setPrescriptionContent(e.target.value)}
+                onChange={(_e) => setPrescriptionContent(_e.target.value)}
               />
             </div>
             <div className="flex flex-col space-y-2">

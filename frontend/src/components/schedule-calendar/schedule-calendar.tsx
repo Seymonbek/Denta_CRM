@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { Calendar as CalendarIcon, Clock, CheckCircle2 } from 'lucide-react'
-import { AvailableSlot } from '@/types/api'
+import { type AvailableSlot } from '@/types/api'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Badge } from '@/components/ui/badge'

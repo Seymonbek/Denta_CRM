@@ -334,7 +334,7 @@ def _get_telegram_daily_financial_html(chat_id: int | None) -> str:
     from django.db.models import Sum
 
     from apps.accounts.models import User
-    from apps.payments.models import Payment
+    from apps.payments.models import Payment, Expense
 
     user = User.objects.filter(telegram_chat_id=chat_id, is_active=True).first()
     if not user or user.role not in ["bosh_shifokor", "administrator"]:
@@ -343,9 +343,15 @@ def _get_telegram_daily_financial_html(chat_id: int | None) -> str:
     today = timezone.now().date()
     payments = Payment.objects.filter(is_active=True, created_at__date=today)
     total_income = payments.aggregate(sum=Sum("amount"))["sum"] or 0
+    
+    expenses = Expense.objects.filter(is_active=True, created_at__date=today)
+    total_expense = expenses.aggregate(sum=Sum("amount"))["sum"] or 0
+
     result = format_daily_financial_summary({
         "total_income": float(total_income),
         "payments_count": payments.count(),
+        "total_expense": float(total_expense),
+        "expenses_count": expenses.count(),
     })
     cache.set(cache_key, result, timeout=15)
     return result
@@ -385,7 +391,7 @@ def _update_appointment_status(appointment_id: str, new_status: str) -> bool:
 def _get_telegram_monthly_financial_html(chat_id: int | None) -> str:
     from django.db.models import Count, Sum
     from apps.accounts.models import User
-    from apps.payments.models import Payment
+    from apps.payments.models import Payment, Expense
 
     user = User.objects.filter(telegram_chat_id=chat_id, is_active=True).first()
     if not user or user.role not in ["bosh_shifokor", "administrator"]:
@@ -398,6 +404,11 @@ def _get_telegram_monthly_financial_html(chat_id: int | None) -> str:
     total_income = payments.aggregate(sum=Sum("amount"))["sum"] or 0
     count = payments.count()
 
+    expenses = Expense.objects.filter(is_active=True, created_at__gte=start_month)
+    total_expense = expenses.aggregate(sum=Sum("amount"))["sum"] or 0
+    expenses_count = expenses.count()
+    net_profit = total_income - total_expense
+
     doc_breakdown = (
         payments.values("treatment__doctor__user__first_name", "treatment__doctor__user__last_name")
         .annotate(total=Sum("amount"), cnt=Count("id"))
@@ -405,10 +416,13 @@ def _get_telegram_monthly_financial_html(chat_id: int | None) -> str:
     )
 
     lines = [
-        f"<b>📊 Oylik Tushum va Shifokorlar Reytingi</b>",
+        f"<b>📊 Oylik Tushum va Xarajatlar Hisoboti</b>",
         f"Oydan: <b>01.{now.strftime('%m.%Y')}</b> — Bugungacha\n",
         f"💰 <b>Jami Oylik Tushum:</b> <code>{total_income:,.0f} so'm</code>",
         f"💳 <b>Jami To'lovlar Soni:</b> <b>{count}</b> ta\n",
+        f"📉 <b>Jami Oylik Xarajat:</b> <code>{total_expense:,.0f} so'm</code>",
+        f"🧾 <b>Xarajatlar Soni:</b> <b>{expenses_count}</b> ta\n",
+        f"💵 <b>Sof Qoldiq (Foyda):</b> <code>{net_profit:,.0f} so'm</code>\n",
         f"<b>👨‍⚕️ Shifokorlar Tushum Reytingi:</b>",
     ]
 

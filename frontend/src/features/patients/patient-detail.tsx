@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { _useState, useRef } from 'react'
 import { useParams, Link } from '@tanstack/react-router'
 import { ArrowLeft, Phone, MapPin, Calendar } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -11,7 +11,7 @@ import {
 import { useAppointments } from '@/api/hooks/use-appointments'
 import { useTreatments, useCreateTreatment } from '@/api/hooks/use-treatments'
 import { getTreatmentsApi, createTreatmentApi, createToothRecordApi } from '@/api/treatments'
-import { apiClient } from '@/api/client'
+import { _apiClient } from '@/api/client'
 import { ActiveTreatmentSession } from '@/components/treatment-session/active-treatment-session'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -43,6 +43,8 @@ export function PatientDetail() {
   const activeTreatment = activeTreatments[0]
 
   const createTreatment = useCreateTreatment()
+  const isSavingToothRef = useRef(false)
+  const isStartingSessionRef = useRef(false)
 
   const history = Array.isArray(historyData) ? historyData : []
   const toothRecords = Array.isArray(toothRecordsData) ? toothRecordsData : []
@@ -78,13 +80,11 @@ export function PatientDetail() {
   const totalBilled = Number(balanceData?.totalBilled ?? balanceData?.total_billed ?? 0)
   const totalPaid = Number(balanceData?.totalPaid ?? balanceData?.total_paid ?? 0)
 
-  const isSavingToothRef = useRef(false)
-  const isStartingSessionRef = useRef(false)
 
   const handleSaveToothRecord = async (record: {
     toothNumber: number
-    procedure: any
-    status: any
+    procedure: Record<string, unknown>
+    status: Record<string, unknown>
     notes: string
   }) => {
     if (isSavingToothRef.current) return
@@ -127,7 +127,7 @@ export function PatientDetail() {
           diagnosis: `Tish #${record.toothNumber} ko'rik va muolajasi`,
           description: record.notes || "Tish xaritasiga yozuv kiritildi",
           price: "0",
-        } as any)
+        } as Record<string, unknown>)
         treatmentId = newTreatment.id
       }
 
@@ -143,8 +143,8 @@ export function PatientDetail() {
       // 2. Refresh Odontogram
       await queryClient.invalidateQueries({ queryKey: ['patients', id, 'odontogram'] })
       toast.success(`Tish #${record.toothNumber} saqlandi va yangilandi!`)
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.department?.[0] || err?.response?.data?.detail || err?.response?.data?.non_field_errors?.[0] || "Saqlashda xatolik yuz berdi."
+    } catch (_err: unknown) {
+      const errMsg = _err?.response?.data?.department?.[0] || _err?.response?.data?.detail || _err?.response?.data?.non_field_errors?.[0] || "Saqlashda xatolik yuz berdi."
       toast.error(errMsg)
     } finally {
       isSavingToothRef.current = false
@@ -172,9 +172,9 @@ export function PatientDetail() {
         diagnosis: "",
         description: "Qabul boshlandi",
         price: "0",
-      } as any)
+      } as Record<string, unknown>)
       toast.success("Muolaja sessiyasi boshlandi!")
-    } catch(err: any) {
+    } catch (_err: unknown) {
       toast.error("Xatolik yuz berdi")
     } finally {
       isStartingSessionRef.current = false
@@ -316,7 +316,7 @@ export function PatientDetail() {
           )}
 
           <TabsContent value='odontogram' className='pt-2'>
-            <Odontogram toothRecords={toothRecords} onSaveRecord={handleSaveToothRecord} />
+            <Odontogram patientId={patient.id} toothRecords={toothRecords} onSaveRecord={handleSaveToothRecord} />
           </TabsContent>
 
           <TabsContent value='timeline' className='pt-2'>

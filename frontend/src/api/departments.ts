@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { Department, PaginatedResponse } from '@/types/api'
+import { type Department, type PaginatedResponse } from '@/types/api'
 
 export async function getDepartmentsApi(): Promise<Department[]> {
   const response = await apiClient.get<Department[] | PaginatedResponse<Department>>('departments/')

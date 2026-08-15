@@ -98,6 +98,17 @@ def revenue_between(start: datetime, end: datetime) -> Decimal:
     return result["total"] or _ZERO
 
 
+def expense_between(start: datetime, end: datetime) -> Decimal:
+    """Sum of active expenses in the half-open interval."""
+    from apps.payments.models import Expense
+
+    result = Expense.objects.filter(
+        is_active=True, created_at__gte=start, created_at__lt=end,
+    ).aggregate(total=Coalesce(Sum("amount"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
+    return result["total"] or _ZERO
+
+
+
 def revenue_by_day(start: datetime, end: datetime) -> list[dict[str, Any]]:
     """Series of ``{date, amount}`` payments grouped by day."""
     from apps.payments.models import Payment
@@ -136,6 +147,30 @@ def revenue_by_method(start: datetime, end: datetime) -> list[dict[str, Any]]:
     return [
         {
             "method": row["method"],
+            "amount": str(row["total"]),
+            "count": row["count"],
+        }
+        for row in rows
+    ]
+
+
+def expense_by_category(start: datetime, end: datetime) -> list[dict[str, Any]]:
+    """Aggregate expenses by category for the range."""
+    from apps.payments.models import Expense
+
+    rows = (
+        Expense.objects.filter(
+            is_active=True, created_at__gte=start, created_at__lt=end,
+        )
+        .values("category_id", "category__name")
+        .annotate(total=Coalesce(Sum("amount"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
+        .annotate(count=Count("id"))
+        .order_by("-total")
+    )
+    return [
+        {
+            "categoryId": str(row["category_id"]) if row["category_id"] else None,
+            "name": row["category__name"] or "Boshqa",
             "amount": str(row["total"]),
             "count": row["count"],
         }
@@ -287,18 +322,25 @@ def dashboard_payload(period: Period) -> dict[str, Any]:
     """Full KPI + chart payload for ``/reports/dashboard/?period=…``."""
     start, end = period_range(period)
     revenue = revenue_between(start, end)
+    expenses = expense_between(start, end)
     counts = appointment_counts(start, end)
+    
+    net_profit = max(_ZERO, revenue - expenses)
+    
     return {
         "period": period,
         "range": {"start": _iso(start), "end": _iso(end)},
         "kpi": {
             "revenue": str(revenue),
+            "expenses": str(expenses),
+            "netProfit": str(net_profit),
             "appointmentsTotal": counts["total"],
             "appointmentsCompleted": counts["completed"],
             "newPatients": new_patients_count(start, end),
             "lowStockCount": low_stock_count(),
         },
         "revenueByDay": revenue_by_day(start, end),
+        "expensesByCategory": expense_by_category(start, end),
         "appointmentsByStatus": counts,
         "topProcedures": top_procedures(start, end, limit=5),
         "departmentBreakdown": department_breakdown(start, end),
@@ -319,13 +361,20 @@ def revenue_payload(period: Period) -> dict[str, Any]:
     ).aggregate(total=Coalesce(Sum("amount"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
     deposit_total = deposits["total"] or _ZERO
 
+    revenue = revenue_between(start, end)
+    expenses = expense_between(start, end)
+    net_profit = max(_ZERO, revenue - expenses)
+
     return {
         "period": period,
         "range": {"start": _iso(start), "end": _iso(end)},
-        "total": str(revenue_between(start, end)),
+        "total": str(revenue),
+        "expenses": str(expenses),
+        "netProfit": str(net_profit),
         "depositTotal": str(deposit_total),
         "byDay": revenue_by_day(start, end),
         "byMethod": revenue_by_method(start, end),
+        "expensesByCategory": expense_by_category(start, end),
         "generatedAt": _iso(_tz_now()),
     }
 
@@ -530,6 +579,7 @@ def reception_analytics_payload(period: Period) -> dict[str, Any]:
         "period": period,
         "range": {"start": _iso(start), "end": _iso(end)},
         "totalPaymentsCollected": str(total_cash_collected),
+        "totalExpenses": str(expense_between(start, end)),
         "depositTotal": str(deposit_total),
         "paymentsCount": payments_count,
         "byMethod": by_method,

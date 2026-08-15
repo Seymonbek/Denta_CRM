@@ -79,7 +79,7 @@ export function UserAuthForm({ className, redirectTo, ...props }: UserAuthFormPr
           navigate({ to: redirectTo || '/', replace: true })
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Kirishda xatolik yuz berdi.'))
     }
   }

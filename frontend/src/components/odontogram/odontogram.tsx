@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ToothRecord, ToothProcedure, ToothStatus } from '@/types/api'
+import { type ToothRecord, type ToothProcedure, type ToothStatus } from '@/types/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -8,7 +8,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
+  _DialogFooter,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -18,6 +18,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePatientOdontogramHistory } from '@/api/hooks/use-patients'
+import { format } from 'date-fns'
 
 const UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11]
 const UPPER_LEFT = [21, 22, 23, 24, 25, 26, 27, 28]
@@ -65,6 +68,7 @@ const PROCEDURE_LABELS: Record<ToothProcedure, string> = {
 }
 
 interface OdontogramProps {
+  patientId?: string
   toothRecords: ToothRecord[]
   onSaveRecord?: (record: {
     toothNumber: number
@@ -75,7 +79,7 @@ interface OdontogramProps {
   readOnly?: boolean
 }
 
-export function Odontogram({ toothRecords = [], onSaveRecord, readOnly = false }: OdontogramProps) {
+export function Odontogram({ patientId, toothRecords = [], onSaveRecord, readOnly = false }: OdontogramProps) {
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
   const [procedure, setProcedure] = useState<ToothProcedure>('filling')
   const [status, setStatus] = useState<ToothStatus>('treated')
@@ -84,7 +88,7 @@ export function Odontogram({ toothRecords = [], onSaveRecord, readOnly = false }
 
   // Map of toothNumber -> latest ToothRecord
   const recordMap = new Map<number, ToothRecord>()
-  toothRecords.forEach((rec: any) => {
+  toothRecords.forEach((rec: Record<string, unknown>) => {
     const num = Number(rec.toothNumber ?? rec.tooth_number)
     if (num) {
       recordMap.set(num, rec)
@@ -145,13 +149,13 @@ export function Odontogram({ toothRecords = [], onSaveRecord, readOnly = false }
       </div>
 
       {/* SVG / Teeth Grid Layout */}
-      <div className='flex flex-col gap-8 py-2'>
+      <div className='flex flex-col gap-8 py-2 w-full max-w-full overflow-hidden'>
         {/* Upper Jaw */}
-        <div className='flex flex-col gap-2'>
+        <div className='flex flex-col gap-2 w-full'>
           <div className='text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest'>
             Yuqori Jag' (Upper Jaw)
           </div>
-          <div className='flex justify-center gap-1.5 sm:gap-2.5 overflow-x-auto pb-2'>
+          <div className='flex justify-start sm:justify-center gap-1.5 sm:gap-2.5 overflow-x-auto pb-2 px-1 w-full snap-x'>
             {UPPER_RIGHT.map((num) => (
               <ToothButton
                 key={num}
@@ -177,8 +181,8 @@ export function Odontogram({ toothRecords = [], onSaveRecord, readOnly = false }
         <div className='border-t border-dashed my-1' />
 
         {/* Lower Jaw */}
-        <div className='flex flex-col gap-2'>
-          <div className='flex justify-center gap-1.5 sm:gap-2.5 overflow-x-auto pb-2'>
+        <div className='flex flex-col gap-2 w-full'>
+          <div className='flex justify-start sm:justify-center gap-1.5 sm:gap-2.5 overflow-x-auto pb-2 px-1 w-full snap-x'>
             {LOWER_RIGHT.map((num) => (
               <ToothButton
                 key={num}
@@ -209,65 +213,85 @@ export function Odontogram({ toothRecords = [], onSaveRecord, readOnly = false }
       <Dialog open={selectedTooth !== null} onOpenChange={(open) => !open && setSelectedTooth(null)}>
         <DialogContent className='sm:max-w-md'>
           <DialogHeader>
-            <DialogTitle>Tish #{selectedTooth} - Yozuvni Yangilash</DialogTitle>
+            <DialogTitle>Tish #{selectedTooth} - Ma'lumotlar</DialogTitle>
             <DialogDescription>
-              Tishning so'nggi muolajasi va holatini tanlang.
+              Tishning muolaja holati va tarixi.
             </DialogDescription>
           </DialogHeader>
 
-          <div className='grid gap-4 py-3'>
-            <div className='space-y-1.5'>
-              <label className='text-xs font-medium'>Holat (Status)</label>
-              <Select value={status} onValueChange={(val) => setStatus(val as ToothStatus)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='healthy'>Sog'lom (Healthy)</SelectItem>
-                  <SelectItem value='treated'>Davolangan (Treated)</SelectItem>
-                  <SelectItem value='planned'>Rejalashtirilgan (Planned)</SelectItem>
-                  <SelectItem value='missing'>Yo'q / O'chirilgan (Missing)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <Tabs defaultValue="edit" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="edit">Joriy Holat</TabsTrigger>
+              <TabsTrigger value="history">Tarix</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="edit" className="space-y-4 py-2 mt-2">
+              <div className='grid gap-4'>
+                <div className='space-y-1.5'>
+                  <label className='text-xs font-medium'>Holat (Status)</label>
+                  <Select value={status} onValueChange={(val) => setStatus(val as ToothStatus)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='healthy'>Sog'lom (Healthy)</SelectItem>
+                      <SelectItem value='treated'>Davolangan (Treated)</SelectItem>
+                      <SelectItem value='planned'>Rejalashtirilgan (Planned)</SelectItem>
+                      <SelectItem value='missing'>Yo'q / O'chirilgan (Missing)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className='space-y-1.5'>
-              <label className='text-xs font-medium'>Muolaja (Procedure)</label>
-              <Select value={procedure} onValueChange={(val) => setProcedure(val as ToothProcedure)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(PROCEDURE_LABELS).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className='space-y-1.5'>
+                  <label className='text-xs font-medium'>Muolaja (Procedure)</label>
+                  <Select value={procedure} onValueChange={(val) => setProcedure(val as ToothProcedure)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(PROCEDURE_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>
+                          {v}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className='space-y-1.5'>
-              <label className='text-xs font-medium'>Izoh (Notes)</label>
-              <Textarea
-                placeholder='Tish bo’yicha qo’shimcha izohlar...'
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
+                <div className='space-y-1.5'>
+                  <label className='text-xs font-medium'>Izoh (Notes)</label>
+                  <Textarea
+                    placeholder='Tish bo’yicha qo’shimcha izohlar...'
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              </div>
 
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setSelectedTooth(null)}>
-              Bekor qilish
-            </Button>
-            {!readOnly && onSaveRecord && (
-              <Button onClick={handleSave} disabled={isSubmitting}>
-                {isSubmitting ? 'Saqlanmoqda...' : 'Saqlash'}
-              </Button>
-            )}
-          </DialogFooter>
+              <div className="flex justify-end space-x-2 pt-2">
+                <Button variant='outline' onClick={() => setSelectedTooth(null)}>
+                  Bekor qilish
+                </Button>
+                {!readOnly && onSaveRecord && (
+                  <Button onClick={handleSave} disabled={isSubmitting}>
+                    {isSubmitting ? 'Saqlanmoqda...' : 'Saqlash'}
+                  </Button>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-2 h-[300px] overflow-y-auto pr-2">
+              {patientId && selectedTooth ? (
+                <ToothHistoryList patientId={patientId} toothNumber={selectedTooth} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                  Tarix mavjud emas.
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
         </DialogContent>
       </Dialog>
     </div>
@@ -293,7 +317,7 @@ function ToothButton({
       type='button'
       onClick={onClick}
       disabled={readOnly}
-      className={`group relative flex flex-col items-center justify-between h-20 w-11 sm:w-12 rounded-lg border-2 p-1.5 transition-all duration-200 hover:scale-105 hover:shadow-md ${config.bg} ${config.border}`}
+      className={`group relative flex flex-col items-center justify-between h-20 w-11 sm:w-12 shrink-0 snap-center rounded-lg border-2 p-1.5 transition-all duration-200 hover:scale-105 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 ${config.bg} ${config.border}`}
     >
       <span className='text-[10px] font-bold text-muted-foreground'>{toothNumber}</span>
       <ToothSvg status={currentStatus} />
@@ -324,5 +348,43 @@ function ToothSvg({ status }: { status: ToothStatus }) {
         <path d='M4 4L20 28M20 4L4 28' stroke='#f43f5e' strokeWidth='2' />
       )}
     </svg>
+  )
+}
+
+function ToothHistoryList({ patientId, toothNumber }: { patientId: string; toothNumber: number }) {
+  const { data: history, isLoading, error } = usePatientOdontogramHistory(patientId, toothNumber)
+
+  if (isLoading) return <div className="p-4 text-center text-sm text-muted-foreground">Yuklanmoqda...</div>
+  if (error) return <div className="p-4 text-center text-sm text-destructive">Xatolik yuz berdi.</div>
+  if (!history || history.length === 0) {
+    return <div className="p-4 text-center text-sm text-muted-foreground">Ushbu tish uchun tarix topilmadi.</div>
+  }
+
+  return (
+    <div className="space-y-4">
+      {history.map((record) => (
+        <div key={record.id} className="rounded-lg border p-3 text-sm">
+          <div className="flex justify-between items-start mb-2">
+            <div className="font-medium">
+              {record.procedure ? PROCEDURE_LABELS[record.procedure] || record.procedure : 'Sog\'lom'}
+              <span className="text-xs text-muted-foreground ml-2">({record.status})</span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {format(new Date(record.createdAt), 'dd.MM.yyyy HH:mm')}
+            </div>
+          </div>
+          {record.doctorName && (
+            <div className="text-xs text-muted-foreground mb-1">
+              Shifokor: {record.doctorName}
+            </div>
+          )}
+          {record.notes && (
+            <div className="text-xs bg-muted/50 p-2 rounded-md mt-2">
+              {record.notes}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   )
 }

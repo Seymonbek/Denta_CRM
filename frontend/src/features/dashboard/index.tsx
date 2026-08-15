@@ -11,7 +11,7 @@ import {
   LogOut,
   Package,
   DollarSign,
-  Activity,
+  _Activity,
   Calendar,
 } from 'lucide-react'
 import { useDashboardReport, useDoctorMyAnalytics } from '@/api/hooks/use-reports'
@@ -64,9 +64,17 @@ export function Dashboard() {
     ? report.department_breakdown
     : []
 
+  const expensesByCategory = Array.isArray(report?.expensesByCategory)
+    ? report.expensesByCategory
+    : Array.isArray(report?.expenses_by_category)
+    ? report.expenses_by_category
+    : []
+
   // Support backend kpi payload nested structure
   const kpi = report?.kpi || {}
   const totalRevenue = kpi.revenue ?? report?.totalRevenue ?? report?.total_revenue ?? 0
+  const totalExpenses = kpi.expenses ?? 0
+  const netProfit = kpi.netProfit ?? 0
   const totalPatients = kpi.newPatients ?? report?.totalPatients ?? report?.total_patients ?? 0
   const newPatientsCount = kpi.newPatients ?? report?.newPatientsCount ?? report?.new_patients_count ?? 0
   const completedAppts = kpi.appointmentsCompleted ?? report?.completedAppointments ?? report?.completed_appointments ?? 0
@@ -89,7 +97,7 @@ export function Dashboard() {
             <div className='flex items-center gap-2'>
               <AlertCircle className='h-5 w-5 shrink-0' />
               <span>
-                Xatolik: {(error as any)?.response?.data?.error?.message || (error as any)?.response?.data?.detail || error?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi."}
+                Xatolik: {(error as Record<string, unknown>)?.response?.data?.error?.message || (error as Record<string, unknown>)?.response?.data?.detail || error?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi."}
               </span>
             </div>
             <Button
@@ -305,18 +313,21 @@ export function Dashboard() {
               <Card className='shadow-sm hover:shadow transition-shadow'>
                 <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
                   <CardTitle className='text-xs font-medium text-muted-foreground'>
-                    Umumiy Daromad
+                    Sof Foyda
                   </CardTitle>
-                  <CreditCard className='h-4 w-4 text-emerald-500' />
+                  <DollarSign className='h-4 w-4 text-emerald-500' />
                 </CardHeader>
                 <CardContent>
                   <div className='text-2xl font-bold text-emerald-600 dark:text-emerald-400'>
                     {isLoading
                       ? '...'
-                      : `${Number(totalRevenue).toLocaleString()} so'm`}
+                      : `${Number(netProfit).toLocaleString()} so'm`}
                   </div>
-                  <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1'>
-                    <TrendingUp className='h-3 w-3 text-emerald-500' /> Tushgan barcha to'lovlar
+                  <p className='text-[11px] text-muted-foreground mt-1 flex items-center gap-1 justify-between'>
+                    <span>Tushum: {Number(totalRevenue).toLocaleString()} so'm</span>
+                  </p>
+                  <p className='text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1 justify-between'>
+                    <span className='text-rose-500'>Xarajat: {Number(totalExpenses).toLocaleString()} so'm</span>
                   </p>
                 </CardContent>
               </Card>
@@ -376,6 +387,7 @@ export function Dashboard() {
             <StatsCharts
               topProcedures={topProcedures}
               departmentBreakdown={departmentBreakdown}
+              expensesByCategory={expensesByCategory}
             />
           </>
         )}

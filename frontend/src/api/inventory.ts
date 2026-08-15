@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { Material, MaterialUsage, PaginatedResponse } from '@/types/api'
+import { type Material, type MaterialUsage, type ProcedureBOM, type PaginatedResponse } from '@/types/api'
 
 export async function getMaterialsApi(): Promise<Material[]> {
   const response = await apiClient.get<Material[] | PaginatedResponse<Material>>('materials/')
@@ -33,8 +33,8 @@ export async function adjustMaterialApi(id: string, newQuantity: string, reason?
   return response.data
 }
 
-export async function getMaterialLogsApi(id: string): Promise<any[]> {
-  const response = await apiClient.get<any[]>(`materials/${id}/logs/`)
+export async function getMaterialLogsApi(id: string): Promise<Record<string, unknown>[]> {
+  const response = await apiClient.get<Record<string, unknown>[]>(`materials/${id}/logs/`)
   return response.data
 }
 
@@ -54,3 +54,25 @@ export async function createMaterialUsageApi(data: {
   const response = await apiClient.post<MaterialUsage>('material-usages/', data)
   return response.data
 }
+
+export async function getProcedureBOMsApi(params?: { procedure_type?: string }): Promise<ProcedureBOM[]> {
+  const response = await apiClient.get<ProcedureBOM[] | PaginatedResponse<ProcedureBOM>>('procedure-boms/', { params })
+  if (Array.isArray(response.data)) {
+    return response.data
+  }
+  return response.data.results || []
+}
+
+export async function createProcedureBOMApi(data: {
+  procedureType: string
+  material: string
+  defaultQuantity: string
+}): Promise<ProcedureBOM> {
+  const response = await apiClient.post<ProcedureBOM>('procedure-boms/', data)
+  return response.data
+}
+
+export async function deleteProcedureBOMApi(id: string): Promise<void> {
+  await apiClient.delete(`procedure-boms/${id}/`)
+}
+

@@ -29,14 +29,14 @@ import {
   Package,
   Clock,
   CheckCircle2,
-  XCircle,
+  _XCircle,
   CreditCard,
   TrendingUp,
   Award,
   AlertCircle,
   UserCheck,
   BarChart3,
-  Stethoscope,
+  _Stethoscope,
 } from 'lucide-react'
 
 export function ReportsList() {
@@ -118,7 +118,7 @@ export function ReportsList() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value=''>Barchasini ko'rish</SelectItem>
-                    {doctorsList.map((d: any) => {
+                    {doctorsList.map((d: Record<string, unknown>) => {
                       const firstName = d.user?.firstName || d.user?.first_name || ''
                       const lastName = d.user?.lastName || d.user?.last_name || ''
                       const fullName = `${firstName} ${lastName}`.trim() || d.fullName || d.name || 'Shifokor'
@@ -288,7 +288,7 @@ export function ReportsList() {
                               </tr>
                             </thead>
                             <tbody className='divide-y'>
-                              {doctorAnalytics.procedureBreakdown.map((proc: any, idx: number) => (
+                              {doctorAnalytics.procedureBreakdown.map((proc: Record<string, unknown>, idx: number) => (
                                 <tr key={proc.name || idx} className='hover:bg-muted/20'>
                                   <td className='p-3 font-semibold text-foreground'>{proc.name}</td>
                                   <td className='p-3 text-center font-mono font-bold'>{proc.count} ta</td>
@@ -337,7 +337,7 @@ export function ReportsList() {
                               </tr>
                             </thead>
                             <tbody className='divide-y'>
-                              {doctorAnalytics.materialsUsed.map((mat: any, idx: number) => (
+                              {doctorAnalytics.materialsUsed.map((mat: Record<string, unknown>, idx: number) => (
                                 <tr key={mat.materialName || idx} className='hover:bg-muted/20'>
                                   <td className='p-3 font-semibold text-foreground'>{mat.materialName}</td>
                                   <td className='p-3 text-center font-mono font-bold'>
@@ -475,7 +475,7 @@ export function ReportsList() {
                             </tr>
                           </thead>
                           <tbody className='divide-y'>
-                            {receptionAnalytics.byMethod.map((item: any) => {
+                            {receptionAnalytics.byMethod.map((item: Record<string, unknown>) => {
                               const methodLabel =
                                 item.method === 'cash'
                                   ? '💵 Naqd Pul'
