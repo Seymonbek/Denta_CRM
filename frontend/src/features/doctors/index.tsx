@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Clock, CalendarX, Plus, Stethoscope, Search, Trash2 } from 'lucide-react'
 import { _confirmSwal } from '@/lib/sweetalert'
 import {
@@ -59,11 +59,13 @@ export function DoctorsList() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const { data: doctorsData = [], isLoading } = useDoctors()
-  const doctorsList = Array.isArray(doctorsData?.results)
-    ? doctorsData.results
-    : Array.isArray(doctorsData)
-    ? doctorsData
-    : []
+  const doctorsList = useMemo(() => {
+    return Array.isArray(doctorsData?.results)
+      ? doctorsData.results
+      : Array.isArray(doctorsData)
+      ? doctorsData
+      : []
+  }, [doctorsData])
 
   const filteredDoctors = doctorsList.filter((doc: Record<string, unknown>) => {
     const name = (doc?.user?.firstName || doc?.user?.first_name || '') + ' ' + (doc?.user?.lastName || doc?.user?.last_name || '') + ' ' + (doc?.specialization || '')

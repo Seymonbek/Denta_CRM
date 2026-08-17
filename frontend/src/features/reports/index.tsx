@@ -21,7 +21,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 import { StatsCharts } from '@/components/stats-charts/stats-charts'
+import { exportToExcel, exportToPDF } from '@/utils/export'
 import {
   DollarSign,
   Users,
@@ -37,6 +45,9 @@ import {
   UserCheck,
   BarChart3,
   _Stethoscope,
+  Download,
+  FileText,
+  FileSpreadsheet,
 } from 'lucide-react'
 
 export function ReportsList() {
@@ -79,6 +90,71 @@ export function ReportsList() {
     : Array.isArray(departmentsData)
     ? departmentsData
     : []
+
+  // Eksport funksiyalari
+  const handleExportDoctorAnalytics = (format: 'pdf' | 'excel') => {
+    if (!doctorAnalytics) return
+    const columns = [
+      { header: 'Muolaja Nomi', key: 'name', width: 30 },
+      { header: 'Soni', key: 'count', width: 10 },
+      { header: 'Jami Tushum', key: 'totalAmount', width: 20 },
+    ]
+    const data = doctorAnalytics.procedureBreakdown || []
+    const filename = `Shifokor_Analitikasi_${period}`
+
+    if (format === 'pdf') {
+      exportToPDF(data, columns, "Shifokor Bo'yicha Bajarilgan Muolajalar", filename)
+    } else {
+      exportToExcel(data, columns, filename)
+    }
+  }
+
+  const handleExportReception = (format: 'pdf' | 'excel') => {
+    if (!receptionAnalytics) return
+    const columns = [
+      { header: "To'lov Usuli", key: 'methodLabel', width: 20 },
+      { header: "To'lovlar Soni", key: 'count', width: 15 },
+      { header: 'Jami Tushgan Summa', key: 'total', width: 20 },
+    ]
+    const data = (receptionAnalytics.byMethod || []).map((item: Record<string, unknown>) => {
+      const methodLabel =
+        item.method === 'cash'
+          ? 'Naqd Pul'
+          : item.method === 'card'
+          ? 'Terminal (Karta)'
+          : item.method === 'payme'
+          ? 'Payme'
+          : item.method === 'click'
+          ? 'Click'
+          : item.method === 'bank_transfer'
+          ? "Bank O'tkazmasi"
+          : String(item.method || '')
+      return { ...item, methodLabel }
+    })
+    const filename = `Kassa_Tushumi_${period}`
+
+    if (format === 'pdf') {
+      exportToPDF(data, columns, "Kassa Tushumi va To'lov Usullari", filename)
+    } else {
+      exportToExcel(data, columns, filename)
+    }
+  }
+
+  const handleExportProcedures = (format: 'pdf' | 'excel') => {
+    if (!topProcedures) return
+    const columns = [
+      { header: 'Muolaja Nomi', key: 'name', width: 30 },
+      { header: 'Soni', key: 'count', width: 10 },
+      { header: 'Tushum', key: 'revenue', width: 20 },
+    ]
+    const filename = `Klinika_Muolajalari_${period}`
+
+    if (format === 'pdf') {
+      exportToPDF(topProcedures, columns, "Klinika Bo'yicha Top Muolajalar", filename)
+    } else {
+      exportToExcel(topProcedures, columns, filename)
+    }
+  }
 
   return (
     <>
@@ -147,6 +223,37 @@ export function ReportsList() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Eksport Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant='outline' size='sm' className='h-9 text-xs gap-2 font-medium bg-background shadow-xs hover:bg-muted/50 border-primary/20'>
+                  <Download className='h-4 w-4 text-primary' /> Eksport
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' className='w-48'>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (isDoctor || (isBoshShifokor && selectedDoctorId)) handleExportDoctorAnalytics('excel')
+                    else if (isReception) handleExportReception('excel')
+                    else handleExportProcedures('excel')
+                  }}
+                  className='cursor-pointer text-xs font-medium'
+                >
+                  <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-600' /> Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (isDoctor || (isBoshShifokor && selectedDoctorId)) handleExportDoctorAnalytics('pdf')
+                    else if (isReception) handleExportReception('pdf')
+                    else handleExportProcedures('pdf')
+                  }}
+                  className='cursor-pointer text-xs font-medium'
+                >
+                  <FileText className='h-4 w-4 mr-2 text-rose-600' /> PDF (.pdf)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

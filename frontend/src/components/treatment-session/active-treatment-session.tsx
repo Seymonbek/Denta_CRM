@@ -66,6 +66,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
         const { diagnosis: draftDiag, description: draftDesc } = JSON.parse(draft)
         // eslint-disable-next-line react-hooks/set-state-in-effect
         if (draftDiag && diagnosis === '') setDiagnosis(draftDiag)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (draftDesc && description === '') setDescription(draftDesc)
       } catch (_e) {
         // ignore JSON parse errors
@@ -76,13 +77,16 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
         setDiagnosis(treatment.diagnosis)
       }
       if (treatment && description === '' && treatment.description) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDescription(treatment.description)
       }
     }
 
     if (treatment && price === '0.00' && treatment.price && treatment.price !== '0.00') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPrice(treatment.price)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treatment, treatmentId])
 
   // Save to local storage on change
@@ -268,7 +272,6 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
                 id="diagnosis" 
                 placeholder="Masalan: Tish kariyesi, Pulpit..." 
                 value={diagnosis}
-                // eslint-disable-next-line react-hooks/set-state-in-effect
                 onChange={(_e) => setDiagnosis(_e.target.value)}
               />
             </div>
