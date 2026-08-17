@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { FileText, Send, Plus, Search, Eye, Pill, Calendar, User, _Stethoscope } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { FileText, Send, Plus, Search, Eye, Pill, Calendar, User, _Stethoscope, Printer } from 'lucide-react'
 import {
   usePrescriptionTemplates,
   useCreatePrescriptionTemplate,
@@ -41,6 +41,8 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
+import { useReactToPrint } from 'react-to-print'
+import { PrescriptionPrint } from '@/components/print/prescription-print'
 
 export function PrescriptionsList() {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -84,6 +86,23 @@ export function PrescriptionsList() {
 
   const createTemplateMutation = useCreatePrescriptionTemplate()
   const issuePrescriptionMutation = useIssuePrescription()
+
+  const printRef = useRef<HTMLDivElement>(null)
+  const [prescriptionToPrint, setPrescriptionToPrint] = useState<Record<string, unknown> | null>(null)
+  
+  const handlePrintAction = useReactToPrint({
+    // @ts-expect-error react-to-print issue with react 18 refs
+    content: () => printRef.current,
+    onAfterPrint: () => setPrescriptionToPrint(null),
+  })
+
+  const triggerPrint = (prescription: Record<string, unknown>, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    setPrescriptionToPrint(prescription)
+    setTimeout(() => {
+      if (handlePrintAction) handlePrintAction()
+    }, 100)
+  }
 
   // Filter Prescriptions
   const filteredPrescriptions = prescriptionsList.filter((p: Record<string, unknown>) => {
@@ -236,7 +255,7 @@ export function PrescriptionsList() {
                     <TableHead className='text-xs font-semibold'>Retsept Sarlavhasi</TableHead>
                     <TableHead className='text-xs font-semibold'>Bemor / Davolash</TableHead>
                     <TableHead className='text-xs font-semibold'>Holati</TableHead>
-                    <TableHead className='text-xs font-semibold text-end'>Batafsil</TableHead>
+                    <TableHead className='text-xs font-semibold text-end'>Harakatlar</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -287,17 +306,27 @@ export function PrescriptionsList() {
                             )}
                           </TableCell>
                           <TableCell className='text-end'>
-                            <Button
-                              size='sm'
-                              variant='ghost'
-                              className='h-8 text-xs font-semibold gap-1 text-primary'
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setSelectedPrescriptionDetail(p)
-                              }}
-                            >
-                              <Eye className='h-3.5 w-3.5' /> Batafsil
-                            </Button>
+                            <div className='flex items-center justify-end gap-1'>
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                className='h-7 text-xs gap-1 hover:bg-muted/50'
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedPrescriptionDetail(p)
+                                }}
+                              >
+                                <Eye className='h-3.5 w-3.5' /> Batafsil
+                              </Button>
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                className='h-7 text-xs gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50'
+                                onClick={(e) => triggerPrint(p, e)}
+                              >
+                                <Printer className='h-3.5 w-3.5' /> Chop etish
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
@@ -499,6 +528,11 @@ export function PrescriptionsList() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Hidden Print Container */}
+        <div style={{ display: 'none' }}>
+          {prescriptionToPrint && <PrescriptionPrint ref={printRef} prescription={prescriptionToPrint} />}
+        </div>
       </Main>
     </>
   )

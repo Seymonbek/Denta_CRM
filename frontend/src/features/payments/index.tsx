@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Plus, Ban, FileText, _Wallet, _Search, CreditCard, AlertCircle } from 'lucide-react'
+import { Plus, Ban, _Wallet, _Search, CreditCard, AlertCircle, Printer } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { confirmSwal } from '@/lib/sweetalert'
 import { format } from 'date-fns'
@@ -46,6 +46,8 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
+import { useReactToPrint } from 'react-to-print'
+import { ReceiptPrint } from '@/components/print/receipt-print'
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Naqd Pul',
@@ -104,6 +106,24 @@ export function PaymentsList() {
   const { data: summary } = useDoctorCommissionSummary(selectedDoctorId)
 
   const createPaymentMutation = useCreatePayment()
+  const printRef = useRef<HTMLDivElement>(null)
+  const [paymentToPrint, setPaymentToPrint] = useState<Record<string, unknown> | null>(null)
+  
+  const handlePrintAction = useReactToPrint({
+    // @ts-expect-error react-to-print issue with react 18 refs
+    content: () => printRef.current,
+    onAfterPrint: () => setPaymentToPrint(null),
+  })
+
+  const triggerPrint = (payment: Record<string, unknown>) => {
+    setPaymentToPrint(payment)
+    setTimeout(() => {
+      if (handlePrintAction) handlePrintAction()
+    }, 100)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _shiftInfo = useShiftStore((state) => state.shiftInfo)
   const voidPaymentMutation = useVoidPayment()
   const isShiftOpen = useShiftStore(state => state.isShiftOpen)
 
@@ -153,21 +173,26 @@ export function PaymentsList() {
       setTreatmentId('')
       setPatientId('')
     } catch (err: unknown) {
-      const errData = err?.response?.data
+      const errData = (err as Record<string, unknown>)?.response as Record<string, unknown>
       let msg = 'To\'lovni amalga oshirishda xatolik.'
-      if (typeof errData === 'string') {
-        msg = errData
-      } else if (errData?.detail) {
-        msg = Array.isArray(errData.detail) ? errData.detail[0] : errData.detail
-      } else if (errData?.amount) {
-        msg = Array.isArray(errData.amount) ? errData.amount[0] : errData.amount
-      } else if (errData?.non_field_errors) {
-        msg = Array.isArray(errData.non_field_errors) ? errData.non_field_errors[0] : errData.non_field_errors
-      } else if (typeof errData === 'object' && errData !== null) {
-        const firstKey = Object.keys(errData)[0]
-        if (firstKey) {
-          const val = errData[firstKey]
-          msg = Array.isArray(val) ? val[0] : String(val)
+      if (typeof errData?.data === 'string') {
+        msg = errData.data
+      } else {
+        const errObj = (errData?.data || errData || {}) as Record<string, unknown>
+        if (errObj?.error) {
+          msg = String(errObj.error)
+        } else if (errObj?.detail) {
+          msg = Array.isArray(errObj.detail) ? String(errObj.detail[0]) : String(errObj.detail)
+        } else if (errObj?.amount) {
+          msg = Array.isArray(errObj.amount) ? String(errObj.amount[0]) : String(errObj.amount)
+        } else if (errObj?.non_field_errors) {
+          msg = Array.isArray(errObj.non_field_errors) ? String(errObj.non_field_errors[0]) : String(errObj.non_field_errors)
+        } else if (typeof errObj === 'object' && errObj !== null) {
+          const firstKey = Object.keys(errObj)[0]
+          if (firstKey) {
+            const val = errObj[firstKey]
+            msg = Array.isArray(val) ? String(val[0]) : String(val)
+          }
         }
       }
       toast.error(msg)
@@ -368,12 +393,9 @@ export function PaymentsList() {
                                 size='sm'
                                 variant='outline'
                                 className='h-7 text-xs gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50'
-                                onClick={() => {
-                                  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1/'
-                                  window.open(`${baseUrl}payments/${p.id}/receipt/`, '_blank')
-                                }}
+                                onClick={() => triggerPrint(p)}
                               >
-                                <FileText className='h-3.5 w-3.5' /> Chek
+                                <Printer className='h-3.5 w-3.5' /> Chek
                               </Button>
                               {!isVoided && (
                                 <Button
@@ -587,6 +609,11 @@ export function PaymentsList() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Hidden Print Container */}
+        <div style={{ display: 'none' }}>
+          {paymentToPrint && <ReceiptPrint ref={printRef} payment={paymentToPrint} />}
+        </div>
       </Main>
     </>
   )
