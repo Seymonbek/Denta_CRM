@@ -239,6 +239,7 @@ export function DoctorsList() {
             <TableHeader>
               <TableRow className='bg-muted/30'>
                 <TableHead className='text-xs font-semibold'>Shifokor Ismi</TableHead>
+                <TableHead className='text-xs font-semibold'>Baho (Reyting)</TableHead>
                 <TableHead className='text-xs font-semibold'>Mutaxassislik</TableHead>
                 <TableHead className='text-xs font-semibold'>Bo'limlar</TableHead>
                 {!isDoctor && <TableHead className='text-xs font-semibold'>Komissiya Asosi</TableHead>}
@@ -249,13 +250,13 @@ export function DoctorsList() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={isDoctor ? 4 : 6} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
+                  <TableCell colSpan={isDoctor ? 5 : 7} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
                     Ma'lumotlar yuklanmoqda...
                   </TableCell>
                 </TableRow>
               ) : displayDoctors.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isDoctor ? 4 : 6} className='text-center py-8 text-xs text-muted-foreground'>
+                  <TableCell colSpan={isDoctor ? 5 : 7} className='text-center py-8 text-xs text-muted-foreground'>
                     Ma'lumot topilmadi.
                   </TableCell>
                 </TableRow>
@@ -281,14 +282,20 @@ export function DoctorsList() {
                               Dr. {firstName} {lastName}
                             </p>
                             {phoneNumber && (
-                              <p className='text-[10px] text-muted-foreground font-mono'>
+                              <p className='text-[10px] text-muted-foreground font-sans tracking-wide'>
                                 {phoneNumber}
                               </p>
                             )}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className='text-xs font-medium'>{specialization}</TableCell>
+                      <TableCell className='text-xs'>
+                        <div className="flex items-center gap-1 font-semibold text-yellow-500">
+                          <span className="text-sm">⭐</span>
+                          {doc?.averageRating ? Number(doc.averageRating).toFixed(1) : '0.0'}
+                        </div>
+                      </TableCell>
+                      <TableCell className='text-xs text-muted-foreground'>{specialization}</TableCell>
                       <TableCell className='text-xs'>
                         <div className='flex flex-wrap gap-1'>
                           {departments.map((dep: Record<string, unknown>) => (

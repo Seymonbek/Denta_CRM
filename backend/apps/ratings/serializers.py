@@ -11,7 +11,7 @@ from typing import Any
 
 from rest_framework import serializers
 
-from .models import Badge, DoctorBadge, ScoreLog
+from .models import Badge, DoctorBadge, ScoreLog, PatientReview
 
 
 # ---------------------------------------------------------------------------
@@ -104,9 +104,37 @@ class DoctorBadgeSerializer(_CamelMixin, serializers.ModelSerializer):
         read_only_fields = fields
 
 
+# ---------------------------------------------------------------------------
+# PatientReview
+# ---------------------------------------------------------------------------
+class PatientReviewSerializer(_CamelMixin, serializers.ModelSerializer):
+    """Serialize a single :class:`PatientReview`."""
+
+    doctor_id = serializers.UUIDField()
+    patient_id = serializers.UUIDField(required=False, allow_null=True)
+    treatment_id = serializers.UUIDField(required=False, allow_null=True)
+    patient_name = serializers.CharField(
+        source="patient.first_name", read_only=True
+    )
+
+    class Meta:
+        model = PatientReview
+        fields = [
+            "id",
+            "doctor_id",
+            "patient_id",
+            "treatment_id",
+            "rating",
+            "comment",
+            "patient_name",
+            "created_at",
+        ]
+
+
 __all__ = [
     "ScoreLogSerializer",
     "LeaderboardEntrySerializer",
     "BadgeSerializer",
     "DoctorBadgeSerializer",
+    "PatientReviewSerializer",
 ]

@@ -7,15 +7,21 @@ Two mount points wired from :mod:`config.urls`:
 """
 from __future__ import annotations
 
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import SimpleRouter
 
-from .views import DoctorBadgesView, LeaderboardView
+from .views import DoctorBadgesView, LeaderboardView, PatientReviewViewSet
 
 app_name = "ratings"
 
 
+router = SimpleRouter()
+router.register(r"reviews", PatientReviewViewSet, basename="review")
+
+
 leaderboard_urlpatterns = [
     path("leaderboard/", LeaderboardView.as_view(), name="leaderboard"),
+    path("", include(router.urls)),
 ]
 
 

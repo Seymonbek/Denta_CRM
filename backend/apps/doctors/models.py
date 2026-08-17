@@ -129,6 +129,15 @@ class DoctorProfile(BaseModel):
         """Return the rate used for treatments when no procedure override applies."""
         return Decimal(self.default_commission_rate)
 
+    @property
+    def average_rating(self) -> float:
+        """Calculate the average rating from patient reviews."""
+        from django.db.models import Avg
+        result = self.patient_reviews.aggregate(Avg("rating"))["rating__avg"]
+        if result is None:
+            return 0.0
+        return round(float(result), 1)
+
 
 # ---------------------------------------------------------------------------
 # WorkingHours

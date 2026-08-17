@@ -10,7 +10,8 @@ from __future__ import annotations
 from typing import Any
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
+from rest_framework import status, viewsets
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.generics import get_object_or_404
 from rest_framework.request import Request
@@ -19,10 +20,11 @@ from rest_framework.views import APIView
 
 from apps.core.permissions import ROLE_DOCTOR
 from apps.doctors.models import DoctorProfile
+from .models import PatientReview
 
 from .permissions import DoctorBadgesPermission, LeaderboardPermission
 from .selectors import badges_for_doctor, leaderboard
-from .serializers import DoctorBadgeSerializer, LeaderboardEntrySerializer
+from .serializers import DoctorBadgeSerializer, LeaderboardEntrySerializer, PatientReviewSerializer
 
 
 # ---------------------------------------------------------------------------
@@ -108,4 +110,27 @@ class DoctorBadgesView(APIView):
         )
 
 
-__all__ = ["LeaderboardView", "DoctorBadgesView"]
+# ---------------------------------------------------------------------------
+# Patient Reviews
+# ---------------------------------------------------------------------------
+@extend_schema(tags=["ratings"])
+class PatientReviewViewSet(viewsets.ModelViewSet):
+    """``/api/v1/ratings/reviews/``."""
+    
+    queryset = PatientReview.objects.all().select_related("patient", "doctor")
+    serializer_class = PatientReviewSerializer
+    
+    def get_permissions(self):
+        if self.action == "create":
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        doctor_id = self.request.query_params.get("doctor_id")
+        if doctor_id:
+            qs = qs.filter(doctor_id=doctor_id)
+        return qs
+
+
+__all__ = ["LeaderboardView", "DoctorBadgesView", "PatientReviewViewSet"]

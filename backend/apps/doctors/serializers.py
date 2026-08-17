@@ -287,6 +287,7 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             "defaultCommissionRate": _dec_to_str(instance.default_commission_rate),
             "canViewOtherDoctors": bool(instance.can_view_other_doctors),
             "isActive": instance.is_active,
+            "averageRating": getattr(instance, "average_rating", 0.0),
             "workingHours": working_hours,
             "createdAt": instance.created_at.isoformat() if instance.created_at else None,
             "updatedAt": instance.updated_at.isoformat() if instance.updated_at else None,

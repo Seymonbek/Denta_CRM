@@ -11,6 +11,8 @@ import {
   Shield,
   Lightbulb,
   AlertTriangle,
+  Mic,
+  MicOff,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
@@ -19,6 +21,7 @@ import {
   useAIPermissions,
   useUpdateAIPermission,
 } from '@/api/hooks/use-ai'
+import { useVoiceRecognition } from '@/hooks/use-voice-recognition'
 import { useMe } from '@/api/hooks/use-auth'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -62,6 +65,17 @@ export function AIAssistantPage() {
 
   const [inputMessage, setInputMessage] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  
+  const { isRecording, toggleRecording, error: voiceError } = useVoiceRecognition((text) => {
+    setInputMessage(text)
+  })
+
+  // Show voice error if any
+  useEffect(() => {
+    if (voiceError) {
+      toast.error(voiceError)
+    }
+  }, [voiceError])
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome-1',
@@ -282,12 +296,26 @@ export function AIAssistantPage() {
                     className='flex gap-2'
                   >
                     <Input
-                      placeholder="Savolingizni kiriting (Masalan: Bugun nechta bemor keldi?)..."
+                      placeholder={isRecording ? "Sizni eshitmoqdaman..." : "Savolingizni kiriting (Masalan: Bugun nechta bemor keldi?)..."}
                       value={inputMessage}
                       onChange={(e) => setInputMessage(e.target.value)}
-                      className='text-xs flex-1 h-10'
+                      className={`text-xs flex-1 h-10 ${isRecording ? 'border-rose-500 bg-rose-500/5 placeholder:text-rose-500' : ''}`}
                       disabled={chatMutation.isPending}
                     />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={`h-10 w-10 p-0 shrink-0 transition-colors ${
+                        isRecording 
+                          ? 'border-rose-500 text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 hover:text-rose-600 animate-pulse' 
+                          : 'text-muted-foreground'
+                      }`}
+                      onClick={toggleRecording}
+                      disabled={chatMutation.isPending}
+                      title={isRecording ? "Yozishni to'xtatish" : "Ovozli kiritish"}
+                    >
+                      {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </Button>
                     <Button type='submit' className='h-10 px-4' disabled={chatMutation.isPending || !inputMessage.trim()}>
                       <Send className='h-4 w-4 me-1' /> Yuborish
                     </Button>

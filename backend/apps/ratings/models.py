@@ -16,6 +16,7 @@ Design decisions:
 """
 from __future__ import annotations
 
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -202,10 +203,62 @@ class DoctorBadge(BaseModel):
         return f"DoctorBadge({self.doctor_id} · {self.badge_id} · {self.period})"
 
 
+# ---------------------------------------------------------------------------
+# PatientReview
+# ---------------------------------------------------------------------------
+class PatientReview(BaseModel):
+    """A review left by a patient for a doctor."""
+
+    doctor = models.ForeignKey(
+        "doctors.DoctorProfile",
+        on_delete=models.CASCADE,
+        related_name="patient_reviews",
+        verbose_name=_("Shifokor"),
+    )
+    patient = models.ForeignKey(
+        "patients.Patient",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="doctor_reviews",
+        verbose_name=_("Bemor"),
+    )
+    treatment = models.ForeignKey(
+        "treatments.Treatment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="patient_reviews",
+        verbose_name=_("Davolash"),
+    )
+    rating = models.IntegerField(
+        _("Baho"),
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text=_("1 dan 5 gacha bo'lgan baho"),
+    )
+    comment = models.TextField(
+        _("Izoh"),
+        blank=True,
+        default="",
+    )
+
+    class Meta:
+        verbose_name = _("Bemor izohi")
+        verbose_name_plural = _("Bemor izohlari")
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["doctor", "-created_at"], name="ratings_review_doctor_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"PatientReview(Doctor={self.doctor_id}, Rating={self.rating})"
+
+
 __all__ = [
     "ScoreLog",
     "Badge",
     "DoctorBadge",
     "ScoreReason",
     "DEFAULT_POINTS_PER_REASON",
+    "PatientReview",
 ]
