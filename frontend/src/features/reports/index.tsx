@@ -8,6 +8,7 @@ import {
 } from '@/api/hooks/use-reports'
 import { useDoctors } from '@/api/hooks/use-doctors'
 import { useMe } from '@/api/hooks/use-auth'
+import { type DoctorProfile } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -37,14 +38,12 @@ import {
   Package,
   Clock,
   CheckCircle2,
-  _XCircle,
   CreditCard,
   TrendingUp,
   Award,
   AlertCircle,
   UserCheck,
   BarChart3,
-  _Stethoscope,
   Download,
   FileText,
   FileSpreadsheet,
@@ -53,12 +52,12 @@ import {
 export function ReportsList() {
   const [period, setPeriod] = useState<string>('month')
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('')
-  const { user } = useMe()
+  const { data: user } = useMe()
 
   const role = user?.role || 'bosh_shifokor'
   const isBoshShifokor = role === 'bosh_shifokor'
   const isDoctor = role === 'doctor'
-  const isReception = role === 'administrator' || role === 'admin'
+  const isReception = role === 'administrator'
 
   // Queries
   const { data: revenueData, isLoading: isRevLoading } = useRevenueReport(period)
@@ -66,11 +65,7 @@ export function ReportsList() {
   const { data: departmentsData } = useDepartmentsReport(period)
 
   const { data: doctorsData } = useDoctors()
-  const doctorsList = Array.isArray(doctorsData?.results)
-    ? doctorsData.results
-    : Array.isArray(doctorsData)
-    ? doctorsData
-    : []
+  const doctorsList = Array.isArray(doctorsData) ? doctorsData : []
 
   const { data: doctorAnalytics, isLoading: isDocAnalyticsLoading } = useDoctorMyAnalytics(
     period,
@@ -194,10 +189,10 @@ export function ReportsList() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value=''>Barchasini ko'rish</SelectItem>
-                    {doctorsList.map((d: Record<string, unknown>) => {
-                      const firstName = d.user?.firstName || d.user?.first_name || ''
-                      const lastName = d.user?.lastName || d.user?.last_name || ''
-                      const fullName = `${firstName} ${lastName}`.trim() || d.fullName || d.name || 'Shifokor'
+                    {doctorsList.map((d: DoctorProfile) => {
+                      const firstName = d.user?.firstName || ''
+                      const lastName = d.user?.lastName || ''
+                      const fullName = `${firstName} ${lastName}`.trim() || 'Shifokor'
                       const isMe = d.user?.id === user?.id
                       return (
                         <SelectItem key={d.id} value={d.id}>
@@ -395,12 +390,12 @@ export function ReportsList() {
                               </tr>
                             </thead>
                             <tbody className='divide-y'>
-                              {doctorAnalytics.procedureBreakdown.map((proc: Record<string, unknown>, idx: number) => (
-                                <tr key={proc.name || idx} className='hover:bg-muted/20'>
-                                  <td className='p-3 font-semibold text-foreground'>{proc.name}</td>
-                                  <td className='p-3 text-center font-mono font-bold'>{proc.count} ta</td>
+                              {doctorAnalytics.procedureBreakdown.map((proc: any, idx: number) => (
+                                <tr key={String(proc.name || idx)} className='hover:bg-muted/20'>
+                                  <td className='p-3 font-semibold text-foreground'>{String(proc.name || 'Muolaja')}</td>
+                                  <td className='p-3 text-center font-mono font-bold'>{String(proc.count || 0)} ta</td>
                                   <td className='p-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold'>
-                                    {Number(proc.totalAmount).toLocaleString()} so'm
+                                    {Number(proc.totalAmount || 0).toLocaleString()} so'm
                                   </td>
                                 </tr>
                               ))}
@@ -444,14 +439,14 @@ export function ReportsList() {
                               </tr>
                             </thead>
                             <tbody className='divide-y'>
-                              {doctorAnalytics.materialsUsed.map((mat: Record<string, unknown>, idx: number) => (
-                                <tr key={mat.materialName || idx} className='hover:bg-muted/20'>
-                                  <td className='p-3 font-semibold text-foreground'>{mat.materialName}</td>
+                              {doctorAnalytics.materialsUsed.map((mat: any, idx: number) => (
+                                <tr key={String(mat.materialName || idx)} className='hover:bg-muted/20'>
+                                  <td className='p-3 font-semibold text-foreground'>{String(mat.materialName || 'Material')}</td>
                                   <td className='p-3 text-center font-mono font-bold'>
-                                    {mat.quantity} {mat.unit}
+                                    {String(mat.quantity || 0)} {String(mat.unit || '')}
                                   </td>
                                   <td className='p-3 text-right font-mono text-rose-600 dark:text-rose-400 font-bold'>
-                                    {Number(mat.totalCost).toLocaleString()} so'm
+                                    {Number(mat.totalCost || 0).toLocaleString()} so'm
                                   </td>
                                 </tr>
                               ))}
@@ -582,7 +577,7 @@ export function ReportsList() {
                             </tr>
                           </thead>
                           <tbody className='divide-y'>
-                            {receptionAnalytics.byMethod.map((item: Record<string, unknown>) => {
+                            {receptionAnalytics.byMethod.map((item: any) => {
                               const methodLabel =
                                 item.method === 'cash'
                                   ? '💵 Naqd Pul'
@@ -594,14 +589,14 @@ export function ReportsList() {
                                   ? '📲 Click'
                                   : item.method === 'bank_transfer'
                                   ? "🏛️ Bank O'tkazmasi"
-                                  : item.method
+                                  : String(item.method || '')
 
                               return (
-                                <tr key={item.method} className='hover:bg-muted/20'>
+                                <tr key={String(item.method)} className='hover:bg-muted/20'>
                                   <td className='p-3 font-semibold text-foreground'>{methodLabel}</td>
                                   <td className='p-3 text-center font-mono font-bold'>{item.count} ta</td>
                                   <td className='p-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold'>
-                                    {Number(item.total).toLocaleString()} so'm
+                                    {Number(item.total || 0).toLocaleString()} so'm
                                   </td>
                                 </tr>
                               )

@@ -1,10 +1,10 @@
-import { _useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { apiClient } from '@/api/client'
-import { _useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Briefcase, _Play, _Square } from 'lucide-react'
+import { Briefcase } from 'lucide-react'
 
 import { useOpenCashShift } from '@/api/hooks/use-cash-shifts'
 import { useShiftStore } from '@/stores/shift-store'
@@ -34,8 +34,8 @@ export function CashShiftToggle() {
       toast.success("Kassa smenasi ochildi!")
       queryClient.invalidateQueries({ queryKey: ['cash-shifts', 'open'] })
     },
-    onError: (err: Record<string, unknown>) => {
-      toast.error(err?.response?.data?.detail || "Smena ochishda xatolik yuz berdi")
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.response?.data?.error || "Smena ochishda xatolik yuz berdi")
     }
   })
 
@@ -48,8 +48,8 @@ export function CashShiftToggle() {
       toast.success("Kassa smenasi yopildi!")
       queryClient.invalidateQueries({ queryKey: ['cash-shifts', 'open'] })
     },
-    onError: (err: Record<string, unknown>) => {
-      toast.error(err?.response?.data?.detail || "Smena yopishda xatolik yuz berdi")
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.response?.data?.error || "Smena yopishda xatolik yuz berdi")
     }
   })
 

@@ -22,6 +22,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/get-error-message'
 import { ClinicSettingsCard } from './clinic-settings-card'
 
 export function SettingsPage() {
@@ -43,9 +44,11 @@ export function SettingsPage() {
   useEffect(() => {
     if (user) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFirstName(user.firstName || user.first_name || '')
-      setLastName(user.lastName || user.last_name || '')
-      const chatVal = user.telegramChatId ?? user.telegram_chat_id
+      setFirstName(user.firstName || '')
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLastName(user.lastName || '')
+      const chatVal = user.telegramChatId
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTelegramChatId(chatVal ? String(chatVal) : '')
     }
   }, [user])
@@ -87,12 +90,12 @@ export function SettingsPage() {
       }
       setIs2FAModalOpen(false)
     } catch (err: unknown) {
-      toast.error(err?.response?.data?.detail || 'Parol noto’g’ri yoki xatolik yuz berdi.')
+      toast.error(getErrorMessage(err, 'Parol noto’g’ri yoki xatolik yuz berdi.'))
     }
   }
 
-  const twoFactorEnabled = Boolean(user?.twoFactorEnabled ?? user?.two_factor_enabled)
-  const phoneNumber = user?.phoneNumber || user?.phone_number || ''
+  const twoFactorEnabled = Boolean(user?.twoFactorEnabled)
+  const phoneNumber = user?.phoneNumber || ''
 
   return (
     <>

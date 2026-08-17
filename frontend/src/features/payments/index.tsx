@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Plus, Ban, _Wallet, _Search, CreditCard, AlertCircle, Printer } from 'lucide-react'
+import { Plus, Ban, CreditCard, AlertCircle, Printer } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { confirmSwal } from '@/lib/sweetalert'
 import { format } from 'date-fns'
@@ -57,8 +57,6 @@ const METHOD_LABELS: Record<string, string> = {
   bank_transfer: 'Bank O’tkazmasi',
 }
 
-
-
 export function PaymentsList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('')
@@ -107,7 +105,7 @@ export function PaymentsList() {
 
   const createPaymentMutation = useCreatePayment()
   const printRef = useRef<HTMLDivElement>(null)
-  const [paymentToPrint, setPaymentToPrint] = useState<Record<string, unknown> | null>(null)
+  const [paymentToPrint, setPaymentToPrint] = useState<any>(null)
   
   const handlePrintAction = useReactToPrint({
     // @ts-expect-error react-to-print issue with react 18 refs
@@ -115,15 +113,13 @@ export function PaymentsList() {
     onAfterPrint: () => setPaymentToPrint(null),
   })
 
-  const triggerPrint = (payment: Record<string, unknown>) => {
+  const triggerPrint = (payment: any) => {
     setPaymentToPrint(payment)
     setTimeout(() => {
       if (handlePrintAction) handlePrintAction()
     }, 100)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _shiftInfo = useShiftStore((state) => state.shiftInfo)
   const voidPaymentMutation = useVoidPayment()
   const isShiftOpen = useShiftStore(state => state.isShiftOpen)
 
@@ -135,7 +131,7 @@ export function PaymentsList() {
   )
 
   const filteredTreatments = patientId 
-    ? allModalTreatments.filter((t: Record<string, unknown>) => (t.patient?.id || t.patient) === patientId)
+    ? allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === patientId)
     : allModalTreatments
 
   const openPaymentModal = (tId: string, pId: string, amt: string) => {
@@ -155,7 +151,7 @@ export function PaymentsList() {
     if (isSubmittingRef.current) return
     isSubmittingRef.current = true
 
-    const idempotencyKey = `pay_${Date.now()}_${crypto.randomUUID().toString(36).substring(2, 9)}`
+    const idempotencyKey = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
     try {
       await createPaymentMutation.mutateAsync({
@@ -172,8 +168,8 @@ export function PaymentsList() {
       setAmount('')
       setTreatmentId('')
       setPatientId('')
-    } catch (err: unknown) {
-      const errData = (err as Record<string, unknown>)?.response as Record<string, unknown>
+    } catch (err: any) {
+      const errData = err?.response as Record<string, unknown>
       let msg = 'To\'lovni amalga oshirishda xatolik.'
       if (typeof errData?.data === 'string') {
         msg = errData.data
@@ -247,18 +243,18 @@ export function PaymentsList() {
               <AlertCircle className="w-4 h-4" /> To'lov Kutilmoqda ({pendingTreatments.length})
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {pendingTreatments.map((pt: Record<string, unknown>) => {
-                const pName = pt.patientName || pt.patient_name || (pt.patient && typeof pt.patient === 'object' ? `${pt.patient.firstName || pt.patient.first_name || ''} ${pt.patient.lastName || pt.patient.last_name || ''}`.trim() : pt.patient) || 'Bemor'
-                const doctorName = pt.doctorName || pt.doctor_name || (pt.doctor && typeof pt.doctor === 'object' ? pt.doctor.user?.first_name : '') || 'Shifokor'
-                const pId = pt.patient && typeof pt.patient === 'object' ? pt.patient.id : pt.patient
+              {pendingTreatments.map((pt: any) => {
+                const pName = String(pt.patientName || (pt.patient && typeof pt.patient === 'object' ? `${pt.patient.firstName || ''} ${pt.patient.lastName || ''}`.trim() : pt.patient) || 'Bemor')
+                const doctorName = String(pt.doctorName || (pt.doctor && typeof pt.doctor === 'object' ? pt.doctor.user?.firstName : '') || 'Shifokor')
+                const pId = String(pt.patient && typeof pt.patient === 'object' ? pt.patient.id : pt.patient || '')
                 
                 return (
-                  <div key={pt.id} className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 shadow-sm flex flex-col justify-between">
+                  <div key={String(pt.id)} className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 shadow-sm flex flex-col justify-between">
                     <div>
                       <div className="flex justify-between items-start mb-2">
                         <Link
                             to='/patients/$id'
-                            params={{ id: String(pId) }}
+                            params={{ id: pId }}
                             className="font-bold text-sm text-primary hover:underline"
                           >
                             {pName}
@@ -269,7 +265,7 @@ export function PaymentsList() {
                       </div>
                       <div className="text-xs text-muted-foreground space-y-1 mb-3">
                         <p>Shifokor: Dr. {doctorName}</p>
-                        <p>Muolaja: {pt.procedureTypeName || pt.procedure_type_name || 'Umumiy'}</p>
+                        <p>Muolaja: {pt.procedureTypeName || 'Umumiy'}</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between border-t border-amber-200/50 dark:border-amber-900/50 pt-3">
@@ -279,7 +275,7 @@ export function PaymentsList() {
                       <Button 
                         size="sm" 
                         className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                        onClick={() => openPaymentModal(pt.id, pId, pt.price || '')}
+                        onClick={() => openPaymentModal(String(pt.id), pId, String(pt.price || ''))}
                         disabled={!isShiftOpen}
                       >
                         <CreditCard className="w-3.5 h-3.5 mr-1" /> To'lash
@@ -327,18 +323,18 @@ export function PaymentsList() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    payments.map((p: Record<string, unknown>) => {
-                      const patientName = p?.patientName || (p?.patient && typeof p.patient === 'object' ? `${p.patient.firstName || p.patient.first_name || ''} ${p.patient.lastName || p.patient.last_name || ''}`.trim() : '') || 'Bemor'
-                      const patientId = p?.patientId || p?.patient?.id || p?.patient || ''
-                      const pMethod = p?.method || 'cash'
-                      const createdAt = p?.createdAt || p?.created_at || ''
-                      const shortId = p?.shortId || String(p?.id || '').replace(/-/g, '').toUpperCase().slice(0, 8)
-                      const procedureName = p?.procedureName || ''
-                      const doctorName = p?.doctorName || ''
+                    payments.map((p: any) => {
+                      const patientName = String(p?.patientName || (p?.patient && typeof p.patient === 'object' ? `${p.patient.firstName || ''} ${p.patient.lastName || ''}`.trim() : '') || 'Bemor')
+                      const patientId = String(p?.patientId || p?.patient?.id || p?.patient || '')
+                      const pMethod = String(p?.method || 'cash')
+                      const createdAt = String(p?.createdAt || p?.created_at || '')
+                      const shortId = String(p?.shortId || String(p?.id || '').replace(/-/g, '').toUpperCase().slice(0, 8))
+                      const procedureName = p?.procedureName ? String(p.procedureName) : ''
+                      const doctorName = p?.doctorName ? String(p.doctorName) : ''
                       const isVoided = p?.isActive === false
 
                       return (
-                        <TableRow key={p?.id} className={`hover:bg-muted/20 ${isVoided ? 'opacity-50' : ''}`}>
+                        <TableRow key={String(p?.id)} className={`hover:bg-muted/20 ${isVoided ? 'opacity-50' : ''}`}>
                           {/* Short ID */}
                           <TableCell className='text-[10px] font-mono text-muted-foreground'>
                             <span className='bg-muted px-1.5 py-0.5 rounded font-medium'>{shortId}</span>
@@ -348,7 +344,7 @@ export function PaymentsList() {
                           <TableCell className='font-medium text-xs'>
                             <Link
                               to='/patients/$id'
-                              params={{ id: String(patientId) }}
+                              params={{ id: patientId }}
                               className='text-primary hover:underline font-bold'
                             >
                               {patientName}
@@ -377,7 +373,7 @@ export function PaymentsList() {
                           {/* Method */}
                           <TableCell className='text-xs'>
                             <Badge variant='outline' className='text-[10px]'>
-                              {METHOD_LABELS[pMethod] || pMethod}
+                              {(METHOD_LABELS as Record<string, string>)[pMethod] || pMethod}
                             </Badge>
                           </TableCell>
 
@@ -429,9 +425,9 @@ export function PaymentsList() {
                     <SelectValue placeholder='Shifokor' />
                   </SelectTrigger>
                   <SelectContent>
-                    {doctors.map((d: Record<string, unknown>) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        Dr. {d.user?.firstName || d.user?.first_name || ''} {d.user?.lastName || d.user?.last_name || ''} ({d.specialization})
+                    {doctors.map((d: any) => (
+                      <SelectItem key={String(d.id)} value={String(d.id)}>
+                        Dr. {d.user?.firstName || ''} {d.user?.lastName || ''} ({d.specialization || 'Stomatolog'})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -441,7 +437,7 @@ export function PaymentsList() {
                   <div className='ms-auto flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg'>
                     <span className='text-xs font-medium text-muted-foreground'>Jami Komissiya:</span>
                     <span className='text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400'>
-                      {Number(summary.totalCommission ?? summary.total_commission ?? 0).toLocaleString()} so'm
+                      {Number(summary.totalCommission || 0).toLocaleString()} so'm
                     </span>
                   </div>
                 )}
@@ -471,19 +467,19 @@ export function PaymentsList() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      commissions.map((c: Record<string, unknown>) => {
-                        const doctorName = c?.doctorName || c?.doctor_name || (c?.doctor && typeof c.doctor === 'object' ? `${c.doctor.user?.firstName || c.doctor.user?.first_name || ''} ${c.doctor.user?.lastName || c.doctor.user?.last_name || ''}`.trim() : c?.doctor) || 'Shifokor'
+                      commissions.map((c: any) => {
+                        const doctorName = c?.doctorName || (c?.doctor && typeof c.doctor === 'object' ? `${c.doctor.user?.firstName || ''} ${c.doctor.user?.lastName || ''}`.trim() : c?.doctor) || 'Shifokor'
                         const calcAt = c?.calculatedAt || c?.calculated_at || ''
 
                         return (
-                          <TableRow key={c?.id}>
+                          <TableRow key={String(c?.id)}>
                             <TableCell className='text-xs font-medium'>{doctorName}</TableCell>
                             <TableCell className='text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400'>
                               +{Number(c?.amount || 0).toLocaleString()} so'm
                             </TableCell>
                             <TableCell className='text-xs'>
-                              <Badge variant='secondary' className='text-[10px]'>
-                                {c?.basis === 'from_total' ? 'Umumiy summadan' : 'Sofi foydadan'}
+                              <Badge variant='outline' className='text-[10px] uppercase'>
+                                {String(c?.basis || 'from_total')} ({c?.rate || 0}%)
                               </Badge>
                             </TableCell>
                             <TableCell className='text-xs font-mono text-muted-foreground'>
@@ -514,7 +510,7 @@ export function PaymentsList() {
                   value={patientId} 
                   onValueChange={(val) => {
                     setPatientId(val)
-                    const patientTreatments = allModalTreatments.filter((t: Record<string, unknown>) => (t.patient?.id || t.patient) === val)
+                    const patientTreatments = allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === val)
                     if (patientTreatments.length === 1) {
                       setTreatmentId(patientTreatments[0].id)
                       setAmount(patientTreatments[0].price || '')
@@ -528,9 +524,9 @@ export function PaymentsList() {
                     <SelectValue placeholder='Bemor' />
                   </SelectTrigger>
                   <SelectContent>
-                    {patients.map((p: Record<string, unknown>) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.firstName || p.first_name} {p.lastName || p.last_name}
+                    {patients.map((p: any) => (
+                      <SelectItem key={String(p.id)} value={String(p.id)}>
+                        {p.firstName || ''} {p.lastName || ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -543,10 +539,10 @@ export function PaymentsList() {
                   value={treatmentId}
                   onValueChange={(val) => {
                     setTreatmentId(val)
-                    const tr = allModalTreatments.find((t: Record<string, unknown>) => t.id === val)
+                    const tr = allModalTreatments.find((t: any) => String(t.id) === val)
                     if (tr) {
-                      setPatientId(tr.patient?.id || tr.patient)
-                      setAmount(tr.price || '')
+                      setPatientId(typeof tr.patient === 'object' ? (tr.patient as any).id : tr.patient)
+                      setAmount(String(tr.price || ''))
                     }
                   }}
                 >
@@ -554,13 +550,13 @@ export function PaymentsList() {
                     <SelectValue placeholder='Davolash ishini tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredTreatments.map((t: Record<string, unknown>) => {
-                      const patientName = t.patient ? `${t.patient.firstName || t.patient.first_name || ''} ${t.patient.lastName || t.patient.last_name || ''}`.trim() : 'Bemor'
-                      const procedureName = t.procedureType?.name || t.procedure_type?.name || 'Umumiy Muolaja'
+                    {filteredTreatments.map((t: any) => {
+                      const patientName = t.patient ? `${t.patient.firstName || ''} ${t.patient.lastName || ''}`.trim() : 'Bemor'
+                      const procedureName = t.procedureType?.name || t.procedureTypeName || 'Umumiy Muolaja'
                       const dateStr = t.createdAt || t.created_at || ''
                       const dateFormatted = dateStr ? format(new Date(dateStr), 'dd.MM.yy HH:mm') : ''
                       return (
-                        <SelectItem key={t.id} value={t.id}>
+                        <SelectItem key={String(t.id)} value={String(t.id)}>
                           {patientName} - {procedureName} {dateFormatted ? `(${dateFormatted})` : ''} - {Number(t.price || 0).toLocaleString()} so'm
                         </SelectItem>
                       )

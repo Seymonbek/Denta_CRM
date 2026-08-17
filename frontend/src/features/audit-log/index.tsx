@@ -20,7 +20,7 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { useAuditLogs, type AuditLog } from '@/api/hooks/use-audit-logs'
 
-function ChangesModal({ changes, open, onOpenChange }: { changes: Record<string, { old: Record<string, unknown>; new: Record<string, unknown> }> | null; open: boolean; onOpenChange: (o: boolean) => void }) {
+function ChangesModal({ changes, open, onOpenChange }: { changes: Record<string, { old: unknown; new: unknown }> | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -71,7 +71,7 @@ export function AuditLogFeature() {
     model_name: modelFilter || undefined,
   })
   
-  const [selectedChanges, setSelectedChanges] = useState<Record<string, { old: Record<string, unknown>; new: Record<string, unknown> }> | null>(null)
+  const [selectedChanges, setSelectedChanges] = useState<Record<string, { old: unknown; new: unknown }> | null>(null)
 
   const getActionBadge = (action: string) => {
     switch (action) {

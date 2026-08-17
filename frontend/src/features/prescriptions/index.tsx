@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { FileText, Send, Plus, Search, Eye, Pill, Calendar, User, _Stethoscope, Printer } from 'lucide-react'
+import { FileText, Send, Plus, Search, Eye, Pill, Calendar, User, Printer } from 'lucide-react'
 import {
   usePrescriptionTemplates,
   useCreatePrescriptionTemplate,
@@ -43,11 +43,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { useReactToPrint } from 'react-to-print'
 import { PrescriptionPrint } from '@/components/print/prescription-print'
+import { type Treatment, type PrescriptionTemplate } from '@/types/api'
 
 export function PrescriptionsList() {
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false)
-  const [selectedPrescriptionDetail, setSelectedPrescriptionDetail] = useState<Record<string, unknown>>(null)
+  const [selectedPrescriptionDetail, setSelectedPrescriptionDetail] = useState<any>(null)
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('')
@@ -64,21 +65,17 @@ export function PrescriptionsList() {
   const [sendTelegram, setSendTelegram] = useState(true)
 
   const { data: templatesData = [], isLoading: isTemplatesLoading } = usePrescriptionTemplates()
-  const templates = Array.isArray(templatesData?.results)
-    ? templatesData.results
-    : Array.isArray(templatesData)
-    ? templatesData
-    : []
+  const templates: PrescriptionTemplate[] = Array.isArray(templatesData) ? templatesData : []
 
   const { data: prescriptionsData, isLoading: isPrescriptionsLoading } = usePrescriptions()
-  const prescriptionsList = Array.isArray(prescriptionsData?.results)
+  const prescriptionsList: any[] = Array.isArray(prescriptionsData?.results)
     ? prescriptionsData.results
     : Array.isArray(prescriptionsData)
     ? prescriptionsData
     : []
 
   const { data: treatmentsData } = useTreatments()
-  const treatments = Array.isArray(treatmentsData?.results)
+  const treatments: Treatment[] = Array.isArray(treatmentsData?.results)
     ? treatmentsData.results
     : Array.isArray(treatmentsData)
     ? treatmentsData
@@ -88,7 +85,7 @@ export function PrescriptionsList() {
   const issuePrescriptionMutation = useIssuePrescription()
 
   const printRef = useRef<HTMLDivElement>(null)
-  const [prescriptionToPrint, setPrescriptionToPrint] = useState<Record<string, unknown> | null>(null)
+  const [prescriptionToPrint, setPrescriptionToPrint] = useState<any>(null)
   
   const handlePrintAction = useReactToPrint({
     // @ts-expect-error react-to-print issue with react 18 refs
@@ -96,7 +93,7 @@ export function PrescriptionsList() {
     onAfterPrint: () => setPrescriptionToPrint(null),
   })
 
-  const triggerPrint = (prescription: Record<string, unknown>, e?: React.MouseEvent) => {
+  const triggerPrint = (prescription: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
     setPrescriptionToPrint(prescription)
     setTimeout(() => {
@@ -105,7 +102,7 @@ export function PrescriptionsList() {
   }
 
   // Filter Prescriptions
-  const filteredPrescriptions = prescriptionsList.filter((p: Record<string, unknown>) => {
+  const filteredPrescriptions = prescriptionsList.filter((p: any) => {
     const text = (p?.content || '') + (p?.treatment && typeof p.treatment === 'object' ? p.treatment.patient_name || '' : '')
     const matchesSearch = text.toLowerCase().includes(searchTerm.toLowerCase())
     const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || p?.sent_at
@@ -118,17 +115,17 @@ export function PrescriptionsList() {
     return matchesSearch && matchesStatus
   })
 
-  const treatmentSelectOptions = treatments.map((t: Record<string, unknown>) => {
-    const pName = t?.patient && typeof t.patient === 'object' ? `${t.patient.first_name || ''} ${t.patient.last_name || ''}` : `Bemor #${t.patient || ''}`
-    const proc = t?.procedure_type?.name || 'Muolaja'
+  const treatmentSelectOptions = treatments.map((t: Treatment) => {
+    const pName = t.patientName || `Bemor #${t.patient || ''}`
+    const proc = t.procedureTypeName || 'Muolaja'
     return {
       value: String(t.id),
       label: `${pName} - ${proc}`,
-      sublabel: `Tashxis: ${t.diagnosis || 'Kiritilmagan'} | Narxi: ${t.price || 0} so'm`,
+      sublabel: `Tashxis: ${t.diagnosis || 'Kiritilmagan'} | Narxi: ${Number(t.price || 0).toLocaleString()} so'm`,
     }
   })
 
-  const templateSelectOptions = templates.map((tpl: Record<string, unknown>) => ({
+  const templateSelectOptions = templates.map((tpl: PrescriptionTemplate) => ({
     value: String(tpl.id),
     label: tpl.name || 'Shablon',
     sublabel: tpl.content ? tpl.content.slice(0, 40) + '...' : '',
@@ -272,16 +269,16 @@ export function PrescriptionsList() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredPrescriptions.map((p: Record<string, unknown>) => {
+                    filteredPrescriptions.map((p: any) => {
                       const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || p?.sent_at || ''
                       const treatmentDisplay = p?.treatment && typeof p.treatment === 'object'
                         ? (p.treatment.patient_name || p.treatment.diagnosis || 'Davolash yozuvi')
                         : `Davolash #${p?.treatment || ''}`
-                      const contentTitle = p?.content ? p.content.split('\n')[0] : 'Retsept yozuvi'
+                      const contentTitle = p?.content ? String(p.content).split('\n')[0] : 'Retsept yozuvi'
 
                       return (
                         <TableRow
-                          key={p?.id}
+                          key={String(p?.id)}
                           className='hover:bg-muted/20 cursor-pointer transition-colors'
                           onClick={() => setSelectedPrescriptionDetail(p)}
                         >
@@ -349,14 +346,14 @@ export function PrescriptionsList() {
                   Hali hech qanday shablon yaratilmagan.
                 </div>
               ) : (
-                templates.map((tpl: Record<string, unknown>) => (
-                  <div key={tpl?.id} className='flex flex-col justify-between rounded-xl border bg-card p-4 shadow-sm hover:shadow transition-shadow'>
+                templates.map((tpl: any) => (
+                  <div key={String(tpl?.id)} className='flex flex-col justify-between rounded-xl border bg-card p-4 shadow-sm hover:shadow transition-shadow'>
                     <div>
                       <h4 className='font-bold text-sm mb-2 flex items-center gap-2'>
-                        <FileText className='h-4 w-4 text-primary' /> {tpl?.name || 'Shablon'}
+                        <FileText className='h-4 w-4 text-primary' /> {String(tpl?.name || 'Shablon')}
                       </h4>
                       <p className='text-xs text-muted-foreground whitespace-pre-line bg-muted/30 p-2.5 rounded-lg border font-mono'>
-                        {tpl?.content || ''}
+                        {String(tpl?.content || '')}
                       </p>
                     </div>
                   </div>
@@ -445,7 +442,7 @@ export function PrescriptionsList() {
                   value={selectedTemplateId}
                   onValueChange={(val) => {
                     setSelectedTemplateId(val)
-                    const found = templates.find((t: Record<string, unknown>) => String(t.id) === val)
+                    const found = templates.find((t: PrescriptionTemplate) => String(t.id) === val)
                     if (found?.content) {
                       setIssueContent(found.content)
                     }

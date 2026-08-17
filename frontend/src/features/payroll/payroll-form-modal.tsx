@@ -52,7 +52,7 @@ export function PayrollFormModal({
   const { data: openShift } = useOpenCashShift()
 
   const form = useForm<SalaryFormValues>({
-    resolver: zodResolver(salarySchema) as Record<string, unknown>,
+    resolver: zodResolver(salarySchema) as any,
     defaultValues: {
       amount: 0,
       method: 'cash',

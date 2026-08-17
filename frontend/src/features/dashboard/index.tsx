@@ -11,7 +11,6 @@ import {
   LogOut,
   Package,
   DollarSign,
-  _Activity,
   Calendar,
 } from 'lucide-react'
 import { useDashboardReport, useDoctorMyAnalytics } from '@/api/hooks/use-reports'
@@ -97,7 +96,7 @@ export function Dashboard() {
             <div className='flex items-center gap-2'>
               <AlertCircle className='h-5 w-5 shrink-0' />
               <span>
-                Xatolik: {(error as Record<string, unknown>)?.response?.data?.error?.message || (error as Record<string, unknown>)?.response?.data?.detail || error?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi."}
+                Xatolik: {(error as any)?.response?.data?.error?.message || (error as any)?.response?.data?.detail || error?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi."}
               </span>
             </div>
             <Button
@@ -118,7 +117,7 @@ export function Dashboard() {
           <div className='mb-6 p-6 rounded-2xl border border-primary/20 bg-primary/5 text-card-foreground flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm'>
             <div>
               <h2 className='text-xl font-bold tracking-tight'>
-                Xush kelibsiz, {authUser?.first_name || authUser?.phone_number}! ({isAdministrator ? 'Administrator' : 'Shifokor'})
+                Xush kelibsiz, {authUser?.firstName || authUser?.phoneNumber}! ({isAdministrator ? 'Administrator' : 'Shifokor'})
               </h2>
               <p className='text-xs text-muted-foreground mt-1'>
                 {isAdministrator

@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
  getExpenseCategoriesApi,
- createApi,
- updateApi,
- deleteApi,
+ createExpenseCategoryApi,
+ updateExpenseCategoryApi,
+ deleteExpenseCategoryApi,
  getExpensesApi,
  createExpenseApi,
  updateExpenseApi,
@@ -19,41 +19,41 @@ export function useExpenseCategories() {
  })
 }
 
-export function useCreate() {
+export function useCreateExpenseCategory() {
  const queryClient = useQueryClient()
  return useMutation({
-  mutationFn: createApi,
+  mutationFn: createExpenseCategoryApi,
   onSuccess: () => {
    queryClient.invalidateQueries({ queryKey: ['expense-categories'] })
   },
-  onError: (error: unknown) => {
+  onError: (error: any) => {
    toast.error('Toifani yaratishda xatolik: ' + (error.response?.data?.detail || error.message))
   },
  })
 }
 
-export function useUpdate() {
+export function useUpdateExpenseCategory() {
  const queryClient = useQueryClient()
  return useMutation({
   mutationFn: ({ id, data }: { id: string; data: { name: string; is_active?: boolean } }) =>
-   updateApi(id, data),
+   updateExpenseCategoryApi(id, data),
   onSuccess: () => {
    queryClient.invalidateQueries({ queryKey: ['expense-categories'] })
   },
-  onError: (error: unknown) => {
+  onError: (error: any) => {
    toast.error('Toifani yangilashda xatolik: ' + (error.response?.data?.detail || error.message))
   },
  })
 }
 
-export function useDelete() {
+export function useDeleteExpenseCategory() {
  const queryClient = useQueryClient()
  return useMutation({
-  mutationFn: deleteApi,
+  mutationFn: deleteExpenseCategoryApi,
   onSuccess: () => {
    queryClient.invalidateQueries({ queryKey: ['expense-categories'] })
   },
-  onError: (error: unknown) => {
+  onError: (error: any) => {
    toast.error('Toifani o\'chirishda xatolik: ' + (error.response?.data?.detail || error.message))
   },
  })
@@ -74,8 +74,8 @@ export function useCreateExpense() {
    queryClient.invalidateQueries({ queryKey: ['expenses'] })
    queryClient.invalidateQueries({ queryKey: ['cash-shifts'] })
   },
-  onError: (error: unknown) => {
-   toast.error('Xarajatni kiritishda xatolik: ' + (error.response?.data?.detail || error.message))
+  onError: (error: any) => {
+   toast.error('Xarajatni kiritishda xatolik: ' + (error?.response?.data?.detail || error?.message || ''))
   },
  })
 }
@@ -88,8 +88,8 @@ export function useUpdateExpense() {
    queryClient.invalidateQueries({ queryKey: ['expenses'] })
    queryClient.invalidateQueries({ queryKey: ['cash-shifts'] })
   },
-  onError: (error: unknown) => {
-   toast.error('Xarajatni yangilashda xatolik: ' + (error.response?.data?.detail || error.message))
+  onError: (error: any) => {
+   toast.error('Xarajatni yangilashda xatolik: ' + (error?.response?.data?.detail || error?.message || ''))
   },
  })
 }
@@ -102,8 +102,8 @@ export function useDeleteExpense() {
    queryClient.invalidateQueries({ queryKey: ['expenses'] })
    queryClient.invalidateQueries({ queryKey: ['cash-shifts'] })
   },
-  onError: (error: unknown) => {
-   toast.error('Xarajatni o\'chirishda xatolik: ' + (error.response?.data?.detail || error.message))
+  onError: (error: any) => {
+   toast.error('Xarajatni o\'chirishda xatolik: ' + (error?.response?.data?.detail || error?.message || ''))
   },
  })
 }

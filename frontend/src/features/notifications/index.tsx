@@ -70,16 +70,16 @@ export function NotificationsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                notifications.map((n: Record<string, unknown>) => {
-                  const sentAt = n?.sentAt || n?.sent_at || ''
-                  const nType = n?.type || 'notification'
-                  const nStatus = n?.status || 'sent'
-                  const channel = n?.channel || 'telegram'
+                notifications.map((n: any) => {
+                  const sentAt = String(n?.sentAt || n?.sent_at || '')
+                  const nType = String(n?.type || 'notification')
+                  const nStatus = String(n?.status || 'sent')
+                  const channel = String(n?.channel || 'telegram')
 
                   return (
-                    <TableRow key={n?.id} className='hover:bg-muted/20'>
+                    <TableRow key={String(n?.id)} className='hover:bg-muted/20'>
                       <TableCell className='text-xs font-medium max-w-md truncate'>
-                        {n?.message || '—'}
+                        {String(n?.message || '—')}
                       </TableCell>
                       <TableCell className='text-xs'>
                         <Badge variant='outline' className='text-[10px] uppercase'>

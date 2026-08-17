@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { getAuditLogsApi } from '../audit'
+import { getAuditLogsApi, type AuditLog } from '../audit'
 
+export type { AuditLog }
 export const AUDIT_LOGS_QUERY_KEY = ['audit-logs']
 
 export function useAuditLogs(params?: {

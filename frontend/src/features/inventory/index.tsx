@@ -56,16 +56,12 @@ export function InventoryList() {
   const [unitCost, setUnitCost] = useState('')
 
   const { data: materialsData = [], isLoading } = useMaterials()
-  const materialsList = Array.isArray(materialsData?.results)
-    ? materialsData.results
-    : Array.isArray(materialsData)
-    ? materialsData
-    : []
+  const materialsList: Material[] = Array.isArray(materialsData) ? materialsData : []
 
-  const filteredMaterials = materialsList.filter((m: Record<string, unknown>) => {
+  const filteredMaterials = materialsList.filter((m: Material) => {
     const nameMatch = (m?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-    const stockNum = parseFloat(m?.quantityInStock || m?.quantity_in_stock || '0')
-    const thresholdNum = parseFloat(m?.minimumThreshold || m?.minimum_threshold || '0')
+    const stockNum = parseFloat(String(m?.quantityInStock || 0))
+    const thresholdNum = parseFloat(String(m?.minimumThreshold || 0))
     const isLow = stockNum <= thresholdNum
 
     if (stockFilter === 'low' && !isLow) return false
@@ -153,7 +149,7 @@ export function InventoryList() {
               className='ps-9 text-xs h-9'
             />
           </div>
-          <Select value={stockFilter} onValueChange={(val: Record<string, unknown>) => setStockFilter(val)}>
+          <Select value={stockFilter} onValueChange={(val: any) => setStockFilter(val)}>
             <SelectTrigger className='w-full sm:w-48 text-xs h-9'>
               <SelectValue placeholder='Zaxira Holati' />
             </SelectTrigger>
@@ -192,19 +188,19 @@ export function InventoryList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredMaterials.map((m: Record<string, unknown>) => {
-                  const stockNum = parseFloat(m?.quantityInStock || m?.quantity_in_stock || '0')
-                  const thresholdNum = parseFloat(m?.minimumThreshold || m?.minimum_threshold || '0')
-                  const costNum = m?.unitCost || m?.unit_cost
-                  const unitVal = m?.unit || 'piece'
+                filteredMaterials.map((m: Material) => {
+                  const stockNum = parseFloat(String(m.quantityInStock || 0))
+                  const thresholdNum = parseFloat(String(m.minimumThreshold || 0))
+                  const costNum = m.unitCost
+                  const unitVal = m.unit || 'piece'
                   const isLowStock = stockNum <= thresholdNum
 
                   return (
-                    <TableRow key={m?.id} className='hover:bg-muted/20'>
+                    <TableRow key={m.id} className='hover:bg-muted/20'>
                       <TableCell className='font-semibold text-xs'>
                         <div className='flex items-center gap-2'>
                           <Package className='h-4 w-4 text-primary' />
-                          <span>{m?.name || 'Material'}</span>
+                          <span>{m.name || 'Material'}</span>
                         </div>
                       </TableCell>
                       <TableCell className='text-xs font-mono uppercase'>

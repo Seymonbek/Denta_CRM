@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Clock, CalendarX, Plus, Stethoscope, Search, Trash2 } from 'lucide-react'
-import { _confirmSwal } from '@/lib/sweetalert'
 import {
   useDoctors,
   useWorkingHours,
@@ -10,7 +9,7 @@ import {
   useCreateTimeOff,
   useDeleteTimeOff,
 } from '@/api/hooks/use-doctors'
-import { type DoctorProfile } from '@/types/api'
+import { type DoctorProfile, type WorkingHours, type TimeOff } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -59,22 +58,18 @@ export function DoctorsList() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const { data: doctorsData = [], isLoading } = useDoctors()
-  const doctorsList = useMemo(() => {
-    return Array.isArray(doctorsData?.results)
-      ? doctorsData.results
-      : Array.isArray(doctorsData)
-      ? doctorsData
-      : []
+  const doctorsList: DoctorProfile[] = useMemo(() => {
+    return Array.isArray(doctorsData) ? doctorsData : []
   }, [doctorsData])
 
-  const filteredDoctors = doctorsList.filter((doc: Record<string, unknown>) => {
-    const name = (doc?.user?.firstName || doc?.user?.first_name || '') + ' ' + (doc?.user?.lastName || doc?.user?.last_name || '') + ' ' + (doc?.specialization || '')
+  const filteredDoctors = doctorsList.filter((doc: DoctorProfile) => {
+    const name = (doc.user?.firstName || '') + ' ' + (doc.user?.lastName || '') + ' ' + (doc.specialization || '')
     return name.toLowerCase().includes(searchTerm.toLowerCase())
   })
 
   // For doctor role, strictly restrict list to only their own doctor profile!
   const displayDoctors = isDoctor
-    ? doctorsList.filter((doc: Record<string, unknown>) => (doc?.user?.id || doc?.user_id) === authUser?.id)
+    ? doctorsList.filter((doc: DoctorProfile) => doc.user?.id === authUser?.id)
     : filteredDoctors
 
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorProfile | null>(null)
@@ -82,15 +77,13 @@ export function DoctorsList() {
 
   useEffect(() => {
     if (isDoctor && !hasAutoOpened && doctorsList.length > 0) {
-       
-      const myDoc = doctorsList.find((d: Record<string, unknown>) => (d.user?.id || d.user_id) === authUser?.id)
+      const myDoc = doctorsList.find((d: DoctorProfile) => d.user?.id === authUser?.id)
       if (myDoc) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedDoctor(myDoc)
         setHasAutoOpened(true)
       }
     }
-  }, [isDoctor, doctorsList, authUser, hasAutoOpened])
+  }, [isDoctor, hasAutoOpened, doctorsList, authUser])
 
   // Working Hours Form State
   const [weekday, setWeekday] = useState<number>(0)
@@ -147,7 +140,7 @@ export function DoctorsList() {
       toast.success('Ish soati qo’shildi!')
       setStartTime('09:00')
       setEndTime('18:00')
-    } catch (err: unknown) {
+    } catch (err: any) {
       const data = err?.response?.data
       const errorMsg =
         data?.start_time?.[0] ||
@@ -180,7 +173,7 @@ export function DoctorsList() {
       setDateStart('')
       setDateEnd('')
       setReason('')
-    } catch (err: unknown) {
+    } catch (err: any) {
       const data = err?.response?.data
       const errorMsg =
         data?.date_start?.[0] ||
@@ -189,7 +182,7 @@ export function DoctorsList() {
         data?.error?.message ||
         data?.detail ||
         (typeof data === 'string' ? data : null) ||
-        'Ta’til kiritishda xatolik.'
+        'Ta’til qo’shishda xatolik.'
       toast.error(errorMsg)
     }
   }
@@ -261,17 +254,17 @@ export function DoctorsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                displayDoctors.map((doc: Record<string, unknown>) => {
-                  const firstName = doc?.user?.firstName || doc?.user?.first_name || 'Shifokor'
-                  const lastName = doc?.user?.lastName || doc?.user?.last_name || ''
-                  const phoneNumber = doc?.user?.phoneNumber || doc?.user?.phone_number || ''
-                  const specialization = doc?.specialization || 'Stomatolog'
-                  const departments = Array.isArray(doc?.departments) ? doc.departments : []
-                  const commissionBasis = doc?.commissionBasis || doc?.commission_basis || 'from_total'
-                  const commissionRate = doc?.defaultCommissionRate ?? doc?.default_commission_rate ?? 0
+                displayDoctors.map((doc: DoctorProfile) => {
+                  const firstName = doc.user?.firstName || 'Shifokor'
+                  const lastName = doc.user?.lastName || ''
+                  const phoneNumber = doc.user?.phoneNumber || ''
+                  const specialization = doc.specialization || 'Stomatolog'
+                  const departments = Array.isArray(doc.departments) ? doc.departments : []
+                  const commissionBasis = doc.commissionBasis || 'from_total'
+                  const commissionRate = doc.defaultCommissionRate ?? 0
 
                   return (
-                    <TableRow key={doc?.id} className='hover:bg-muted/20'>
+                    <TableRow key={doc.id} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
                         <div className='flex items-center gap-2'>
                           <div className='flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs'>
@@ -292,13 +285,13 @@ export function DoctorsList() {
                       <TableCell className='text-xs'>
                         <div className="flex items-center gap-1 font-semibold text-yellow-500">
                           <span className="text-sm">⭐</span>
-                          {doc?.averageRating ? Number(doc.averageRating).toFixed(1) : '0.0'}
+                          {(doc as any).averageRating ? Number((doc as any).averageRating).toFixed(1) : '0.0'}
                         </div>
                       </TableCell>
                       <TableCell className='text-xs text-muted-foreground'>{specialization}</TableCell>
                       <TableCell className='text-xs'>
                         <div className='flex flex-wrap gap-1'>
-                          {departments.map((dep: Record<string, unknown>) => (
+                          {departments.map((dep: any) => (
                             <Badge key={dep.id} variant='outline' className='text-[10px]'>
                               {dep.name}
                             </Badge>
@@ -322,7 +315,6 @@ export function DoctorsList() {
                           size='sm'
                           variant='outline'
                           className='h-8 text-xs'
-                           
                           onClick={() => setSelectedDoctor(doc)}
                         >
                           <Clock className='me-1.5 h-3.5 w-3.5' /> Jadvalni Boshqarish
@@ -337,12 +329,11 @@ export function DoctorsList() {
         </div>
 
         {/* Schedule & TimeOff Management Modal */}
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         <Dialog open={selectedDoctor !== null} onOpenChange={(open) => !open && setSelectedDoctor(null)}>
           <DialogContent className='sm:max-w-xl max-h-[85vh] overflow-y-auto'>
             <DialogHeader>
               <DialogTitle>
-                Dr. {selectedDoctor?.user?.firstName || selectedDoctor?.user?.first_name || ''} {selectedDoctor?.user?.lastName || selectedDoctor?.user?.last_name || ''} - Ish Jadvali va Ta'tillar
+                Dr. {selectedDoctor?.user?.firstName || ''} {selectedDoctor?.user?.lastName || ''} - Ish Jadvali va Ta'tillar
               </DialogTitle>
             </DialogHeader>
 
@@ -360,7 +351,7 @@ export function DoctorsList() {
                       Ish soatlari hali kiritilmagan.
                     </p>
                   ) : (
-                    workingHours.map((wh: Record<string, unknown>) => (
+                    workingHours.map((wh: WorkingHours) => (
                       <div
                         key={wh.id || crypto.randomUUID()}
                         className='flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs font-mono'
@@ -368,7 +359,7 @@ export function DoctorsList() {
                         <span className='font-semibold text-foreground'>{WEEKDAYS[wh.weekday] || 'Kun'}</span>
                         <div className='flex items-center gap-2'>
                           <span className='text-muted-foreground'>
-                            {wh.startTime || wh.start_time} - {wh.endTime || wh.end_time}
+                            {wh.startTime} - {wh.endTime}
                           </span>
                           {wh.id && (
                             <Button
@@ -438,14 +429,14 @@ export function DoctorsList() {
                   {timeOffs.length === 0 ? (
                     <p className='text-xs text-muted-foreground italic'>Ta'tillar ro'yxati bo'sh.</p>
                   ) : (
-                    timeOffs.map((to: Record<string, unknown>) => (
+                    timeOffs.map((to: TimeOff) => (
                       <div
                         key={to.id || crypto.randomUUID()}
                         className='flex items-center justify-between rounded-lg border bg-rose-500/10 border-rose-500/20 px-3 py-2 text-xs font-mono'
                       >
                         <div>
                           <span className='font-bold text-rose-700 dark:text-rose-400'>
-                            {to.dateStart || to.date_start} — {to.dateEnd || to.date_end}
+                            {to.dateStart} — {to.dateEnd}
                           </span>
                           {to.reason && <p className='text-[11px] text-muted-foreground font-sans'>{to.reason}</p>}
                         </div>
@@ -502,7 +493,6 @@ export function DoctorsList() {
             </div>
 
             <DialogFooter>
-              // eslint-disable-next-line react-hooks/set-state-in-effect
               <Button variant='outline' onClick={() => setSelectedDoctor(null)}>
                 Yopish
               </Button>

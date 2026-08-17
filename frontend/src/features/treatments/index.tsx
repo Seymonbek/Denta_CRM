@@ -207,57 +207,81 @@ export function TreatmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                treatments.map((t: Record<string, unknown>) => {
-                  const patientName = t?.patientName || t?.patient_name || (t?.patient && typeof t.patient === 'object' ? `${t.patient.firstName || t.patient.first_name || ''} ${t.patient.lastName || t.patient.last_name || ''}`.trim() : t?.patient) || 'Bemor'
-                  const doctorName = t?.doctorName || t?.doctor_name || (t?.doctor && typeof t.doctor === 'object' ? `${t.doctor.user?.firstName || t.doctor.user?.first_name || ''} ${t.doctor.user?.lastName || t.doctor.user?.last_name || ''}`.trim() : t?.doctor) || 'Shifokor'
-                  const procedureTypeName = t?.procedureTypeName || t?.procedure_type_name || (t?.procedureType && typeof t.procedureType === 'object' ? t.procedureType.name : t?.procedureType) || ''
+                treatments.map((t: any) => {
+                  const patientId = t.patientId || (typeof t.patient === 'object' ? (t.patient as any)?.id : t.patient)
+                  const patientName = t.patientName || (typeof t.patient === 'object' ? `${(t.patient as any).firstName || ''} ${(t.patient as any).lastName || ''}`.trim() : '') || 'Bemor'
+                  const doctorName = t.doctorName || (typeof t.doctor === 'object' && (t.doctor as any)?.user ? `Dr. ${(t.doctor as any).user.firstName || ''} ${(t.doctor as any).user.lastName || ''}`.trim() : '') || 'Shifokor'
+                  const procedureTypeName = t.procedureTypeName || (typeof t.procedureType === 'object' ? (t.procedureType as any)?.name : '') || ''
+                  const approvalStatus = t.approvalStatus || t.approval_status || 'approved'
+                  const hasDiscount = Number(t.discountPercent || t.discount_percent || 0) > 0
 
                   return (
-                    <TableRow key={t?.id} className='hover:bg-muted/20'>
+                    <TableRow key={t.id} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
-                        <Link
-                          to='/patients/$id'
-                          params={{ id: String(t?.patient?.id || t?.patient_id || t?.patient) }}
-                          className='text-primary hover:underline font-bold'
-                        >
-                          {patientName}
-                        </Link>
+                        {patientId ? (
+                          <Link
+                            to='/patients/$id'
+                            params={{ id: String(patientId) }}
+                            className='text-primary hover:underline font-bold flex items-center gap-1'
+                          >
+                            {patientName}
+                          </Link>
+                        ) : (
+                          <span className="font-bold">{patientName}</span>
+                        )}
                       </TableCell>
-                      <TableCell className='text-xs text-muted-foreground'>
+                      <TableCell className='text-xs text-muted-foreground font-medium'>
                         {doctorName}
                       </TableCell>
                       <TableCell className='text-xs max-w-xs'>
-                        <p className='font-semibold truncate'>{t?.diagnosis || 'Tashxis kiritilmagan'}</p>
-                        <p className='text-[10px] text-muted-foreground truncate'>{procedureTypeName}</p>
+                        <p className='font-semibold truncate'>{t.diagnosis || 'Tashxis kiritilmagan'}</p>
+                        {procedureTypeName && <p className='text-[10px] text-muted-foreground truncate'>{procedureTypeName}</p>}
                       </TableCell>
-                      <TableCell className='text-xs font-mono font-bold'>
-                        {Number(t?.price || 0).toLocaleString()} so'm
+                      <TableCell className='text-xs'>
+                        <span className="font-mono font-bold block">{Number(t.price || 0).toLocaleString()} so'm</span>
+                        {hasDiscount && (
+                          <div className="mt-0.5">
+                            {approvalStatus === 'pending' ? (
+                              <Badge variant='outline' className='text-[9px] bg-amber-500/10 text-amber-600 border-amber-300'>
+                                ⏳ Chegirma kutilmoqda ({t.discountPercent || t.discount_percent}%)
+                              </Badge>
+                            ) : approvalStatus === 'rejected' ? (
+                              <Badge variant='destructive' className='text-[9px] px-1 py-0'>
+                                ❌ Chegirma rad etilgan
+                              </Badge>
+                            ) : (
+                              <span className='text-[10px] text-emerald-600 font-medium'>
+                                Chegirma: {t.discountPercent || t.discount_percent}%
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className='text-xs'>
                         <Badge
                           variant={
-                            t?.paymentStatus === 'paid' || t?.payment_status === 'paid'
+                            t.paymentStatus === 'paid'
                               ? 'default'
-                              : t?.paymentStatus === 'partial' || t?.payment_status === 'partial'
+                              : t.paymentStatus === 'partial'
                               ? 'secondary'
                               : 'destructive'
                           }
                           className='text-[10px]'
                         >
-                          {t?.paymentStatus === 'paid' || t?.payment_status === 'paid'
+                          {t.paymentStatus === 'paid'
                             ? "To'langan"
-                            : t?.paymentStatus === 'partial' || t?.payment_status === 'partial'
+                            : t.paymentStatus === 'partial'
                             ? "Qisman to'langan"
                             : "To'lanmagan"}
                         </Badge>
                       </TableCell>
                       <TableCell className='text-xs'>
                         <Badge variant='outline' className='text-[10px] uppercase'>
-                          {t?.stage === 'completed' ? 'Yakunlangan' : 'Jarayonda'}
+                          {t.stage === 'completed' ? 'Yakunlangan' : 'Jarayonda'}
                         </Badge>
                       </TableCell>
                       <TableCell className='text-end flex items-center justify-end gap-1.5'>
-                        {(t?.paymentStatus !== 'paid' && t?.payment_status !== 'paid') && (
+                        {t.paymentStatus !== 'paid' && (
                           <Button
                             size='sm'
                             variant='outline'
@@ -313,13 +337,13 @@ export function TreatmentsList() {
                   value={appointmentId}
                   onValueChange={(val) => {
                     setAppointmentId(val)
-                    const app = appointments.find((a: Record<string, unknown>) => a.id === val)
+                    const app = appointments.find((a) => a.id === val)
                     if (app) {
-                      setPatientId(typeof app.patient === 'object' ? app.patient.id : app.patient)
-                      setDoctorId(typeof app.doctor === 'object' ? app.doctor.id : app.doctor)
-                      setDepartmentId(typeof app.department === 'object' ? app.department.id : app.department)
+                      setPatientId(typeof app.patient === 'object' ? (app.patient as any).id : app.patient)
+                      setDoctorId(typeof app.doctor === 'object' ? (app.doctor as any).id : app.doctor)
+                      setDepartmentId(typeof app.department === 'object' ? (app.department as any).id : app.department)
                       if (app.procedureType) {
-                        setProcedureTypeId(typeof app.procedureType === 'object' ? app.procedureType.id : app.procedureType)
+                        setProcedureTypeId(typeof app.procedureType === 'object' ? (app.procedureType as any).id : app.procedureType)
                       }
                     }
                   }}
@@ -328,9 +352,9 @@ export function TreatmentsList() {
                     <SelectValue placeholder='Navbatni tanlang' />
                   </SelectTrigger>
                   <SelectContent>
-                    {appointments.map((a: Record<string, unknown>) => (
+                    {appointments.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
-                        {formatDateSafely(a.scheduledStart || a.scheduled_start)} - {a.patientName || 'Bemor'}
+                        {formatDateSafely(a.scheduledStart)} - {a.patientName || 'Bemor'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -341,10 +365,10 @@ export function TreatmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Bemor *</label>
                   <SearchableSelect
-                    options={patients.map((p: Record<string, unknown>) => ({
+                    options={patients.map((p) => ({
                       value: String(p.id),
-                      label: `${p.firstName || p.first_name || ''} ${p.lastName || p.last_name || ''}`,
-                      sublabel: p.phoneNumber || p.phone_number || '',
+                      label: `${p.firstName || ''} ${p.lastName || ''}`,
+                      sublabel: p.phoneNumber || '',
                     }))}
                     value={patientId}
                     onValueChange={setPatientId}
@@ -356,9 +380,9 @@ export function TreatmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Shifokor *</label>
                   <SearchableSelect
-                    options={doctors.map((d: Record<string, unknown>) => ({
+                    options={doctors.map((d) => ({
                       value: String(d.id),
-                      label: `Dr. ${d.user?.firstName || d.user?.first_name || ''} ${d.user?.lastName || d.user?.last_name || ''}`,
+                      label: `Dr. ${d.user?.firstName || ''} ${d.user?.lastName || ''}`,
                       sublabel: d.specialization || 'Stomatolog',
                     }))}
                     value={doctorId}
@@ -377,7 +401,7 @@ export function TreatmentsList() {
                       <SelectValue placeholder='Bo’lim' />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments.map((d: Record<string, unknown>) => (
+                      {departments.map((d) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
@@ -392,11 +416,11 @@ export function TreatmentsList() {
                     value={procedureTypeId}
                     onValueChange={(val) => {
                       setProcedureTypeId(val)
-                      const proc = procedureTypes.find((p: Record<string, unknown>) => p.id === val)
+                      const proc = procedureTypes.find((p) => p.id === val)
                       if (proc) {
-                        const dp = proc.defaultPrice || proc.default_price || 0
+                        const dp = Number(proc.defaultPrice || 0)
                         setDefaultPrice(dp)
-                        setPrice(dp)
+                        setPrice(String(dp))
                       }
                     }}
                   >
@@ -404,7 +428,7 @@ export function TreatmentsList() {
                       <SelectValue placeholder='Muolaja' />
                     </SelectTrigger>
                     <SelectContent>
-                      {procedureTypes.map((p: Record<string, unknown>) => (
+                      {procedureTypes.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
                         </SelectItem>
@@ -489,7 +513,7 @@ export function TreatmentsList() {
             <form onSubmit={handleUploadPhoto} className='space-y-4 py-2'>
               <div className='space-y-1'>
                 <label className='text-xs font-medium'>Rasm turi (Photo Type)</label>
-                <Select value={photoType} onValueChange={(val) => setPhotoType(val as Record<string, unknown>)}>
+                <Select value={photoType} onValueChange={(val: 'before' | 'after' | 'xray') => setPhotoType(val)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -505,8 +529,12 @@ export function TreatmentsList() {
                 <label className='text-xs font-medium mb-1 block'>Foto Tayyorlash / Kamera</label>
                 <MobileImageUploader
                   onFileSelect={(file) => setSelectedFile(file)}
-                  selectedFile={selectedFile}
                 />
+                {selectedFile && (
+                  <p className='text-xs text-emerald-500 font-medium mt-1'>
+                    Tanlangan: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
               </div>
 
               <DialogFooter className='pt-2'>

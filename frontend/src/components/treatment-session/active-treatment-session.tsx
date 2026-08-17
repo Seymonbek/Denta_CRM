@@ -4,7 +4,8 @@ import { Save, CheckCircle, Upload, FileText, Camera, RefreshCw, AlertCircle } f
 import { useUpdateTreatment, useUploadTreatmentPhoto, useTreatment } from '@/api/hooks/use-treatments'
 import { useUpdateAppointment } from '@/api/hooks/use-appointments'
 import { usePrescriptions, useIssuePrescription, usePrescriptionTemplates } from '@/api/hooks/use-prescriptions'
-import { getProcedureBOMsApi, createMaterialUsageApi } from '@/api/inventory'
+import { getProcedureBOMsApi } from '@/api/inventory'
+import { useMaterials, useCreateMaterialUsage, useMaterialUsages } from '@/api/hooks/use-inventory'
 import { toast } from 'sonner'
 import { confirmSwal } from '@/lib/sweetalert'
 import { Button } from '@/components/ui/button'
@@ -17,15 +18,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { type PhotoType } from '@/types/api'
+import { useAuthStore } from '@/stores/auth-store'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface ActiveTreatmentSessionProps {
   treatmentId: string
   appointmentId: string
-  _patientId: string
+  patientId?: string
 }
 
-export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId }: ActiveTreatmentSessionProps) {
+export function ActiveTreatmentSession({ treatmentId, appointmentId }: ActiveTreatmentSessionProps) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  
+  const authUser = useAuthStore((state) => state.user)
+  const isAdministrator = authUser?.role === 'administrator'
+  const canEditTreatment = authUser?.role === 'doctor' || authUser?.role === 'bosh_shifokor'
   
   const { data: treatment, isLoading } = useTreatment(treatmentId)
   const updateTreatment = useUpdateTreatment()
@@ -34,9 +42,9 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
   
   // Prescription Hooks
   const { data: prescriptionsData } = usePrescriptions({ treatment: treatmentId })
-  const prescriptionsList = Array.isArray(prescriptionsData?.results) ? prescriptionsData.results : Array.isArray(prescriptionsData) ? prescriptionsData : []
+  const prescriptionsList: any[] = Array.isArray(prescriptionsData) ? prescriptionsData : []
   const { data: templatesData } = usePrescriptionTemplates()
-  const templates = Array.isArray(templatesData?.results) ? templatesData.results : Array.isArray(templatesData) ? templatesData : []
+  const templates: any[] = Array.isArray(templatesData) ? templatesData : []
   const issuePrescriptionMutation = useIssuePrescription()
 
   const [diagnosis, setDiagnosis] = useState(treatment?.diagnosis || '')
@@ -53,6 +61,15 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedPhotoType, setSelectedPhotoType] = useState<PhotoType>('before')
   const [isUploading, setIsUploading] = useState(false)
+
+  // Material usage states
+  const { data: materialsData } = useMaterials()
+  const materials: any[] = Array.isArray(materialsData) ? materialsData : []
+  const { data: materialUsagesData } = useMaterialUsages({ treatment: treatmentId })
+  const materialUsages: any[] = Array.isArray(materialUsagesData) ? materialUsagesData : []
+  const createMaterialUsage = useCreateMaterialUsage()
+  const [selectedMaterialId, setSelectedMaterialId] = useState('')
+  const [materialQuantity, setMaterialQuantity] = useState('1')
 
   // Sync state when data is loaded, and handle local storage draft
   useEffect(() => {
@@ -105,8 +122,8 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
       })
       localStorage.removeItem(`treatment_draft_${treatmentId}`)
       toast.success("Ma'lumotlar saqlandi")
-    } catch (_error) {
-      toast._error("Xatolik yuz berdi")
+    } catch (error) {
+      toast.error("Xatolik yuz berdi")
     }
   }
 
@@ -122,8 +139,8 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
         photoType: selectedPhotoType
       })
       toast.success("Rasm muvaffaqiyatli yuklandi")
-    } catch (_error) {
-      toast._error("Rasm yuklashda xatolik yuz berdi")
+    } catch (error) {
+      toast.error("Rasm yuklashda xatolik yuz berdi")
     } finally {
       setIsUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -133,7 +150,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
   const handleIssuePrescription = async (_e: React.FormEvent) => {
     _e.preventDefault()
     if (!prescriptionContent.trim() && !selectedTemplateId) {
-      toast._error('Retsept matnini kiriting yoki shablon tanlang.')
+      toast.error('Retsept matnini kiriting yoki shablon tanlang.')
       return
     }
 
@@ -150,15 +167,37 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
       setIsPrescriptionModalOpen(false)
       setPrescriptionContent('')
       setSelectedTemplateId('')
-    } catch (_err: unknown) {
-      toast._error('Retsept saqlashda xatolik yuz berdi.')
+    } catch (error) {
+      toast.error('Retsept saqlashda xatolik yuz berdi.')
+    }
+  }
+
+  const handleAddMaterial = async () => {
+    if (!selectedMaterialId || !materialQuantity || Number(materialQuantity) <= 0) {
+      toast.error('Material va miqdorni kiriting')
+      return
+    }
+
+    try {
+      await createMaterialUsage.mutateAsync({
+        treatment: treatmentId,
+        material: selectedMaterialId,
+        quantityUsed: materialQuantity
+      })
+      toast.success("Material qo'shildi")
+      setSelectedMaterialId('')
+      setMaterialQuantity('1')
+      queryClient.invalidateQueries({ queryKey: ['treatments', treatmentId] })
+    } catch (error) {
+      toast.error("Material qo'shishda xatolik yuz berdi")
     }
   }
 
   const handleFinishAppointment = async () => {
-    if (!treatment?.material_usages || treatment.material_usages.length === 0) {
-      
-      const procedureTypeId = typeof treatment?.procedureType === 'object' ? treatment.procedureType?.id : (treatment?.procedureType || treatment?.procedure_type)
+    if (!materialUsages || materialUsages.length === 0) {
+      const procedureTypeId = typeof (treatment as any)?.procedureType === 'object' 
+        ? (treatment as any)?.procedureType?.id 
+        : ((treatment as any)?.procedureType || (treatment as any)?.procedure_type)
       
       let bomProcessed = false
       if (procedureTypeId) {
@@ -175,11 +214,11 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
             if (wantAuto) {
               const toastId = toast.loading("Materiallar sarflanmoqda...")
               for (const bom of boms) {
-                await createMaterialUsageApi({
+                await createMaterialUsage.mutateAsync({
                   treatment: treatmentId,
                   material: bom.material,
                   quantityUsed: bom.defaultQuantity
-                })
+                } as any)
               }
               toast.success("Materiallar muvaffaqiyatli sarflandi!", { id: toastId })
               bomProcessed = true
@@ -187,21 +226,21 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
               return
             }
           }
-        } catch (_error) {
-          // console._error("Failed to process BOM:", _error)
+        } catch {
+          // ignore
         }
       }
 
       if (!bomProcessed) {
-        toast._error("Diqqat! Muolajani yakunlashdan oldin ishlatilgan materiallarni kiriting.", {
+        toast.error("Diqqat! Muolajani yakunlashdan oldin ishlatilgan materiallarni kiriting.", {
           duration: 5000,
         })
         return
       }
     }
 
-    if (treatment?.approvalStatus === 'pending' || treatment?.approval_status === 'pending') {
-      toast._error("Chegirma tasdiqlanmagan. Bosh shifokor tasdig'ini kuting.")
+    if ((treatment as any)?.approvalStatus === 'pending' || (treatment as any)?.approval_status === 'pending') {
+      toast.error("Chegirma tasdiqlanmagan. Bosh shifokor tasdig'ini kuting.")
       return
     }
 
@@ -242,8 +281,8 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
          // Reload page or navigate to patient list
          window.location.reload()
       }
-    } catch (_error) {
-      toast._error("Yakunlashda xatolik yuz berdi")
+    } catch (error) {
+      toast.error("Yakunlashda xatolik yuz berdi")
     }
   }
 
@@ -253,6 +292,19 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
 
   return (
     <div className="space-y-6">
+      {/* Administrator Read-only Notice */}
+      {isAdministrator && (
+        <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="text-xs">
+            <p className="font-bold">Administrator Nazorati (Faqat ko'rish rejimi)</p>
+            <p className="text-muted-foreground mt-0.5">
+              Muolaja jarayoni, tashxis qo'yish, retsept yozish, material sarflash va qabulni yakunlash bevosita <strong>Shifokor</strong> yoki <strong>Bosh Shifokor</strong> tomonidan amalga oshiriladi. Muolajani yakunlash yoki ma'lumot kiritish uchun shifokor profiliga kiring.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Diagnosis & Notes Card */}
@@ -272,6 +324,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
                 id="diagnosis" 
                 placeholder="Masalan: Tish kariyesi, Pulpit..." 
                 value={diagnosis}
+                disabled={!canEditTreatment}
                 onChange={(_e) => setDiagnosis(_e.target.value)}
               />
             </div>
@@ -282,15 +335,18 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
                 placeholder="Bemor shikoyatlari va bajarilgan muolajalar haqida batafsil ma'lumot..." 
                 className="min-h-[120px]"
                 value={description}
+                disabled={!canEditTreatment}
                 onChange={(_e) => setDescription(_e.target.value)}
               />
             </div>
-            <div className="flex justify-end">
-              <Button variant="secondary" onClick={handleSaveNotes} disabled={updateTreatment.isPending}>
-                {updateTreatment.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                Saqlash
-              </Button>
-            </div>
+            {canEditTreatment && (
+              <div className="flex justify-end">
+                <Button variant="secondary" onClick={handleSaveNotes} disabled={updateTreatment.isPending}>
+                  {updateTreatment.isPending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  Saqlash
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -305,35 +361,37 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Select value={selectedPhotoType} onValueChange={(val: PhotoType) => setSelectedPhotoType(val)}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Rasm turi" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="before">Muolajadan oldin</SelectItem>
-                  <SelectItem value="after">Muolajadan keyin</SelectItem>
-                  <SelectItem value="xray">Rentgen (X-Ray)</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <input 
-                type="file" 
-                accept="image/*" 
-                className="hidden" 
-                ref={fileInputRef} 
-                onChange={handlePhotoUpload}
-              />
-              <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                {isUploading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                Yuklash
-              </Button>
-            </div>
+            {canEditTreatment && (
+              <div className="flex items-center gap-3">
+                <Select value={selectedPhotoType} onValueChange={(val: PhotoType) => setSelectedPhotoType(val)}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Rasm turi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="before">Muolajadan oldin</SelectItem>
+                    <SelectItem value="after">Muolajadan keyin</SelectItem>
+                    <SelectItem value="xray">Rentgen (X-Ray)</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  ref={fileInputRef} 
+                  onChange={handlePhotoUpload}
+                />
+                <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                  {isUploading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                  Yuklash
+                </Button>
+              </div>
+            )}
 
             {/* Photo Gallery preview */}
-            {treatment.photos && treatment.photos.length > 0 ? (
+            {(treatment as any)?.photos && (treatment as any).photos.length > 0 ? (
               <div className="grid grid-cols-3 gap-2 mt-4 max-h-[250px] overflow-y-auto pr-2">
-                {treatment.photos.map(photo => (
+                {(treatment as any).photos.map((photo: any) => (
                   <div key={photo.id} className="relative group rounded-md overflow-hidden border">
                     <img 
                       src={photo.thumbnailPath || photo.imageUrl || ''} 
@@ -368,18 +426,20 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
               Bemorga shu muolaja davomida yozilgan retseptlar
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setIsPrescriptionModalOpen(true)}>
-            Retsept Yozish
-          </Button>
+          {canEditTreatment && (
+            <Button variant="outline" size="sm" onClick={() => setIsPrescriptionModalOpen(true)}>
+              Retsept Yozish
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {prescriptionsList.length > 0 ? (
             <div className="space-y-3">
-              {prescriptionsList.map((p: Record<string, unknown>) => (
-                <div key={p.id} className="p-3 border rounded-lg bg-muted/20 flex flex-col gap-2">
-                  <div className="text-sm whitespace-pre-wrap">{p.content || (p.template && typeof p.template === 'object' ? p.template.content : 'Shablon asosida')}</div>
+              {prescriptionsList.map((p: any) => (
+                <div key={String(p.id)} className="p-3 border rounded-lg bg-muted/20 flex flex-col gap-2">
+                  <div className="text-sm whitespace-pre-wrap">{String(p.content || (p.template && typeof p.template === 'object' ? p.template.content : 'Shablon asosida'))}</div>
                   <div className="flex justify-between items-center text-xs text-muted-foreground mt-2 border-t pt-2">
-                    <span>Sana: {new Date(p.createdAt || p.created_at || new Date().getTime()).toLocaleString()}</span>
+                    <span>Sana: {new Date(p.createdAt || new Date()).toLocaleString()}</span>
                     {(p.sentToTelegramAt || p.sent_to_telegram_at || p.sent_at) && (
                       <Badge variant="outline" className="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 border-blue-200">
                         Telegram orqali yuborildi
@@ -394,6 +454,75 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
               Hozircha retsept yozilmagan.
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Materials Card */}
+      <Card>
+        <CardHeader className="flex flex-row justify-between items-center pb-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-emerald-500" />
+            <CardTitle className="text-lg">Ishlatilgan Materiallar</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {canEditTreatment && (
+            <div className="flex gap-2 items-end mb-4">
+              <div className="flex-1 space-y-1">
+                <Label>Material</Label>
+                <Select value={selectedMaterialId} onValueChange={setSelectedMaterialId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Material tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {materials.map((m: any) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name} ({m.quantityInStock || m.quantity_in_stock} {m.unit})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-24 space-y-1">
+                <Label>Miqdori</Label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={materialQuantity}
+                  onChange={(e) => setMaterialQuantity(e.target.value)}
+                />
+              </div>
+              <Button
+                onClick={handleAddMaterial}
+                disabled={createMaterialUsage.isPending || !selectedMaterialId}
+              >
+                {createMaterialUsage.isPending ? '...' : "Qo'shish"}
+              </Button>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {materialUsages && materialUsages.length > 0 ? (
+              materialUsages.map((usage: any) => {
+                const matchedMaterial = materials.find((m: any) => m.id === usage.material || m.id === usage.materialId);
+                const name = usage.material_name || usage.materialName || usage.material?.name || matchedMaterial?.name || 'Material';
+                const unit = usage.material_unit || usage.materialUnit || usage.material?.unit || matchedMaterial?.unit || '';
+                return (
+                  <div key={usage.id} className="flex justify-between items-center p-3 border rounded-lg bg-muted/20">
+                    <div>
+                      <span className="font-medium">{name}</span>
+                    </div>
+                    <Badge variant="outline">{usage.quantityUsed || usage.quantity_used} {unit}</Badge>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center p-4 border border-dashed rounded-lg text-muted-foreground text-sm">
+                Materiallar kiritilmagan.
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -415,6 +544,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
                 min="0"
                 className="text-lg font-mono font-bold"
                 value={price}
+                disabled={!canEditTreatment}
                 onChange={(_e) => setPrice(_e.target.value)}
               />
             </div>
@@ -431,14 +561,17 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
               className="w-full h-12 text-base font-semibold shadow-md bg-primary hover:bg-primary/90"
               onClick={handleFinishAppointment}
               disabled={
+                !canEditTreatment ||
                 updateTreatment.isPending || 
                 updateAppointment.isPending || 
-                treatment?.approvalStatus === 'pending' || 
-                treatment?.approval_status === 'pending'
+                (treatment as any)?.approvalStatus === 'pending' || 
+                (treatment as any)?.approval_status === 'pending'
               }
             >
               {(updateTreatment.isPending || updateAppointment.isPending) ? <RefreshCw className="w-5 h-5 mr-2 animate-spin" /> : <CheckCircle className="w-5 h-5 mr-2" />}
-              {treatment?.approvalStatus === 'pending' || treatment?.approval_status === 'pending' 
+              {!canEditTreatment 
+                ? "Qabulni Yakunlash (Faqat Shifokor uchun)"
+                : (treatment as any)?.approvalStatus === 'pending' || (treatment as any)?.approval_status === 'pending' 
                 ? "Tasdiq kutilmoqda (Chegirma)" 
                 : "Qabulni Yakunlash"}
             </Button>
@@ -456,7 +589,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
               <Label>Tayyor Shablon (Ixtiyoriy)</Label>
               <Select value={selectedTemplateId} onValueChange={(val) => {
                 setSelectedTemplateId(val)
-                const tpl = templates.find((t: Record<string, unknown>) => String(t.id) === val)
+                const tpl = templates.find((t: any) => String(t.id) === val)
                 if (tpl) {
                   setPrescriptionContent(tpl.content || '')
                 }
@@ -466,9 +599,9 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Tanlanmagan</SelectItem>
-                  {templates.map((tpl: Record<string, unknown>) => (
-                    <SelectItem key={tpl.id} value={String(tpl.id)}>
-                      {tpl.name || tpl.title}
+                  {templates.map((tpl: any) => (
+                    <SelectItem key={String(tpl.id)} value={String(tpl.id)}>
+                      {String(tpl.name || tpl.title || '')}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -490,13 +623,13 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, _patientId 
                   id="telegram"
                   checked={sendToTelegram}
                   onCheckedChange={(checked) => setSendToTelegram(!!checked)}
-                  disabled={!(treatment?.patient?.telegramChatId || treatment?.patient?.telegram_chat_id)}
+                  disabled={!((treatment as any)?.patient?.telegramChatId || (treatment as any)?.patient?.telegram_chat_id)}
                 />
                 <Label htmlFor="telegram" className="text-sm font-medium cursor-pointer flex-1">
                   Bemorga Telegram orqali yuborish
                 </Label>
               </div>
-              {!(treatment?.patient?.telegramChatId || treatment?.patient?.telegram_chat_id) && (
+              {!((treatment as any)?.patient?.telegramChatId || (treatment as any)?.patient?.telegram_chat_id) && (
                 <p className="text-[11px] text-rose-500 font-medium">
                   Bemor Telegram botga ulanmagan (faqat chop etish mumkin).
                 </p>

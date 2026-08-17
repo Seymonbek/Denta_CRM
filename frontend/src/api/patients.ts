@@ -41,8 +41,8 @@ export async function updatePatientApi(id: string, data: Partial<Patient>): Prom
 }
 
 export async function getPatientHistoryApi(id: string): Promise<Record<string, unknown>[]> {
-  const response = await apiClient.get<Record<string, unknown>[]>(`patients/${id}/history/`)
-  return response.data
+  const response = await apiClient.get<any>(`patients/${id}/history/`)
+  return response.data?.results || response.data || []
 }
 
 export async function getPatientOdontogramApi(id: string): Promise<ToothRecord[]> {

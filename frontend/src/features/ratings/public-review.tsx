@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSearch } from '@tanstack/react-router'
-import { _Star } from 'lucide-react'
+import { Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useCreateReview } from '@/api/hooks/use-reviews'
@@ -13,8 +13,8 @@ export function PublicReviewPage() {
   const doctorId = (search as Record<string, string>).doctor_id
 
   const { data: doctorsData } = useDoctors()
-  const doctors = Array.isArray(doctorsData?.results) ? doctorsData.results : []
-  const doctor = doctors.find((d: Record<string, unknown>) => d.id === doctorId)
+  const doctors = Array.isArray(doctorsData) ? doctorsData : []
+  const doctor = doctors.find((d) => d.id === doctorId)
 
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
@@ -66,7 +66,7 @@ export function PublicReviewPage() {
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Shifokorni Baholang</h1>
           <p className="text-slate-500">
-            {doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'Shifokor'} qabulida bo'ldingiz. Xizmat qanday bo'ldi?
+            {doctor ? `Dr. ${doctor.user?.firstName || ''} ${doctor.user?.lastName || ''}`.trim() : 'Shifokor'} qabulida bo'ldingiz. Xizmat qanday bo'ldi?
           </p>
         </div>
 
@@ -84,18 +84,10 @@ export function PublicReviewPage() {
                 onMouseLeave={() => setHoverRating(0)}
                 onClick={() => setRating(star)}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill={isFilled ? 'currentColor' : 'none'}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                <Star
                   className="w-10 h-10"
-                >
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
+                  fill={isFilled ? 'currentColor' : 'none'}
+                />
               </button>
             )
           })}

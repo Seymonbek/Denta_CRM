@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Appointment, AppointmentStatus
@@ -140,16 +141,33 @@ class AppointmentSerializer(serializers.ModelSerializer):
     # Output shape (camelCase)
     # ------------------------------------------------------------------
     def to_representation(self, instance: Appointment) -> dict[str, Any]:
+        patient_name = instance.patient.full_name if instance.patient else ""
+        doctor_name = (
+            f"Dr. {instance.doctor.user.first_name} {instance.doctor.user.last_name}".strip()
+            if instance.doctor and hasattr(instance.doctor, "user") and instance.doctor.user
+            else ""
+        )
+        department_name = instance.department.name if instance.department else ""
+        procedure_type_name = instance.procedure_type.name if instance.procedure_type else ""
+        is_overdue = (
+            instance.scheduled_end < timezone.now()
+            and instance.status in [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]
+        )
+
         return {
             "id": str(instance.id),
             "patientId": str(instance.patient_id),
+            "patientName": patient_name,
             "doctorId": str(instance.doctor_id),
+            "doctorName": doctor_name,
             "departmentId": str(instance.department_id),
+            "departmentName": department_name,
             "procedureTypeId": (
                 str(instance.procedure_type_id)
                 if instance.procedure_type_id
                 else None
             ),
+            "procedureTypeName": procedure_type_name,
             "patient": _camel_patient(instance.patient),
             "doctor": _camel_doctor(instance.doctor),
             "department": _camel_department(instance.department),
@@ -158,6 +176,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "scheduledEnd": instance.scheduled_end.isoformat(),
             "status": instance.status,
             "statusLabel": AppointmentStatus(instance.status).label,
+            "isOverdue": is_overdue,
             "notes": instance.notes or "",
             "reminder1dSent": instance.reminder_1d_sent,
             "reminder2hSent": instance.reminder_2h_sent,

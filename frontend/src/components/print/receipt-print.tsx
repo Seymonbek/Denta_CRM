@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { type PaymentMethod } from '@/types/api'
 
 interface ReceiptPrintProps {
-  payment: Record<string, unknown>
+  payment: any
 }
 
 const METHOD_LABELS: Record<PaymentMethod | string, string> = {
@@ -19,7 +19,7 @@ export const ReceiptPrint = forwardRef<HTMLDivElement, ReceiptPrintProps>(
     const pMethod = String(payment.paymentMethod || payment.payment_method || '')
     const amount = Number(payment.amount || 0).toLocaleString()
     const pPatient = payment.patient as Record<string, unknown> | undefined
-    const patientName = payment.patientName || payment.patient_name || (pPatient ? `${pPatient.firstName || pPatient.first_name || ''} ${pPatient.lastName || pPatient.last_name || ''}`.trim() : 'Bemor')
+    const patientName = String(payment.patientName || payment.patient_name || (pPatient ? `${pPatient.firstName || ''} ${pPatient.lastName || ''}`.trim() : 'Bemor'))
     const dateStr = payment.createdAt || payment.created_at || new Date().toISOString()
     const receiptDate = format(new Date(String(dateStr)), 'dd.MM.yyyy HH:mm')
     const receiptNo = payment.id ? String(payment.id).slice(0, 8).toUpperCase() : 'N/A'

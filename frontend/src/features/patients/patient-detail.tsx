@@ -1,4 +1,4 @@
-import { _useState, useRef } from 'react'
+import { useRef } from 'react'
 import { useParams, Link } from '@tanstack/react-router'
 import { ArrowLeft, Phone, MapPin, Calendar } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -8,10 +8,10 @@ import {
   usePatientOdontogram,
   usePatientBalance,
 } from '@/api/hooks/use-patients'
+import { useAuthStore } from '@/stores/auth-store'
 import { useAppointments } from '@/api/hooks/use-appointments'
 import { useTreatments, useCreateTreatment } from '@/api/hooks/use-treatments'
 import { getTreatmentsApi, createTreatmentApi, createToothRecordApi } from '@/api/treatments'
-import { _apiClient } from '@/api/client'
 import { ActiveTreatmentSession } from '@/components/treatment-session/active-treatment-session'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -23,44 +23,57 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Odontogram } from '@/components/odontogram/odontogram'
 import { PatientTimeline } from '@/components/patient-timeline/patient-timeline'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { type ToothProcedure, type ToothStatus } from '@/types/api'
 import { toast } from 'sonner'
 
 export function PatientDetail() {
   const { id } = useParams({ from: '/_authenticated/patients/$id' })
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
+  const isAdministrator = user?.role === 'administrator'
 
-  const { data: patient, isLoading: isPatientLoading } = usePatient(id)
-  const { data: historyData = [] } = usePatientHistory(id)
-  const { data: toothRecordsData = [] } = usePatientOdontogram(id)
-  const { data: balanceData } = usePatientBalance(id)
-
-  const { data: apptsData } = useAppointments({ patient: id, status: 'in_progress' })
-  const activeAppts = Array.isArray(apptsData?.results) ? apptsData.results : Array.isArray(apptsData) ? apptsData : []
-  const activeAppt = activeAppts[0]
-
-  const { data: treatmentsRes } = useTreatments({ patient: id, stage: 'in_progress' })
-  const activeTreatments = Array.isArray(treatmentsRes?.results) ? treatmentsRes.results : Array.isArray(treatmentsRes) ? treatmentsRes : []
-  const activeTreatment = activeTreatments[0]
-
-  const createTreatment = useCreateTreatment()
   const isSavingToothRef = useRef(false)
   const isStartingSessionRef = useRef(false)
 
-  const history = Array.isArray(historyData) ? historyData : []
-  const toothRecords = Array.isArray(toothRecordsData) ? toothRecordsData : []
+  const { data: patient, isLoading: isPatientLoading } = usePatient(id)
+  const { data: history = [] } = usePatientHistory(id)
+  const { data: toothRecords = [] } = usePatientOdontogram(id)
+  const { data: balanceData } = usePatientBalance(id)
+
+  const { data: appointmentsData } = useAppointments({ patient: id })
+  const appointments = Array.isArray(appointmentsData?.results)
+    ? appointmentsData.results
+    : Array.isArray(appointmentsData)
+    ? appointmentsData
+    : []
+
+  const activeAppt = appointments.find(
+    (a: any) => a.status === 'in_progress' || a.status === 'confirmed' || a.status === 'scheduled'
+  )
+
+  const { data: treatmentsData } = useTreatments({ patient: id })
+  const treatments = Array.isArray(treatmentsData?.results)
+    ? treatmentsData.results
+    : Array.isArray(treatmentsData)
+    ? treatmentsData
+    : []
+
+  const activeTreatment = treatments.find((t: any) => t.stage === 'in_progress')
+
+  const createTreatment = useCreateTreatment()
 
   if (isPatientLoading) {
     return (
-      <div className='flex h-svh items-center justify-center text-xs text-muted-foreground animate-pulse'>
-        Bemor ma'lumotlari yuklanmoqda...
+      <div className='flex h-screen items-center justify-center'>
+        <p className='text-muted-foreground'>Bemor ma'lumotlari yuklanmoqda...</p>
       </div>
     )
   }
 
   if (!patient) {
     return (
-      <div className='flex flex-col h-svh items-center justify-center text-center p-6'>
-        <p className='text-sm font-semibold text-muted-foreground mb-4'>Bemor topilmadi.</p>
+      <div className='flex h-screen flex-col items-center justify-center gap-4'>
+        <p className='text-muted-foreground'>Bemor topilmadi</p>
         <Button asChild variant='outline'>
           <Link to='/patients'>Bemorlar ro'yxatiga qaytish</Link>
         </Button>
@@ -68,23 +81,23 @@ export function PatientDetail() {
     )
   }
 
-  const firstName = patient.firstName || patient.first_name || 'Bemor'
-  const lastName = patient.lastName || patient.last_name || ''
-  const phoneNumber = patient.phoneNumber || patient.phone_number || ''
+  const firstName = patient.firstName || 'Bemor'
+  const lastName = patient.lastName || ''
+  const phoneNumber = patient.phoneNumber || ''
   const gender = patient.gender || 'unknown'
   const address = patient.address || ''
   const notes = patient.notes || ''
-  const createdAtStr = patient.createdAt || patient.created_at || ''
+  const createdAtStr = patient.createdAt || ''
 
-  const balanceDue = Number(balanceData?.balanceDue ?? balanceData?.balance_due ?? 0)
-  const totalBilled = Number(balanceData?.totalBilled ?? balanceData?.total_billed ?? 0)
-  const totalPaid = Number(balanceData?.totalPaid ?? balanceData?.total_paid ?? 0)
+  const balanceDue = Number(balanceData?.balanceDue || 0)
+  const totalBilled = Number(balanceData?.totalBilled || 0)
+  const totalPaid = Number(balanceData?.totalPaid || 0)
 
 
   const handleSaveToothRecord = async (record: {
     toothNumber: number
-    procedure: Record<string, unknown>
-    status: Record<string, unknown>
+    procedure: ToothProcedure
+    status: ToothStatus
     notes: string
   }) => {
     if (isSavingToothRef.current) return
@@ -92,42 +105,42 @@ export function PatientDetail() {
     try {
       // 1. Find or create an active treatment container for this patient
       const treatmentsRes = await getTreatmentsApi({ patient: id, stage: 'in_progress' })
-      const treatments = treatmentsRes?.results || (Array.isArray(treatmentsRes) ? treatmentsRes : [])
-      let treatmentId = treatments[0]?.id
+      const treatmentsList = (treatmentsRes as any)?.results || (Array.isArray(treatmentsRes) ? treatmentsRes : [])
+      let treatmentId = treatmentsList[0]?.id
 
       if (!treatmentId) {
         // Find an active appointment to link the treatment to
         const { getAppointmentsApi } = await import('@/api/appointments')
         
         let apptsRes = await getAppointmentsApi({ patient: id, status: 'in_progress' })
-        let appts = apptsRes?.results || (Array.isArray(apptsRes) ? apptsRes : [])
+        let appts = (apptsRes as any)?.results || (Array.isArray(apptsRes) ? apptsRes : [])
         
         if (appts.length === 0) {
            apptsRes = await getAppointmentsApi({ patient: id, status: 'confirmed' })
-           appts = apptsRes?.results || (Array.isArray(apptsRes) ? apptsRes : [])
+           appts = (apptsRes as any)?.results || (Array.isArray(apptsRes) ? apptsRes : [])
         }
 
-        const activeAppt = appts[0]
+        const activeFoundAppt = appts[0]
 
-        if (!activeAppt) {
+        if (!activeFoundAppt) {
           toast.error("Bemorning faol navbati topilmadi. Avval qabulni boshlang (Jarayonda).")
           return
         }
 
-        const doctorId = typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor
-        const departmentId = typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department
-        const procedureTypeId = activeAppt.procedureType ? (typeof activeAppt.procedureType === 'object' ? activeAppt.procedureType.id : activeAppt.procedureType) : (activeAppt.procedure_type ? (typeof activeAppt.procedure_type === 'object' ? activeAppt.procedure_type.id : activeAppt.procedure_type) : undefined)
+        const doctorId = typeof activeFoundAppt.doctor === 'object' ? activeFoundAppt.doctor.id : activeFoundAppt.doctor
+        const departmentId = typeof activeFoundAppt.department === 'object' ? activeFoundAppt.department.id : activeFoundAppt.department
+        const procedureTypeId = activeFoundAppt.procedureType ? (typeof activeFoundAppt.procedureType === 'object' ? activeFoundAppt.procedureType.id : activeFoundAppt.procedureType) : ''
         
         const newTreatment = await createTreatmentApi({
           patient: id,
-          doctor: doctorId,
-          department: departmentId,
-          procedureType: procedureTypeId,
-          appointment: activeAppt.id,
+          doctor: String(doctorId),
+          department: String(departmentId),
+          procedureType: String(procedureTypeId || ''),
+          appointment: String(activeFoundAppt.id),
           diagnosis: `Tish #${record.toothNumber} ko'rik va muolajasi`,
           description: record.notes || "Tish xaritasiga yozuv kiritildi",
           price: "0",
-        } as Record<string, unknown>)
+        })
         treatmentId = newTreatment.id
       }
 
@@ -143,7 +156,7 @@ export function PatientDetail() {
       // 2. Refresh Odontogram
       await queryClient.invalidateQueries({ queryKey: ['patients', id, 'odontogram'] })
       toast.success(`Tish #${record.toothNumber} saqlandi va yangilandi!`)
-    } catch (_err: unknown) {
+    } catch (_err: any) {
       const errMsg = _err?.response?.data?.department?.[0] || _err?.response?.data?.detail || _err?.response?.data?.non_field_errors?.[0] || "Saqlashda xatolik yuz berdi."
       toast.error(errMsg)
     } finally {
@@ -161,18 +174,18 @@ export function PatientDetail() {
     try {
       const doctorId = typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor
       const departmentId = typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department
-      const procedureTypeId = activeAppt.procedureType ? (typeof activeAppt.procedureType === 'object' ? activeAppt.procedureType.id : activeAppt.procedureType) : (activeAppt.procedure_type ? (typeof activeAppt.procedure_type === 'object' ? activeAppt.procedure_type.id : activeAppt.procedure_type) : undefined)
+      const procedureTypeId = activeAppt.procedureType ? (typeof activeAppt.procedureType === 'object' ? activeAppt.procedureType.id : activeAppt.procedureType) : ''
       
       await createTreatment.mutateAsync({
         patient: id,
-        doctor: doctorId,
-        department: departmentId,
-        procedureType: procedureTypeId,
-        appointment: activeAppt.id,
+        doctor: String(doctorId),
+        department: String(departmentId),
+        procedureType: String(procedureTypeId || ''),
+        appointment: String(activeAppt.id),
         diagnosis: "",
         description: "Qabul boshlandi",
         price: "0",
-      } as Record<string, unknown>)
+      })
       toast.success("Muolaja sessiyasi boshlandi!")
     } catch (_err: unknown) {
       toast.error("Xatolik yuz berdi")
@@ -263,9 +276,9 @@ export function PatientDetail() {
         </div>
 
         {/* Detail Tabs */}
-        <Tabs defaultValue={activeAppt ? 'session' : 'odontogram'} className='space-y-4'>
+        <Tabs defaultValue={activeTreatment || activeAppt ? 'session' : 'odontogram'} className='space-y-4'>
           <TabsList className='w-full justify-start overflow-x-auto border-b rounded-none bg-transparent p-0'>
-            {activeAppt && (
+            {(activeTreatment || activeAppt) && (
               <TabsTrigger
                 value='session'
                 className='data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent px-4 py-2 text-xs font-semibold'
@@ -293,12 +306,12 @@ export function PatientDetail() {
             </TabsTrigger>
           </TabsList>
 
-          {activeAppt && (
+          {(activeTreatment || activeAppt) && (
             <TabsContent value='session' className='pt-2'>
               {activeTreatment ? (
                 <ActiveTreatmentSession 
                   treatmentId={activeTreatment.id} 
-                  appointmentId={activeAppt.id} 
+                  appointmentId={activeAppt?.id || activeTreatment.appointmentId || activeTreatment.appointment || ''} 
                   patientId={id} 
                 />
               ) : (
@@ -307,9 +320,16 @@ export function PatientDetail() {
                   <p className="text-sm text-muted-foreground mb-6 max-w-md">
                     Bemorning qabuliga rasmlar yuklash, tashxis yozish va yakunlash uchun muolaja sessiyasini boshlang. Yoki tish xaritasiga yozuv kiritish orqali avtomatik ochishingiz mumkin.
                   </p>
-                  <Button onClick={handleStartSession} disabled={createTreatment.isPending}>
-                    {createTreatment.isPending ? 'Boshlanmoqda...' : 'Muolaja Sessiyasini Boshlash'}
-                  </Button>
+                  
+                  {isAdministrator ? (
+                    <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md font-medium">
+                      Administratorlar muolaja sessiyasini boshlash huquqiga ega emas. Iltimos, muolajani boshlash uchun tegishli shifokor profiliga kiring.
+                    </div>
+                  ) : (
+                    <Button onClick={handleStartSession} disabled={createTreatment.isPending}>
+                      {createTreatment.isPending ? 'Boshlanmoqda...' : 'Muolaja Sessiyasini Boshlash'}
+                    </Button>
+                  )}
                 </div>
               )}
             </TabsContent>

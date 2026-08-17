@@ -35,7 +35,7 @@ const userFormSchema = z.object({
   role: z.enum(['bosh_shifokor', 'doctor', 'administrator']),
   password: z.string().optional(),
   departmentIds: z.array(z.string()).optional(),
-  commissionBasis: z.enum(['from_total', 'from_profit', 'fixed']).optional(),
+  commissionBasis: z.enum(['from_total', 'from_net']).optional(),
   defaultCommissionRate: z.string().optional(),
   specialization: z.string().optional(),
 })
@@ -68,7 +68,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
   // Find existing doctor profile if editing
   const existingDoctorProfile = user ? doctors.find(d => d.user?.id === user.id) : null
 
-  const form = useForm<UserFormValues>({
+  const form = useForm({
     resolver: zodResolver(userFormSchema),
     defaultValues: {
       firstName: user?.firstName || '',
@@ -77,7 +77,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
       role: user?.role || 'administrator',
       password: '',
       departmentIds: existingDoctorProfile?.departments?.map(d => d.id) || [],
-      commissionBasis: (existingDoctorProfile?.commissionBasis as Record<string, unknown>) || 'from_total',
+      commissionBasis: existingDoctorProfile?.commissionBasis || 'from_total',
       defaultCommissionRate: existingDoctorProfile?.defaultCommissionRate || '30.00',
       specialization: existingDoctorProfile?.specialization || '',
     },
@@ -98,7 +98,7 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
         role: user.role,
         password: '',
         departmentIds: existingDoctorProfile?.departments?.map(d => d.id) || [],
-        commissionBasis: (existingDoctorProfile?.commissionBasis as Record<string, unknown>) || 'from_total',
+        commissionBasis: existingDoctorProfile?.commissionBasis || 'from_total',
         defaultCommissionRate: existingDoctorProfile?.defaultCommissionRate || '30.00',
         specialization: existingDoctorProfile?.specialization || '',
       })
@@ -336,42 +336,35 @@ export function UserForm({ user, onSuccess, onCancel }: UserFormProps) {
             <FormField
               control={form.control}
               name='departmentIds'
-              render={() => (
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel>Bo'limlar</FormLabel>
                   <div className='grid grid-cols-2 gap-2 mt-2'>
                     {departments.map((dept) => (
-                      <FormField
+                      <div
                         key={dept.id}
-                        control={form.control}
-                        name='departmentIds'
-                        render={({ field }) => {
-                          return (
-                            <FormItem
-                              key={dept.id}
-                              className='flex flex-row items-start space-x-3 space-y-0'
-                            >
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value?.includes(dept.id)}
-                                  onCheckedChange={(checked) => {
-                                    return checked
-                                      ? field.onChange([...(field.value || []), dept.id])
-                                      : field.onChange(
-                                          field.value?.filter(
-                                            (value) => value !== dept.id
-                                          )
-                                        )
-                                  }}
-                                />
-                              </FormControl>
-                              <FormLabel className='font-normal cursor-pointer'>
-                                {dept.name}
-                              </FormLabel>
-                            </FormItem>
-                          )
-                        }}
-                      />
+                        className='flex flex-row items-center space-x-3'
+                      >
+                        <Checkbox
+                          id={`dept-${dept.id}`}
+                          checked={field.value?.includes(dept.id)}
+                          onCheckedChange={(checked) => {
+                            return checked
+                              ? field.onChange([...(field.value || []), dept.id])
+                              : field.onChange(
+                                  field.value?.filter(
+                                    (value) => value !== dept.id
+                                  )
+                                )
+                          }}
+                        />
+                        <label
+                          htmlFor={`dept-${dept.id}`}
+                          className='text-sm font-normal cursor-pointer'
+                        >
+                          {dept.name}
+                        </label>
+                      </div>
                     ))}
                   </div>
                   <FormMessage />

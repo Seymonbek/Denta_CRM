@@ -1,4 +1,3 @@
-import { useNavigate, useRouter } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -10,8 +9,6 @@ export function GeneralError({
   className,
   minimal = false,
 }: GeneralErrorProps) {
-  const _navigate = useNavigate()
-  const { _history } = useRouter()
   return (
     <div className={cn('h-svh w-full', className)}>
       <div className='m-auto flex h-full w-full flex-col items-center justify-center gap-2'>
@@ -27,8 +24,8 @@ export function GeneralError({
             <Button
               variant='outline'
               onClick={() => {
-                if (window._history.length > 1) {
-                  window._history.back()
+                if (window.history.length > 1) {
+                  window.history.back()
                 } else {
                   window.location.href = '/'
                 }

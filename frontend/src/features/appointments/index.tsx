@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Plus, _Calendar, _Clock, User, _Stethoscope, _Search, FileText } from 'lucide-react'
+import { Plus, User, FileText } from 'lucide-react'
 import { confirmSwal } from '@/lib/sweetalert'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { format } from 'date-fns'
@@ -73,14 +73,26 @@ export function AppointmentsList() {
   const [bookingDate, setBookingDate] = useState<Date>(new Date())
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null)
 
+  const isFilteringOverdue = statusFilter === 'overdue'
   const { data: appointmentsData, isLoading } = useAppointments({
-    status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
+    status: statusFilter && statusFilter !== 'all' && !isFilteringOverdue ? statusFilter : undefined,
   })
-  const appointments = Array.isArray(appointmentsData?.results)
+  const rawAppointments = Array.isArray(appointmentsData?.results)
     ? appointmentsData.results
     : Array.isArray(appointmentsData)
     ? appointmentsData
     : []
+
+  const appointments = isFilteringOverdue
+    ? rawAppointments.filter((app: any) => {
+        const start = app?.scheduledStart || app?.scheduled_start
+        return (
+          start &&
+          new Date(start).getTime() < Date.now() &&
+          (app?.status === 'scheduled' || app?.status === 'confirmed')
+        )
+      })
+    : rawAppointments
 
   const { data: patientsData } = usePatients({ page_size: 100 })
   const patients = Array.isArray(patientsData?.results)
@@ -102,8 +114,8 @@ export function AppointmentsList() {
     ? format(bookingDate, 'yyyy-MM-dd')
     : format(new Date(), 'yyyy-MM-dd')
 
-  const selectedProcedure = procedureTypes.find((p: Record<string, unknown>) => p.id === selectedProcedureTypeId)
-  const procedureDuration = selectedProcedure?.defaultDurationMinutes || selectedProcedure?.default_duration_minutes || undefined
+  const selectedProcedure = procedureTypes.find((p: any) => p.id === selectedProcedureTypeId)
+  const procedureDuration = selectedProcedure?.defaultDurationMinutes || undefined
 
   const { data: availableSlotsData = [], isLoading: isLoadingSlots } = useAvailableSlots(
     selectedDoctorId,
@@ -113,40 +125,40 @@ export function AppointmentsList() {
   )
   const availableSlots = Array.isArray(availableSlotsData)
     ? availableSlotsData
-    : Array.isArray((availableSlotsData as Record<string, unknown>)?.slots)
-    ? (availableSlotsData as Record<string, unknown>).slots
+    : Array.isArray((availableSlotsData as any)?.slots)
+    ? (availableSlotsData as any).slots
     : []
 
   // Cascading logic
-  const availableDepartments = departments.filter((d: Record<string, unknown>) => {
+  const availableDepartments = departments.filter((d: any) => {
     if (selectedDoctorId) {
-      const doc = doctors.find((doc: Record<string, unknown>) => doc.id === selectedDoctorId)
+      const doc = doctors.find((doc: any) => doc.id === selectedDoctorId)
       if (doc?.departments?.length) {
-        return doc.departments.some((dep: Record<string, unknown>) => dep.id === d.id)
+        return doc.departments.some((dep: any) => dep.id === d.id)
       }
     }
     return true
   })
 
-  const availableDoctors = doctors.filter((doc: Record<string, unknown>) => {
+  const availableDoctors = doctors.filter((doc: any) => {
     if (selectedDepartmentId) {
       if (doc.departments?.length) {
-        return doc.departments.some((dep: Record<string, unknown>) => dep.id === selectedDepartmentId)
+        return doc.departments.some((dep: any) => dep.id === selectedDepartmentId)
       }
       return false
     }
     return true
   })
 
-  const availableProcedures = procedureTypes.filter((proc: Record<string, unknown>) => {
+  const availableProcedures = procedureTypes.filter((proc: any) => {
     const procDepId = proc?.department && typeof proc.department === 'object' ? proc.department.id : proc?.department
     if (selectedDepartmentId) {
       return procDepId === selectedDepartmentId
     }
     if (selectedDoctorId) {
-      const doc = doctors.find((d: Record<string, unknown>) => d.id === selectedDoctorId)
+      const doc = doctors.find((d: any) => d.id === selectedDoctorId)
       if (doc?.departments?.length) {
-        return doc.departments.some((dep: Record<string, unknown>) => dep.id === procDepId)
+        return doc.departments.some((dep: any) => dep.id === procDepId)
       }
     }
     return true
@@ -155,11 +167,9 @@ export function AppointmentsList() {
   // Auto-select department if doctor is selected and belongs to only 1 department
   const handleDoctorChange = (docId: string) => {
     setSelectedDoctorId(docId)
-    const doc = doctors.find((d: Record<string, unknown>) => d.id === docId)
+    const doc = doctors.find((d: any) => d.id === docId)
     if (doc?.departments?.length === 1) {
        setSelectedDepartmentId(doc.departments[0].id)
-    } else if (!docId) {
-       // Optional: reset department if doctor is unselected, but maybe leave it.
     }
   }
 
@@ -185,16 +195,12 @@ export function AppointmentsList() {
     try {
       await createAppointmentMutation.mutateAsync({
         patient: selectedPatientId,
-        patientId: selectedPatientId,
         doctor: selectedDoctorId,
-        doctorId: selectedDoctorId,
         department: selectedDepartmentId,
-        departmentId: selectedDepartmentId,
         procedureType: selectedProcedureTypeId || undefined,
-        procedureTypeId: selectedProcedureTypeId || undefined,
         scheduledStart: selectedSlot.start,
         scheduledEnd: selectedSlot.end,
-      } as Record<string, unknown>)
+      } as any)
       toast.success('Navbat muvaffaqiyatli band qilindi!')
       setIsModalOpen(false)
       setSelectedSlot(null)
@@ -252,10 +258,12 @@ export function AppointmentsList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='all'>Barcha holatlar</SelectItem>
+              <SelectItem value='overdue'>⚠️ Muddati o'tganlar (Kechikkan)</SelectItem>
               <SelectItem value='scheduled'>Rejalashtirilgan</SelectItem>
               <SelectItem value='confirmed'>Tasdiqlangan</SelectItem>
               <SelectItem value='in_progress'>Jarayonda</SelectItem>
               <SelectItem value='completed'>Yakunlangan</SelectItem>
+              <SelectItem value='no_show'>Kelmagan (No-show)</SelectItem>
               <SelectItem value='cancelled'>Bekor qilingan</SelectItem>
             </SelectContent>
           </Select>
@@ -288,9 +296,9 @@ export function AppointmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                appointments.map((app: Record<string, unknown>) => {
+                appointments.map((app: any) => {
                   const statusKey = app?.status || 'scheduled'
-                  const badge = STATUS_BADGES[statusKey] || { label: statusKey, variant: 'outline' }
+                  const badge = (STATUS_BADGES as any)[statusKey] || { label: statusKey, variant: 'outline' }
 
                   const patientId = app?.patientId || app?.patient_id || (app?.patient && typeof app.patient === 'object' ? app.patient.id : app?.patient)
                   const patientName = app?.patientName || app?.patient_name || (app?.patient && typeof app.patient === 'object' ? `${app.patient.firstName || app.patient.first_name || ''} ${app.patient.lastName || app.patient.last_name || ''}`.trim() : app?.patient) || 'Bemor'
@@ -298,8 +306,15 @@ export function AppointmentsList() {
                   const departmentName = app?.departmentName || app?.department_name || (app?.department && typeof app.department === 'object' ? app.department.name : app?.department) || 'Bo\'lim'
                   const startDateStr = app?.scheduledStart || app?.scheduled_start || app?.start
 
+                  const isOverdue = Boolean(
+                    app?.isOverdue ||
+                    (startDateStr &&
+                      new Date(startDateStr).getTime() < Date.now() &&
+                      (statusKey === 'scheduled' || statusKey === 'confirmed'))
+                  )
+
                   return (
-                    <TableRow key={app?.id} className='hover:bg-muted/20'>
+                    <TableRow key={String(app?.id)} className={`hover:bg-muted/20 ${isOverdue ? 'bg-amber-500/5' : ''}`}>
                       <TableCell className='font-medium text-xs'>
                         {patientId ? (
                           <Link
@@ -314,7 +329,7 @@ export function AppointmentsList() {
                           patientName
                         )}
                       </TableCell>
-                      <TableCell className='text-xs'>
+                      <TableCell className='text-xs font-medium'>
                         {doctorName}
                       </TableCell>
                       <TableCell className='text-xs text-muted-foreground'>
@@ -324,9 +339,16 @@ export function AppointmentsList() {
                         {formatDateSafely(startDateStr)}
                       </TableCell>
                       <TableCell className='text-xs'>
-                        <Badge variant={badge.variant as Record<string, unknown>} className='text-[10px]'>
-                          {badge.label}
-                        </Badge>
+                        <div className="flex flex-col gap-1 items-start">
+                          <Badge variant={badge.variant as any} className='text-[10px]'>
+                            {badge.label}
+                          </Badge>
+                          {isOverdue && (
+                            <Badge variant='destructive' className='text-[9px] px-1.5 py-0 bg-amber-600 text-white border-none'>
+                              ⚠️ Vaqti o'tgan
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className='text-end'>
                         <div className='flex items-center justify-end gap-1 flex-wrap'>
@@ -347,7 +369,7 @@ export function AppointmentsList() {
                               size='sm'
                               variant='outline'
                               className='h-7 text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50'
-                              onClick={() => handleStatusChange(app.id, 'confirmed', 'Tasdiqlandi ✅')}
+                              onClick={() => handleStatusChange(String(app.id), 'confirmed', 'Tasdiqlandi ✅')}
                             >
                               ✅ Tasdiqlash
                             </Button>
@@ -357,7 +379,7 @@ export function AppointmentsList() {
                               size='sm'
                               variant='outline'
                               className='h-7 text-xs text-blue-600 border-blue-300 hover:bg-blue-50'
-                              onClick={() => handleStatusChange(app.id, 'in_progress', 'Boshlandi 🔄')}
+                              onClick={() => handleStatusChange(String(app.id), 'in_progress', 'Boshlandi 🔄')}
                             >
                               🔄 Boshlash
                             </Button>
@@ -367,9 +389,19 @@ export function AppointmentsList() {
                               size='sm'
                               variant='outline'
                               className='h-7 text-xs text-green-600 border-green-300 hover:bg-green-50'
-                              onClick={() => handleStatusChange(app.id, 'completed', 'Yakunlandi 🎉')}
+                              onClick={() => handleStatusChange(String(app.id), 'completed', 'Yakunlandi 🎉')}
                             >
                               🎉 Yakunlash
+                            </Button>
+                          )}
+                          {isOverdue && statusKey !== 'no_show' && statusKey !== 'completed' && statusKey !== 'cancelled' && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='h-7 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300'
+                              onClick={() => handleStatusChange(String(app.id), 'no_show', 'Kelmagan (No-show) deb belgilandi')}
+                            >
+                              Kelmagan
                             </Button>
                           )}
                           {statusKey !== 'cancelled' && statusKey !== 'completed' && (
@@ -377,7 +409,7 @@ export function AppointmentsList() {
                               size='sm'
                               variant='ghost'
                               className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
-                              onClick={() => handleCancel(app.id)}
+                              onClick={() => handleCancel(String(app.id))}
                             >
                               Bekor qilish
                             </Button>
@@ -404,10 +436,10 @@ export function AppointmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Bemor *</label>
                   <SearchableSelect
-                    options={patients.map((p: Record<string, unknown>) => ({
+                    options={patients.map((p: any) => ({
                       value: String(p.id),
-                      label: `${p.firstName || p.first_name || ''} ${p.lastName || p.last_name || ''}`,
-                      sublabel: p.phoneNumber || p.phone_number || '',
+                      label: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Bemor',
+                      sublabel: String(p.phoneNumber || ''),
                     }))}
                     value={selectedPatientId}
                     onValueChange={setSelectedPatientId}
@@ -423,9 +455,9 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Bo’lim tanlang' />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableDepartments.map((d: Record<string, unknown>) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.name}
+                      {availableDepartments.map((d: any) => (
+                        <SelectItem key={String(d.id)} value={String(d.id)}>
+                          {String(d.name)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -437,10 +469,10 @@ export function AppointmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Shifokor *</label>
                   <SearchableSelect
-                    options={availableDoctors.map((doc: Record<string, unknown>) => ({
+                    options={availableDoctors.map((doc: any) => ({
                       value: String(doc.id),
-                      label: `Dr. ${doc.user?.firstName || doc.user?.first_name || ''} ${doc.user?.lastName || doc.user?.last_name || ''}`,
-                      sublabel: doc.specialization || 'Stomatolog',
+                      label: `Dr. ${doc.user?.firstName || ''} ${doc.user?.lastName || ''}`.trim(),
+                      sublabel: String(doc.specialization || 'Stomatolog'),
                     }))}
                     value={selectedDoctorId}
                     onValueChange={handleDoctorChange}
@@ -456,9 +488,9 @@ export function AppointmentsList() {
                       <SelectValue placeholder='Muolaja turi' />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableProcedures.map((proc: Record<string, unknown>) => (
-                        <SelectItem key={proc.id} value={proc.id}>
-                          {proc.name} ({proc.defaultDurationMinutes || proc.default_duration_minutes || 30} daq, {Number(proc.defaultPrice || proc.default_price || 0).toLocaleString()} so'm)
+                      {availableProcedures.map((proc: any) => (
+                        <SelectItem key={String(proc.id)} value={String(proc.id)}>
+                          {String(proc.name)} ({proc.defaultDurationMinutes || 30} daq, {Number(proc.defaultPrice || 0).toLocaleString()} so'm)
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -466,10 +498,10 @@ export function AppointmentsList() {
                 </div>
               </div>
 
-              {/* Interactive _Calendar & Slots picker */}
+              {/* Interactive Calendar & Slots picker */}
               {selectedDoctorId ? (
                 <ScheduleCalendar
-                  availableSlots={availableSlots}
+                  availableSlots={(availableSlots as AvailableSlot[]) || []}
                   selectedDate={bookingDate}
                   onDateChange={setBookingDate}
                   onSlotSelect={setSelectedSlot}

@@ -78,9 +78,9 @@ export function ProcedureBOMsTab() {
               <SelectValue placeholder="Muolaja turini tanlang..." />
             </SelectTrigger>
             <SelectContent>
-              {procedures.map((p: Record<string, unknown>) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
+              {procedures.map((p: any) => (
+                <SelectItem key={String(p.id)} value={String(p.id)}>
+                  {String(p.name)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -124,19 +124,19 @@ export function ProcedureBOMsTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              boms.map((bom: Record<string, unknown>) => {
-                const proc = procedures.find((p: Record<string, unknown>) => p.id === bom.procedureType)
+              boms.map((bom: any) => {
+                const proc = procedures.find((p: any) => String(p.id) === String(bom.procedureType))
                 return (
-                  <TableRow key={bom.id}>
-                    <TableCell className="font-medium">{proc?.name}</TableCell>
-                    <TableCell>{bom.materialName}</TableCell>
+                  <TableRow key={String(bom.id)}>
+                    <TableCell className="font-medium">{proc?.name || 'Muolaja'}</TableCell>
+                    <TableCell>{bom.materialName || 'Material'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="font-mono text-sm">
-                        {Number(bom.defaultQuantity).toLocaleString()} {bom.materialUnit === 'piece' ? 'dona' : bom.materialUnit === 'gram' ? 'g' : 'ml'}
+                        {Number(bom.defaultQuantity || 0).toLocaleString()} {bom.materialUnit === 'piece' ? 'dona' : bom.materialUnit === 'gram' ? 'g' : 'ml'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(bom.id)} disabled={deleteBOM.isPending}>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(String(bom.id))} disabled={deleteBOM.isPending}>
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </TableCell>
@@ -163,9 +163,9 @@ export function ProcedureBOMsTab() {
                   <SelectValue placeholder="Materialni tanlang" />
                 </SelectTrigger>
                 <SelectContent>
-                  {materials.map((m: Record<string, unknown>) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name} ({m.quantityInStock} qolgan)
+                  {materials.map((m: any) => (
+                    <SelectItem key={String(m.id)} value={String(m.id)}>
+                      {String(m.name)} ({Number(m.quantityInStock || 0)} qolgan)
                     </SelectItem>
                   ))}
                 </SelectContent>

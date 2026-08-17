@@ -8,7 +8,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  _DialogFooter,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -85,11 +84,12 @@ export function Odontogram({ patientId, toothRecords = [], onSaveRecord, readOnl
   const [status, setStatus] = useState<ToothStatus>('treated')
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showFullHistory, setShowFullHistory] = useState(false)
 
   // Map of toothNumber -> latest ToothRecord
   const recordMap = new Map<number, ToothRecord>()
-  toothRecords.forEach((rec: Record<string, unknown>) => {
-    const num = Number(rec.toothNumber ?? rec.tooth_number)
+  toothRecords.forEach((rec: ToothRecord) => {
+    const num = Number(rec.toothNumber)
     if (num) {
       recordMap.set(num, rec)
     }
@@ -136,6 +136,11 @@ export function Odontogram({ patientId, toothRecords = [], onSaveRecord, readOnl
           </p>
         </div>
         <div className='flex flex-wrap gap-2 text-xs'>
+          {patientId && (
+            <Button variant="outline" size="sm" onClick={() => setShowFullHistory(true)} className="mr-2 h-7 px-3 text-xs">
+              Barcha tishlar tarixi
+            </Button>
+          )}
           {(Object.keys(STATUS_CONFIG) as ToothStatus[]).map((st) => (
             <Badge
               key={st}
@@ -294,6 +299,22 @@ export function Odontogram({ patientId, toothRecords = [], onSaveRecord, readOnl
 
         </DialogContent>
       </Dialog>
+      {/* Full History Modal */}
+      <Dialog open={showFullHistory} onOpenChange={setShowFullHistory}>
+        <DialogContent className='sm:max-w-2xl max-h-[80vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>Barcha Tishlar Tarixi</DialogTitle>
+            <DialogDescription>
+              Bemorning barcha tishlari bo'yicha oldingi qilingan muolajalar va o'zgarishlar tarixi.
+            </DialogDescription>
+          </DialogHeader>
+          {patientId ? (
+            <FullToothHistoryList patientId={patientId} />
+          ) : (
+            <div className="text-center text-sm text-muted-foreground p-4">Bemor tanlanmagan</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -383,6 +404,57 @@ function ToothHistoryList({ patientId, toothNumber }: { patientId: string; tooth
               {record.notes}
             </div>
           )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function FullToothHistoryList({ patientId }: { patientId: string }) {
+  // Use the same hook, but without passing toothNumber, so it fetches all tooth history
+  const { data: history, isLoading, error } = usePatientOdontogramHistory(patientId)
+
+  if (isLoading) return <div className="p-4 text-center text-sm text-muted-foreground">Yuklanmoqda...</div>
+  if (error) return <div className="p-4 text-center text-sm text-destructive">Xatolik yuz berdi.</div>
+  if (!history || history.length === 0) {
+    return <div className="p-4 text-center text-sm text-muted-foreground">Bemorda tish xaritasi tarixi mavjud emas.</div>
+  }
+
+  // Group by date or just display all.
+  // The API returns them ordered by -created_at
+  return (
+    <div className="space-y-4">
+      {history.map((record) => (
+        <div key={record.id} className="rounded-lg border p-4 text-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 pb-3 border-b border-dashed gap-2">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-bold">
+                {record.toothNumber}
+              </div>
+              <div className="font-medium text-base">
+                {record.procedure ? PROCEDURE_LABELS[record.procedure] || record.procedure : 'Sog\'lom'}
+              </div>
+              <Badge variant="outline">{record.status}</Badge>
+            </div>
+            <div className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+              {format(new Date(record.createdAt), 'dd.MM.yyyy HH:mm')}
+            </div>
+          </div>
+          
+          <div className="flex justify-between items-end">
+            <div className="space-y-1 w-full">
+              {record.doctorName && (
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground mr-1">Shifokor:</span> {record.doctorName}
+                </div>
+              )}
+              {record.notes && (
+                <div className="text-xs bg-muted/50 p-2 rounded-md mt-2">
+                  {record.notes}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       ))}
     </div>

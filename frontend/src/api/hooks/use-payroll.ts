@@ -52,8 +52,8 @@ export function usePaySalary() {
       queryClient.invalidateQueries({ queryKey: ['cash-shifts'] })
       queryClient.invalidateQueries({ queryKey: ['expenses'] })
     },
-    onError: (error: unknown) => {
-      toast.error(error.response?.data?.error || "Xatolik yuz berdi")
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.error || "Xatolik yuz berdi")
     },
   })
 }

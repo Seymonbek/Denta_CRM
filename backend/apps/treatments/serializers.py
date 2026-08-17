@@ -248,6 +248,19 @@ class TreatmentSerializer(serializers.ModelSerializer):
             except Exception:  # noqa: BLE001 - table may not exist yet
                 tooth_records = []
 
+        patient_name = (
+            f"{instance.patient.first_name} {instance.patient.last_name}".strip()
+            if instance.patient
+            else ""
+        )
+        doctor_name = (
+            f"Dr. {instance.doctor.user.first_name} {instance.doctor.user.last_name}".strip()
+            if instance.doctor and hasattr(instance.doctor, "user") and instance.doctor.user
+            else ""
+        )
+        department_name = instance.department.name if instance.department else ""
+        procedure_type_name = instance.procedure_type.name if instance.procedure_type else ""
+
         return {
             "id": str(instance.id),
             "appointmentId": str(instance.appointment_id)
@@ -256,17 +269,25 @@ class TreatmentSerializer(serializers.ModelSerializer):
             "appointment": _camel_appointment(instance.appointment),
             "doctorId": str(instance.doctor_id),
             "doctor": _camel_doctor(instance.doctor),
+            "doctorName": doctor_name,
             "patientId": str(instance.patient_id),
             "patient": _camel_patient(instance.patient),
+            "patientName": patient_name,
             "departmentId": str(instance.department_id),
             "department": _camel_department(instance.department),
+            "departmentName": department_name,
             "procedureTypeId": str(instance.procedure_type_id)
             if instance.procedure_type_id
             else None,
             "procedureType": _camel_procedure(instance.procedure_type),
+            "procedureTypeName": procedure_type_name,
             "diagnosis": instance.diagnosis or "",
             "description": instance.description or "",
             "price": str(instance.price),
+            "originalPrice": str(instance.original_price) if instance.original_price is not None else str(instance.price),
+            "discountPercent": str(instance.discount_percent) if instance.discount_percent is not None else "0.00",
+            "discountReason": instance.discount_reason or "",
+            "approvalStatus": instance.approval_status,
             "paymentStatus": instance.payment_status,
             "stage": instance.stage,
             "isActive": instance.is_active,

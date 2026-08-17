@@ -1,4 +1,4 @@
-import { Trophy, _Award, _Medal, _Star } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 import { useLeaderboard } from '@/api/hooks/use-ratings'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -13,15 +13,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { type LeaderboardEntry } from '@/types/api'
 
 export function RatingsList() {
   const { data: leaderboardData = [], isLoading } = useLeaderboard()
 
-  const leaderboard = Array.isArray(leaderboardData?.results)
-    ? leaderboardData.results
-    : Array.isArray(leaderboardData)
-    ? leaderboardData
-    : []
+  const leaderboard: LeaderboardEntry[] = Array.isArray(leaderboardData) ? leaderboardData : []
 
   return (
     <>
@@ -34,33 +31,30 @@ export function RatingsList() {
         <ProfileDropdown />
       </Header>
 
-      <Main>
-        <div className='mb-6'>
-          <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
-            <Trophy className='h-6 w-6 text-amber-500' /> Klinika Shifokorlari Leaderboardi
-          </h1>
-          <p className='text-xs text-muted-foreground mt-1'>
-            Faollik ballari, muolajalar va bemorlar minnatdorchilik nishonlari.
+      <Main className='space-y-4'>
+        <div>
+          <h1 className='text-xl font-bold tracking-tight'>Gamifikatsiya & Shifokorlar Reytingi</h1>
+          <p className='text-xs text-muted-foreground'>
+            Bajarilgan muolajalar, o'z vaqtida qabul va bemorlar sharhlari asosida hisoblangan ballar
           </p>
         </div>
 
-        {/* Leaderboard Table with Mobile Responsive Horizontal Scroll */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
-          <Table className='min-w-[600px] sm:min-w-full'>
-            <TableHeader>
-              <TableRow className='bg-muted/30'>
-                <TableHead className='text-xs font-semibold w-16 text-center'>O'rin</TableHead>
-                <TableHead className='text-xs font-semibold'>Shifokor</TableHead>
-                <TableHead className='text-xs font-semibold'>Mutaxassislik</TableHead>
-                <TableHead className='text-xs font-semibold text-center'>Nishonlar Soni</TableHead>
-                <TableHead className='text-xs font-semibold text-end'>Jami Ballar</TableHead>
+        <div className='rounded-xl border bg-card shadow-xs overflow-hidden'>
+          <Table>
+            <TableHeader className='bg-muted/40'>
+              <TableRow>
+                <TableHead className='w-16 text-center text-xs font-bold'>O'rin</TableHead>
+                <TableHead className='text-xs font-bold'>Shifokor</TableHead>
+                <TableHead className='text-xs font-bold'>Mutaxassislik</TableHead>
+                <TableHead className='text-center text-xs font-bold'>Nishonlar (Badges)</TableHead>
+                <TableHead className='text-end text-xs font-bold'>Jami Ball (Points)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
-                    Leaderboard yuklanmoqda...
+                  <TableCell colSpan={5} className='text-center py-8 text-xs text-muted-foreground'>
+                    Yuklanmoqda...
                   </TableCell>
                 </TableRow>
               ) : leaderboard.length === 0 ? (
@@ -70,14 +64,14 @@ export function RatingsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                leaderboard.map((entry: Record<string, unknown>, idx: number) => {
-                  const rank = entry?.rank || idx + 1
-                  const doctorId = entry?.doctorId || entry?.doctor?.id || String(idx)
-                  const firstName = entry?.firstName || entry?.first_name || entry?.doctor?.user?.firstName || entry?.doctor?.user?.first_name || 'Shifokor'
-                  const lastName = entry?.lastName || entry?.last_name || entry?.doctor?.user?.lastName || entry?.doctor?.user?.last_name || ''
-                  const specialization = entry?.specialization || entry?.doctor?.specialization || 'Stomatolog'
-                  const totalPoints = entry?.totalPoints ?? entry?.points ?? 0
-                  const badgeCount = entry?.badgeCount ?? entry?.badgesCount ?? entry?.badges_count ?? 0
+                leaderboard.map((entry: LeaderboardEntry, idx: number) => {
+                  const rank = entry.rank || idx + 1
+                  const doctorId = entry.doctor?.id || String(idx)
+                  const firstName = entry.doctor?.user?.firstName || 'Shifokor'
+                  const lastName = entry.doctor?.user?.lastName || ''
+                  const specialization = entry.doctor?.specialization || 'Stomatolog'
+                  const totalPoints = entry.totalPoints ?? 0
+                  const badgeCount = entry.badgeCount ?? 0
 
                   return (
                     <TableRow key={doctorId} className='hover:bg-muted/20'>

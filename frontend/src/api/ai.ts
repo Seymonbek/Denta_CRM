@@ -39,11 +39,11 @@ export interface AIPermissionConfig {
 }
 
 export async function postAIChatApi(message: string): Promise<AIChatResponse> {
-  const response = await apiClient.post<Record<string, unknown>>('ai/chat/', { message })
-  const data = response.data
+  const response = await apiClient.post<any>('ai/chat/', { message })
+  const data = response.data || {}
   return {
-    message: data.answer || data.message || '',
-    source: data.source || 'gemini-ai',
+    message: String(data.answer || data.message || ''),
+    source: (data.source as 'gemini-ai' | 'crm-smart-assistant') || 'gemini-ai',
     timestamp: new Date().toISOString(),
     contextSummary: data.contextSummary,
   }
@@ -55,9 +55,9 @@ export async function getAIInventorySummaryApi(): Promise<AIInventorySummary> {
 }
 
 export async function getAIPermissionConfigsApi(): Promise<AIPermissionConfig[]> {
-  const response = await apiClient.get<Record<string, unknown>>('ai/permissions/')
+  const response = await apiClient.get<any>('ai/permissions/')
   const results = Array.isArray(response.data) ? response.data : (response.data?.results || [])
-  return results
+  return results as AIPermissionConfig[]
 }
 
 export async function updateAIPermissionConfigApi(

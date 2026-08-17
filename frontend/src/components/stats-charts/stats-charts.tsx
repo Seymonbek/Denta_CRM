@@ -98,24 +98,24 @@ export function StatsCharts({
   const [viewType, setViewType] = useState<'area' | 'pie'>('area')
   const [expenseViewType, setExpenseViewType] = useState<'pie' | 'bar'>('pie')
 
-  const procData = topProcedures.map((p: Record<string, unknown>) => {
-    const fullName = p.name || p.procedureTypeName || p.procedure_type_name || 'Muolaja'
+  const procData = (topProcedures || []).map((p: any) => {
+    const fullName = String(p.name || p.procedureTypeName || p.procedure_type_name || 'Muolaja')
     return {
       fullName,
       shortName: getShortName(fullName),
       count: Number(p.count ?? p.patientCount ?? 0),
-      revenue: parseFloat(p.revenue || '0'),
+      revenue: parseFloat(String(p.revenue || '0')),
     }
   })
 
-  const totalDeptRevenue = departmentBreakdown.reduce(
-    (acc, d: Record<string, unknown>) => acc + parseFloat(d.revenue || '0'),
+  const totalDeptRevenue = (departmentBreakdown || []).reduce(
+    (acc: number, d: any) => acc + parseFloat(String(d.revenue || '0')),
     0
   )
 
-  const deptData = departmentBreakdown.map((d: Record<string, unknown>, idx: number) => {
-    const name = d.name || d.departmentName || d.department_name || "Bo'lim"
-    const rev = parseFloat(d.revenue || '0')
+  const deptData = (departmentBreakdown || []).map((d: any, idx: number) => {
+    const name = String(d.name || d.departmentName || d.department_name || "Bo'lim")
+    const rev = parseFloat(String(d.revenue || '0'))
     const percent = totalDeptRevenue > 0 ? ((rev / totalDeptRevenue) * 100).toFixed(1) : '0'
     return {
       name,
@@ -127,14 +127,14 @@ export function StatsCharts({
     }
   })
 
-  const totalExpense = expensesByCategory.reduce(
-    (acc, d: Record<string, unknown>) => acc + parseFloat(d.amount || '0'),
+  const totalExpense = (expensesByCategory || []).reduce(
+    (acc: number, d: any) => acc + parseFloat(String(d.amount || '0')),
     0
   )
 
-  const expenseData = expensesByCategory.map((d: Record<string, unknown>, idx: number) => {
-    const name = d.name || "Boshqa"
-    const amount = parseFloat(d.amount || '0')
+  const expenseData = (expensesByCategory || []).map((d: any, idx: number) => {
+    const name = String(d.name || "Boshqa")
+    const amount = parseFloat(String(d.amount || '0'))
     const percent = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : '0'
     return {
       name,
@@ -210,7 +210,7 @@ export function StatsCharts({
                     position='top'
                     dy={-6}
                     className='fill-foreground text-[11px] font-bold font-mono'
-                    formatter={(val: Record<string, unknown>) => (val > 0 ? `${val} ta` : '')}
+                    formatter={(val: any) => (Number(val) > 0 ? `${val} ta` : '')}
                   />
                   {procData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLOR_PALETTE[index % COLOR_PALETTE.length]} />
@@ -470,7 +470,7 @@ export function StatsCharts({
                     position='top'
                     dy={-6}
                     className='fill-foreground text-[11px] font-bold font-mono'
-                    formatter={(val: Record<string, unknown>) => (val > 0 ? formatShortMoney(val) : '')}
+                    formatter={(val: any) => (Number(val) > 0 ? formatShortMoney(Number(val)) : '')}
                   />
                   {expenseData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLOR_PALETTE[(index + 2) % COLOR_PALETTE.length]} />
@@ -486,7 +486,7 @@ export function StatsCharts({
 }
 
 // Custom High-Quality Glassmorphic Tooltip for Procedures
-function CustomProcedureTooltip({ active, payload }: Record<string, unknown>) {
+function CustomProcedureTooltip({ active, payload }: any) {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
@@ -514,7 +514,7 @@ function CustomProcedureTooltip({ active, payload }: Record<string, unknown>) {
 }
 
 // Custom High-Quality Glassmorphic Tooltip for Departments
-function CustomDepartmentTooltip({ active, payload }: Record<string, unknown>) {
+function CustomDepartmentTooltip({ active, payload }: any) {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
@@ -542,7 +542,7 @@ function CustomDepartmentTooltip({ active, payload }: Record<string, unknown>) {
 }
 
 // Custom High-Quality Glassmorphic Tooltip for Expenses
-function CustomExpenseTooltip({ active, payload }: Record<string, unknown>) {
+function CustomExpenseTooltip({ active, payload }: any) {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (

@@ -102,7 +102,7 @@ export function PatientsList() {
       setPhoneNumber('+998')
       setAddress('')
       setNotes('')
-    } catch (err: unknown) {
+    } catch (err: any) {
       const data = err?.response?.data
       const errorMsg =
         data?.phone_number?.[0] ||
@@ -122,7 +122,6 @@ export function PatientsList() {
           title: "Ushbu bemor bazada mavjud!",
           text: "Siz kiritgan ism yoki telefon raqamiga ega bemor allaqachon mavjud. Qidiruvdan foydalaning.",
           confirmButtonText: "Tushunarli",
-          showCancelButton: false
         })
       } else {
         toast.error(errorMsg)
@@ -209,16 +208,16 @@ export function PatientsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                patients.map((patient: Record<string, unknown>) => {
-                  const pFirstName = patient?.firstName || patient?.first_name || 'Bemor'
-                  const pLastName = patient?.lastName || patient?.last_name || ''
-                  const pPhone = patient?.phoneNumber || patient?.phone_number || '-'
-                  const pGender = patient?.gender || 'unknown'
-                  const pAddress = patient?.address || '-'
-                  const pCreatedAt = patient?.createdAt || patient?.created_at || ''
+                patients.map((patient: any) => {
+                  const pFirstName = String(patient?.firstName || patient?.first_name || 'Bemor')
+                  const pLastName = String(patient?.lastName || patient?.last_name || '')
+                  const pPhone = String(patient?.phoneNumber || patient?.phone_number || '-')
+                  const pGender = String(patient?.gender || 'unknown')
+                  const pAddress = String(patient?.address || '-')
+                  const pCreatedAt = String(patient?.createdAt || patient?.created_at || '')
 
                   return (
-                    <TableRow key={patient?.id} className='hover:bg-muted/20'>
+                    <TableRow key={String(patient?.id)} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
                         <div className='flex items-center gap-2'>
                           <div className='flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs shrink-0'>
@@ -241,7 +240,7 @@ export function PatientsList() {
                       </TableCell>
                       <TableCell className='text-end whitespace-nowrap'>
                         <Button asChild size='sm' variant='ghost' className='h-8 text-xs'>
-                          <Link to='/patients/$id' params={{ id: patient.id }}>
+                          <Link to='/patients/$id' params={{ id: String(patient.id) }}>
                             Karta <ArrowRight className='ms-1.5 h-3.5 w-3.5' />
                           </Link>
                         </Button>

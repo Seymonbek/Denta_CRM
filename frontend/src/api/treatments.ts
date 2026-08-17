@@ -33,6 +33,9 @@ export async function createTreatmentApi(data: {
   diagnosis?: string
   description?: string
   price: string
+  originalPrice?: number
+  discountPercent?: number
+  discountReason?: string
 }): Promise<Treatment> {
   const response = await apiClient.post<Treatment>('treatments/', data)
   return response.data

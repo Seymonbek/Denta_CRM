@@ -289,6 +289,8 @@ class MaterialUsageSerializer(serializers.ModelSerializer):
     material = serializers.PrimaryKeyRelatedField(
         queryset=Material.objects.filter(is_active=True),
     )
+    material_name = serializers.CharField(source="material.name", read_only=True)
+    material_unit = serializers.CharField(source="material.unit", read_only=True)
     quantity_used = serializers.DecimalField(
         max_digits=12, decimal_places=3, min_value=Decimal("0.001"),
     )
@@ -299,6 +301,8 @@ class MaterialUsageSerializer(serializers.ModelSerializer):
             "id",
             "treatment",
             "material",
+            "material_name",
+            "material_unit",
             "quantity_used",
         )
         read_only_fields = ("id",)
@@ -329,10 +333,23 @@ class MaterialUsageSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def to_representation(self, instance: MaterialUsage) -> dict[str, Any]:
+        material = instance.material
+        material_name = material.name if material else ""
+        material_unit = material.unit if material else ""
+        unit_cost = f"{material.unit_cost:.2f}" if material and material.unit_cost is not None else "0.00"
+        treatment = getattr(instance, "treatment", None)
+        diagnosis = treatment.diagnosis if treatment else ""
+
         return {
             "id": str(instance.id),
             "treatmentId": str(instance.treatment_id),
             "materialId": str(instance.material_id),
+            "materialName": material_name,
+            "material_name": material_name,
+            "materialUnit": material_unit,
+            "material_unit": material_unit,
+            "unitCost": unit_cost,
+            "treatmentDiagnosis": diagnosis,
             "quantityUsed": _decimal_str(instance.quantity_used),
             "recordedBy": (
                 str(instance.recorded_by_id) if instance.recorded_by_id else None
@@ -393,7 +410,10 @@ class ProcedureBOMSerializer(serializers.ModelSerializer):
         return {
             "id": str(instance.id),
             "procedureType": str(instance.procedure_type_id),
+            "procedureTypeId": str(instance.procedure_type_id),
+            "procedureTypeName": instance.procedure_type.name if instance.procedure_type else None,
             "material": str(instance.material_id),
+            "materialId": str(instance.material_id),
             "materialName": instance.material.name if instance.material else None,
             "materialUnit": instance.material.unit if instance.material else None,
             "defaultQuantity": _decimal_str(instance.default_quantity),

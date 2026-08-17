@@ -520,11 +520,12 @@ class SalaryPaymentCreateView(APIView, IdempotencyMixin):
     permission_classes = [permissions.IsAuthenticated]
     
     @extend_schema(request=SalaryPaymentCreateSerializer)
-    def post(self, request: Request, pk: str) -> Response:
+    def post(self, request: Request, doctor_id: str | None = None, pk: str | None = None, **kwargs: Any) -> Response:
         if getattr(request.user, "role", None) not in ["bosh_shifokor", "administrator"]:
             return Response({"detail": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
             
-        doctor = get_object_or_404(DoctorProfile.objects.all(), pk=pk)
+        doc_id = doctor_id or pk
+        doctor = get_object_or_404(DoctorProfile.objects.all(), pk=doc_id)
         
         serializer = SalaryPaymentCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

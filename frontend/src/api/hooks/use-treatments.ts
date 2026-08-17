@@ -46,7 +46,7 @@ export function useCreateTreatment() {
 export function useUpdateTreatment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> | FormData }) => updateTreatmentApi(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> | FormData }) => updateTreatmentApi(id, data as any),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: TREATMENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['treatments', variables.id] })

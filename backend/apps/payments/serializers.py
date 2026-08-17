@@ -171,9 +171,23 @@ class CommissionRecordSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def to_representation(self, instance: CommissionRecord) -> dict[str, Any]:
+        doctor_name = ""
+        if instance.doctor and hasattr(instance.doctor, "user") and instance.doctor.user:
+            doctor_name = f"Dr. {instance.doctor.user.first_name} {instance.doctor.user.last_name}".strip()
+        patient_name = ""
+        procedure_name = ""
+        if instance.treatment:
+            if instance.treatment.patient:
+                patient_name = f"{instance.treatment.patient.first_name} {instance.treatment.patient.last_name}".strip()
+            if instance.treatment.procedure_type:
+                procedure_name = instance.treatment.procedure_type.name or ""
+
         return {
             "id": str(instance.id),
             "doctorId": str(instance.doctor_id),
+            "doctorName": doctor_name,
+            "patientName": patient_name,
+            "procedureName": procedure_name,
             "treatmentId": str(instance.treatment_id),
             "amount": _decimal_str(instance.amount),
             "rate": _decimal_str(instance.rate),
@@ -211,6 +225,19 @@ class CashShiftSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "administrator", "opened_at", "closed_at", "status", "approved_by", "cash_collected", "card_collected", "cash_expenses", "card_expenses"]
 
+    def to_representation(self, instance: Any) -> dict[str, Any]:
+        data = super().to_representation(instance)
+        data["adminName"] = data.get("admin_name")
+        data["openedAt"] = data.get("opened_at")
+        data["closedAt"] = data.get("closed_at")
+        data["startBalance"] = data.get("start_balance")
+        data["cashCollected"] = data.get("cash_collected")
+        data["cardCollected"] = data.get("card_collected")
+        data["cashExpenses"] = data.get("cash_expenses")
+        data["cardExpenses"] = data.get("card_expenses")
+        data["approvedBy"] = data.get("approved_by")
+        return data
+
 
 class ExpenseCategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -229,6 +256,14 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "date", "recorded_by", "recorded_by_name", "payment_method", "cash_shift"
         ]
         read_only_fields = ["id", "date", "recorded_by", "cash_shift"]
+
+    def to_representation(self, instance: Any) -> dict[str, Any]:
+        data = super().to_representation(instance)
+        data["categoryName"] = data.get("category_name")
+        data["recordedByName"] = data.get("recorded_by_name")
+        data["paymentMethod"] = data.get("payment_method")
+        data["cashShift"] = data.get("cash_shift")
+        return data
 
 
 __all__ = [

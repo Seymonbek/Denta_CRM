@@ -43,14 +43,10 @@ export function DepartmentsList() {
   const [description, setDescription] = useState('')
 
   const { data: departmentsData = [], isLoading } = useDepartments()
-  const departments = Array.isArray(departmentsData?.results)
-    ? departmentsData.results
-    : Array.isArray(departmentsData)
-    ? departmentsData
-    : []
+  const departments: Department[] = Array.isArray(departmentsData) ? departmentsData : []
 
-  const _filteredDepartments = departments.filter((d: Record<string, unknown>) => {
-    const text = (d.name || '') + (d.description || '')
+  const filteredDepartments = departments.filter((d: Department) => {
+    const text = String(d.name || '') + ' ' + String(d.description || '')
     return text.toLowerCase().includes(searchTerm.toLowerCase())
   })
 
@@ -168,27 +164,27 @@ export function DepartmentsList() {
                     Bo'limlar yuklanmoqda...
                   </TableCell>
                 </TableRow>
-              ) : departments.length === 0 ? (
+              ) : filteredDepartments.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className='text-center py-8 text-xs text-muted-foreground'>
-                    Bo'limlar topilmadi.
+                    Hech qanday bo'lim topilmadi.
                   </TableCell>
                 </TableRow>
               ) : (
-                departments.map((dept: Record<string, unknown>) => {
-                  const isActive = dept?.isActive ?? dept?.is_active ?? true
-                  const createdAt = dept?.createdAt || dept?.created_at || ''
+                filteredDepartments.map((dept: Department) => {
+                  const isActive = dept.isActive ?? true
+                  const createdAt = dept.createdAt || ''
 
                   return (
-                    <TableRow key={dept?.id} className='hover:bg-muted/20'>
+                    <TableRow key={dept.id} className='hover:bg-muted/20'>
                       <TableCell className='font-semibold text-xs'>
                         <div className='flex items-center gap-2'>
                           <Building2 className='h-4 w-4 text-primary' />
-                          <span>{dept?.name || 'Bo’lim'}</span>
+                          <span>{dept.name || 'Bo’lim'}</span>
                         </div>
                       </TableCell>
                       <TableCell className='text-xs text-muted-foreground max-w-xs truncate'>
-                        {dept?.description || '—'}
+                        {dept.description || '—'}
                       </TableCell>
                       <TableCell className='text-xs'>
                         <Badge variant={isActive ? 'default' : 'secondary'} className='text-[10px]'>

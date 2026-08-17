@@ -459,7 +459,7 @@ def compute_available_slots(
     ``booked_ranges`` must be timezone-aware ``datetime`` tuples.
     """
     if TimeOff.objects.filter(
-        doctor=doctor, date_start__lte=day, date_end__gte=day
+        user=doctor.user, date_start__lte=day, date_end__gte=day
     ).exists():
         return []
 
@@ -469,11 +469,11 @@ def compute_available_slots(
 
     shifts = list(
         WorkingHours.objects.filter(
-            doctor=doctor, weekday=day.weekday()
+            user=doctor.user, weekday=day.weekday()
         ).order_by("start_time")
     )
 
-    if not shifts and not WorkingHours.objects.filter(doctor=doctor).exists():
+    if not shifts and not WorkingHours.objects.filter(user=doctor.user).exists():
         # Fallback to standard clinic working hours (Dushanba-Shanba 09:00-18:00) if no schedule configured yet
         if day.weekday() != Weekday.SUNDAY:
             class _DefaultShift:
@@ -483,6 +483,9 @@ def compute_available_slots(
 
     booked = _normalise_booked_ranges(booked_ranges)
 
+    from django.utils import timezone
+    now_local = timezone.localtime().replace(tzinfo=None)
+
     slots: list[dict[str, str]] = []
     for shift in shifts:
         cursor = datetime.combine(day, shift.start_time)
@@ -491,6 +494,12 @@ def compute_available_slots(
         while cursor + step <= shift_end:
             slot_start = cursor
             slot_end = cursor + step
+            
+            # Skip if the slot is in the past
+            if slot_start < now_local:
+                cursor = cursor + step
+                continue
+
             if not _overlaps_any(slot_start, slot_end, booked):
                 slots.append(
                     {"start": slot_start.isoformat(), "end": slot_end.isoformat()}

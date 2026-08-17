@@ -57,11 +57,7 @@ export function AIAssistantPage() {
   const { data: permissionsData = [] } = useAIPermissions()
   const updatePermissionMutation = useUpdateAIPermission()
 
-  const permissionsList = Array.isArray(permissionsData?.results)
-    ? permissionsData.results
-    : Array.isArray(permissionsData)
-    ? permissionsData
-    : []
+  const permissionsList = Array.isArray(permissionsData) ? permissionsData : []
 
   const [inputMessage, setInputMessage] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -80,7 +76,7 @@ export function AIAssistantPage() {
     {
       id: 'welcome-1',
       sender: 'ai',
-      text: `Assalomu alaykum, ${user?.firstName || user?.first_name || 'Foydalanuvchi'}! Men DentaCRM aqlli Sun'iy Intelekt (AI) yordamchisiman. 🤖✨\n\nKlinikangizdagi bemorlar, kassa tushumi, shifokorlar jadvali va sklad zaxiralari bo'yicha har qanday savolingizga real-vaqt rejimida javob bera olaman. Sizga qanday yordam bera olaman?`,
+      text: `Assalomu alaykum, ${user?.firstName || 'Foydalanuvchi'}! Men DentaCRM aqlli Sun'iy Intelekt (AI) yordamchisiman. 🤖✨\n\nKlinikangizdagi bemorlar, kassa tushumi, shifokorlar jadvali va sklad zaxiralari bo'yicha har qanday savolingizga real-vaqt rejimida javob bera olaman. Sizga qanday yordam bera olaman?`,
       timestamp: new Date().toISOString(),
       source: 'gemini-ai',
     },
@@ -111,7 +107,7 @@ export function AIAssistantPage() {
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'ai',
-        text: response.message || (response as Record<string, unknown>).answer || 'Javob shakllantirilmadi.',
+        text: response.message || (response as any).answer || 'Javob shakllantirilmadi.',
         timestamp: response.timestamp || new Date().toISOString(),
         source: response.source || 'gemini-ai',
       }
@@ -136,11 +132,11 @@ export function AIAssistantPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const isBoshShifokor = user?.role === 'bosh_shifokor' || user?.role === 'admin'
+  const isBoshShifokor = (user?.role as any) === 'bosh_shifokor' || (user?.role as any) === 'admin'
 
-  const totalItemsCount = inventorySummary?.totalItemsCount ?? inventorySummary?.total_items_count ?? 0
-  const lowStockItemsCount = inventorySummary?.lowStockItemsCount ?? inventorySummary?.low_stock_items_count ?? 0
-  const aiRecommendation = inventorySummary?.aiRecommendation || inventorySummary?.ai_recommendation || "Barcha zaxira materiallari yetarli darajada. Sklad holati a'lo!"
+  const totalItemsCount = (inventorySummary as any)?.totalItemsCount ?? (inventorySummary as any)?.total_items_count ?? 0
+  const lowStockItemsCount = (inventorySummary as any)?.lowStockItemsCount ?? (inventorySummary as any)?.low_stock_items_count ?? 0
+  const aiRecommendation = (inventorySummary as any)?.aiRecommendation || (inventorySummary as any)?.ai_recommendation || "Barcha zaxira materiallari yetarli darajada. Sklad holati a'lo!"
 
   return (
     <>
@@ -206,7 +202,7 @@ export function AIAssistantPage() {
                         {
                           id: `welcome-${Date.now()}`,
                           sender: 'ai',
-                          text: `Suhbat tozalandi. Sizga yana qanday yordam bera olaman, ${user?.firstName || user?.first_name || ''}?`,
+                          text: `Suhbat tozalandi. Sizga yana qanday yordam bera olaman, ${user?.firstName || ''}?`,
                           timestamp: new Date().toISOString(),
                           source: 'gemini-ai',
                         },
@@ -416,14 +412,14 @@ export function AIAssistantPage() {
                               </tr>
                             </thead>
                             <tbody className='divide-y'>
-                              {inventorySummary.criticalItems.map((item: Record<string, unknown>) => (
-                                <tr key={item.id || item.name} className='hover:bg-muted/20'>
-                                  <td className='p-3 font-bold text-foreground'>{item.name}</td>
+                              {inventorySummary.criticalItems.map((item: any) => (
+                                <tr key={String(item.id || item.name)} className='hover:bg-muted/20'>
+                                  <td className='p-3 font-bold text-foreground'>{String(item.name || '')}</td>
                                   <td className='p-3 font-mono font-bold text-rose-600 dark:text-rose-400'>
-                                    {item.quantityInStock ?? item.quantity_in_stock} {item.unit}
+                                    {Number(item.quantityInStock ?? item.quantity_in_stock ?? 0)} {String(item.unit || '')}
                                   </td>
                                   <td className='p-3 font-mono text-muted-foreground'>
-                                    {item.minimumThreshold ?? item.minimum_threshold} {item.unit}
+                                    {Number(item.minimumThreshold ?? item.minimum_threshold ?? 0)} {String(item.unit || '')}
                                   </td>
                                   <td className='p-3'>
                                     <Badge variant='destructive' className='text-[10px]'>
@@ -461,7 +457,7 @@ export function AIAssistantPage() {
                       AI ruxsatlar sozlamalari yuklanmoqda yoki ruxsatlar mavjud emas...
                     </div>
                   ) : (
-                    permissionsList.map((p: Record<string, unknown>) => {
+                    permissionsList.map((p: any) => {
                       const roleLabel =
                         p.role === 'bosh_shifokor'
                           ? 'Bosh Shifokor'
@@ -473,7 +469,7 @@ export function AIAssistantPage() {
 
                       return (
                         <div
-                          key={p.id || p.role}
+                          key={String(p.id || p.role)}
                           className='rounded-xl border bg-muted/20 p-5 space-y-4 shadow-xs'
                         >
                           <div className='flex items-center justify-between border-b pb-3'>
@@ -481,7 +477,7 @@ export function AIAssistantPage() {
                               <div className='flex items-center gap-2'>
                                 <span className='font-bold text-sm text-foreground'>{roleLabel}</span>
                                 <Badge variant='outline' className='text-[10px] uppercase font-mono'>
-                                  {p.role}
+                                  {String(p.role || '')}
                                 </Badge>
                               </div>
                               <p className='text-xs text-muted-foreground mt-0.5'>
@@ -500,7 +496,7 @@ export function AIAssistantPage() {
                               <Switch
                                 checked={Boolean(p.canViewFinancialReports)}
                                 onCheckedChange={(checked) =>
-                                  updatePermissionMutation.mutate({ id: p.id, canViewFinancialReports: checked })
+                                  updatePermissionMutation.mutate({ id: String(p.id), canViewFinancialReports: checked })
                                 }
                               />
                             </div>
@@ -514,7 +510,7 @@ export function AIAssistantPage() {
                               <Switch
                                 checked={Boolean(p.canViewInventoryCosts)}
                                 onCheckedChange={(checked) =>
-                                  updatePermissionMutation.mutate({ id: p.id, canViewInventoryCosts: checked })
+                                  updatePermissionMutation.mutate({ id: String(p.id), canViewInventoryCosts: checked })
                                 }
                               />
                             </div>
@@ -528,7 +524,7 @@ export function AIAssistantPage() {
                               <Switch
                                 checked={Boolean(p.canViewOtherDoctorsStats)}
                                 onCheckedChange={(checked) =>
-                                  updatePermissionMutation.mutate({ id: p.id, canViewOtherDoctorsStats: checked })
+                                  updatePermissionMutation.mutate({ id: String(p.id), canViewOtherDoctorsStats: checked })
                                 }
                               />
                             </div>
@@ -542,7 +538,7 @@ export function AIAssistantPage() {
                               <Switch
                                 checked={Boolean(p.canViewAllPatients)}
                                 onCheckedChange={(checked) =>
-                                  updatePermissionMutation.mutate({ id: p.id, canViewAllPatients: checked })
+                                  updatePermissionMutation.mutate({ id: String(p.id), canViewAllPatients: checked })
                                 }
                               />
                             </div>

@@ -33,8 +33,20 @@ class NotificationsConfig(AppConfig):
             """Enqueue the send_notification task for each new row."""
             try:
                 from .tasks import send_notification
+                from django.conf import settings
+                import threading
+                from django.db import close_old_connections
 
-                send_notification.delay(str(instance.pk))
+                if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
+                    def thread_target():
+                        try:
+                            send_notification(str(instance.pk))
+                        finally:
+                            close_old_connections()
+                    
+                    threading.Thread(target=thread_target).start()
+                else:
+                    send_notification.delay(str(instance.pk))
             except Exception:  # noqa: BLE001 — do not block writers
                 logger.exception(
                     "notifications: failed to enqueue send_notification for %s",

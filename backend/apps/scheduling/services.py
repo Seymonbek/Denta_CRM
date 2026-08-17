@@ -123,7 +123,7 @@ def _check_doctor_available(
     day_start = start.date()
     day_end = end.date()
     covering = TimeOff.objects.filter(
-        doctor=doctor,
+        user=doctor.user,
         date_start__lte=day_end,
         date_end__gte=day_start,
     ).exists()
@@ -150,7 +150,7 @@ def _check_doctor_working_hours(
     time_end = end_local.time()
 
     shifts = WorkingHours.objects.filter(
-        doctor=doctor,
+        user=doctor.user,
         weekday=weekday,
         start_time__lte=time_start,
         end_time__gte=time_end,

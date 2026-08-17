@@ -38,7 +38,7 @@ import {
   useDeleteUserTimeOff,
 } from '@/api/hooks/use-users'
 import { UserForm } from './user-form'
-import { type User } from '@/types/api'
+import { type User, type WorkingHours, type TimeOff } from '@/types/api'
 import { Search } from '@/components/search'
 import { toast } from 'sonner'
 
@@ -102,10 +102,10 @@ function ScheduleDialog({ user, open, onClose }: { user: User; open: boolean; on
           {/* ── Working Hours ─────────────────────────────────── */}
           <TabsContent value='working-hours' className='mt-3 space-y-3'>
             <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-              {(workingHours as Record<string, unknown>[]).length === 0 ? (
+              {workingHours.length === 0 ? (
                 <p className='text-xs text-muted-foreground col-span-2 italic'>Ish soatlari hali kiritilmagan.</p>
               ) : (
-                (workingHours as Record<string, unknown>[]).map((wh: Record<string, unknown>) => (
+                workingHours.map((wh: WorkingHours) => (
                   <div key={wh.id} className='flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs font-mono'>
                     <span className='font-semibold'>{WEEKDAYS[wh.weekday] ?? 'Kun'}</span>
                     <div className='flex items-center gap-2'>
@@ -152,10 +152,10 @@ function ScheduleDialog({ user, open, onClose }: { user: User; open: boolean; on
           {/* ── Time Off ──────────────────────────────────────── */}
           <TabsContent value='time-off' className='mt-3 space-y-3'>
             <div className='space-y-2'>
-              {(timeOffs as Record<string, unknown>[]).length === 0 ? (
+              {timeOffs.length === 0 ? (
                 <p className='text-xs text-muted-foreground italic'>Ta'tillar hali kiritilmagan.</p>
               ) : (
-                (timeOffs as Record<string, unknown>[]).map((to: Record<string, unknown>) => (
+                timeOffs.map((to: TimeOff) => (
                   <div key={to.id} className='flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs'>
                     <div>
                       <span className='font-semibold'>{to.dateStart} → {to.dateEnd}</span>

@@ -14,17 +14,18 @@ export function getErrorMessage(err: unknown, fallback: string = 'Xatolik yuz be
         return data
       }
       if (typeof data === 'object' && data !== null) {
-        if (data.detail && typeof data.detail === 'string') return data.detail
-        if (data.message && typeof data.message === 'string') return data.message
-        if (data.error && typeof data.error === 'string') return data.error
-        if (data.error?.message && typeof data.error.message === 'string') return data.error.message
-        if (data.title && typeof data.title === 'string') return data.title
+        const obj = data as Record<string, any>
+        if (obj.detail && typeof obj.detail === 'string') return obj.detail
+        if (obj.message && typeof obj.message === 'string') return obj.message
+        if (obj.error && typeof obj.error === 'string') return obj.error
+        if (obj.error?.message && typeof obj.error.message === 'string') return obj.error.message
+        if (obj.title && typeof obj.title === 'string') return obj.title
 
         // DRF Dictionary of field errors (e.g., non_field_errors, phone_number, password, etc.)
-        const keys = Object.keys(data)
+        const keys = Object.keys(obj)
         if (keys.length > 0) {
           for (const key of keys) {
-            const val = data[key]
+            const val = obj[key]
             if (Array.isArray(val) && val.length > 0) {
               const first = val[0]
               if (typeof first === 'string') {

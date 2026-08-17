@@ -40,7 +40,7 @@ export function useCreatePatient() {
 export function useUpdatePatient() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> | FormData }) => updatePatientApi(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> | FormData }) => updatePatientApi(id, data as any),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: PATIENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['patients', variables.id] })

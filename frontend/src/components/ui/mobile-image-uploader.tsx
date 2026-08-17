@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Camera, Image as ImageIcon, Upload } from 'lucide-react'
+import { Camera, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { mobilePhotoPickerSwal } from '@/lib/sweetalert'
 

@@ -23,13 +23,13 @@ import {
 export interface NavSubItem {
   title: string
   url: string
-  icon?: Record<string, unknown>
+  icon?: any
 }
 
 export interface NavItem {
   title: string
   url?: string
-  icon?: Record<string, unknown>
+  icon?: any
   badge?: string
   items?: NavSubItem[]
   roles?: string[]

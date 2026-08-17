@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { api } from '@/api/client'
+import { apiClient } from '@/api/client'
 
 export interface PatientReview {
   id: string
@@ -16,10 +16,10 @@ export function useDoctorReviews(doctorId: string) {
   return useQuery({
     queryKey: ['reviews', doctorId],
     queryFn: async () => {
-      const res = await api.get<{ results: PatientReview[] }>(`/ratings/reviews/`, {
+      const res = await apiClient.get<any>(`/ratings/reviews/`, {
         params: { doctor_id: doctorId }
       })
-      return res.data.results
+      return Array.isArray(res.data?.results) ? res.data.results : Array.isArray(res.data) ? res.data : []
     },
     enabled: Boolean(doctorId),
   })
@@ -33,7 +33,7 @@ export function useCreateReview() {
         rating: data.rating,
         comment: data.comment,
       }
-      const res = await api.post(`/ratings/reviews/`, payload)
+      const res = await apiClient.post(`/ratings/reviews/`, payload)
       return res.data
     },
   })
