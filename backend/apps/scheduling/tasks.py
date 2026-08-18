@@ -194,8 +194,38 @@ def send_followup_invite(*, months: int = 6) -> int:
     return count
 
 
+@shared_task(name="apps.scheduling.tasks.auto_expire_overdue_appointments")
+def auto_expire_overdue_appointments() -> int:
+    """Automatically marks unclosed appointments from past days as NO_SHOW.
+    
+    Runs periodically (e.g. nightly or hourly) to ensure past-day appointments
+    do not remain pending in scheduled/confirmed states.
+    """
+    from apps.scheduling.models import Appointment, AppointmentStatus
+
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    stale_qs = Appointment.objects.filter(
+        is_active=True,
+        scheduled_end__lt=today_start,
+        status__in=[AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED],
+    )
+    
+    updated_count = 0
+    for appt in stale_qs:
+        appt.status = AppointmentStatus.NO_SHOW
+        appt.notes = (appt.notes + " [Tizim tomonidan avtomatik: Kelmagan deb belgilandi]").strip()
+        appt.save(update_fields=["status", "notes", "updated_at"])
+        updated_count += 1
+        
+    if updated_count:
+        logger.info("scheduling: auto-expired %d past overdue appointments to NO_SHOW", updated_count)
+    return updated_count
+
+
 __all__ = [
     "send_appointment_reminder_1day",
     "send_appointment_reminder_2hour",
     "send_followup_invite",
+    "auto_expire_overdue_appointments",
 ]

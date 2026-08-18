@@ -47,9 +47,14 @@ export function PatientDetail() {
     ? appointmentsData
     : []
 
-  const activeAppt = appointments.find(
-    (a: any) => a.status === 'in_progress' || a.status === 'confirmed' || a.status === 'scheduled'
-  )
+  const activeAppt = appointments.find((a: any) => {
+    if (a.status === 'in_progress') return true
+    if (a.status === 'confirmed' || a.status === 'scheduled') {
+      const start = a.scheduledStart || a.scheduled_start
+      return start && new Date(start).toDateString() === new Date().toDateString()
+    }
+    return false
+  })
 
   const { data: treatmentsData } = useTreatments({ patient: id })
   const treatments = Array.isArray(treatmentsData?.results)

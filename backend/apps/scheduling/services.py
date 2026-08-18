@@ -370,6 +370,18 @@ def update_appointment(
     if status is not None:
         clean_status = _validate_status(status)
         _validate_transition(appointment.status, clean_status)
+        if clean_status == AppointmentStatus.IN_PROGRESS:
+            # Prevent starting an appointment from an older date (yesterday or older)
+            appt_end_local = timezone.localtime(appointment.scheduled_end)
+            today_local = timezone.localdate()
+            if appt_end_local.date() < today_local:
+                raise ValidationError(
+                    {
+                        "status": [
+                            "O'tgan kunga tegishli navbatni boshlab bo'lmaydi. Iltimos, navbatni yangi vaqtga ko'chiring yoki 'Kelmagan' deb belgilang."
+                        ]
+                    }
+                )
         appointment.status = clean_status
         update_fields.append("status")
 

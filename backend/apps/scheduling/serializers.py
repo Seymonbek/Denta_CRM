@@ -148,9 +148,21 @@ class AppointmentSerializer(serializers.ModelSerializer):
             else ""
         )
         department_name = instance.department.name if instance.department else ""
-        procedure_type_name = instance.procedure_type.name if instance.procedure_type else ""
+        now = timezone.now()
+        local_end = timezone.localtime(instance.scheduled_end)
+        local_today = timezone.localdate()
+        
+        is_past_day = (
+            local_end.date() < local_today
+            and instance.status in [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]
+        )
+        is_today_overdue = (
+            local_end.date() == local_today
+            and instance.scheduled_end < now
+            and instance.status in [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]
+        )
         is_overdue = (
-            instance.scheduled_end < timezone.now()
+            instance.scheduled_end < now
             and instance.status in [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]
         )
 
@@ -177,6 +189,8 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "status": instance.status,
             "statusLabel": AppointmentStatus(instance.status).label,
             "isOverdue": is_overdue,
+            "isPastDay": is_past_day,
+            "isTodayOverdue": is_today_overdue,
             "notes": instance.notes or "",
             "reminder1dSent": instance.reminder_1d_sent,
             "reminder2hSent": instance.reminder_2h_sent,

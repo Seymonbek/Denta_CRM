@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { Plus, User, FileText } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { Plus, User, FileText, CalendarDays } from 'lucide-react'
 import { confirmSwal } from '@/lib/sweetalert'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { format } from 'date-fns'
@@ -209,6 +209,37 @@ export function AppointmentsList() {
     }
   }
 
+  const navigate = useNavigate()
+
+  const handleReschedule = (app: any) => {
+    const pId = app?.patientId || app?.patient_id || (app?.patient && typeof app.patient === 'object' ? app.patient.id : app?.patient)
+    const dId = app?.doctorId || app?.doctor_id || (app?.doctor && typeof app.doctor === 'object' ? app.doctor.id : app?.doctor)
+    const deptId = app?.departmentId || app?.department_name || (app?.department && typeof app.department === 'object' ? app.department.id : app?.department)
+    const procId = app?.procedureTypeId || (app?.procedureType && typeof app.procedureType === 'object' ? app.procedureType.id : app?.procedureType)
+
+    if (pId) setSelectedPatientId(String(pId))
+    if (dId) setSelectedDoctorId(String(dId))
+    if (deptId) setSelectedDepartmentId(String(deptId))
+    if (procId) setSelectedProcedureTypeId(String(procId))
+    setBookingDate(new Date())
+    setSelectedSlot(null)
+    setIsModalOpen(true)
+    toast.info("Navbatni boshqa vaqtga ko'chirish uchun yangi vaqt slotini tanlang.")
+  }
+
+  const handleStartAppointment = async (patientId: string, isTodayOverdue: boolean) => {
+    if (isTodayOverdue) {
+      const isConfirmed = await confirmSwal({
+        title: "⚠️ Bemor kechikkan qabul!",
+        text: "Ushbu navbatning belgilangan vaqti o'tib ketgan. Bemor kechikib kelganligi sababli qabulni hozir boshlaysizmi?",
+        confirmButtonText: "Ha, qabulni boshlash",
+        cancelButtonText: "Bekor qilish",
+      })
+      if (!isConfirmed) return
+    }
+    navigate({ to: '/patients/$id', params: { id: String(patientId) } })
+  }
+
   const handleCancel = async (id: string) => {
     const isConfirmed = await confirmSwal({
       title: "Navbatni bekor qilmoqchimisiz?",
@@ -305,16 +336,31 @@ export function AppointmentsList() {
                   const doctorName = app?.doctorName || app?.doctor_name || (app?.doctor && typeof app.doctor === 'object' ? `${app.doctor.user?.firstName || app.doctor.user?.first_name || ''} ${app.doctor.user?.lastName || app.doctor.user?.last_name || ''}`.trim() : app?.doctor) || 'Shifokor'
                   const departmentName = app?.departmentName || app?.department_name || (app?.department && typeof app.department === 'object' ? app.department.name : app?.department) || 'Bo\'lim'
                   const startDateStr = app?.scheduledStart || app?.scheduled_start || app?.start
+                  const endDateStr = app?.scheduledEnd || app?.scheduled_end || app?.end
+                  const endDt = endDateStr ? new Date(endDateStr) : startDateStr ? new Date(startDateStr) : null
+                  const now = new Date()
 
-                  const isOverdue = Boolean(
-                    app?.isOverdue ||
-                    (startDateStr &&
-                      new Date(startDateStr).getTime() < Date.now() &&
-                      (statusKey === 'scheduled' || statusKey === 'confirmed'))
+                  const isPastDay = Boolean(
+                    app?.isPastDay ?? (
+                      endDt &&
+                      endDt.toDateString() < now.toDateString() &&
+                      (statusKey === 'scheduled' || statusKey === 'confirmed')
+                    )
                   )
 
+                  const isTodayOverdue = Boolean(
+                    app?.isTodayOverdue ?? (
+                      endDt &&
+                      endDt.toDateString() === now.toDateString() &&
+                      endDt.getTime() < now.getTime() &&
+                      (statusKey === 'scheduled' || statusKey === 'confirmed')
+                    )
+                  )
+
+                  const isOverdue = Boolean(app?.isOverdue || isPastDay || isTodayOverdue)
+
                   return (
-                    <TableRow key={String(app?.id)} className={`hover:bg-muted/20 ${isOverdue ? 'bg-amber-500/5' : ''}`}>
+                    <TableRow key={String(app?.id)} className={`hover:bg-muted/20 ${isPastDay ? 'bg-red-500/5' : isTodayOverdue ? 'bg-amber-500/5' : ''}`}>
                       <TableCell className='font-medium text-xs'>
                         {patientId ? (
                           <Link
@@ -343,28 +389,33 @@ export function AppointmentsList() {
                           <Badge variant={badge.variant as any} className='text-[10px]'>
                             {badge.label}
                           </Badge>
-                          {isOverdue && (
-                            <Badge variant='destructive' className='text-[9px] px-1.5 py-0 bg-amber-600 text-white border-none'>
-                              ⚠️ Vaqti o'tgan
+                          {isPastDay ? (
+                            <Badge variant='destructive' className='text-[9px] px-1.5 py-0 bg-rose-600 text-white border-none'>
+                              ⛔ O'tgan sana
                             </Badge>
-                          )}
+                          ) : isTodayOverdue ? (
+                            <Badge variant='destructive' className='text-[9px] px-1.5 py-0 bg-amber-600 text-white border-none'>
+                              ⚠️ Kechikkan
+                            </Badge>
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell className='text-end'>
                         <div className='flex items-center justify-end gap-1 flex-wrap'>
-                          {patientId && (statusKey === 'in_progress' || statusKey === 'confirmed' || statusKey === 'scheduled') && (
+                          {/* Qabulni olib borish: ONLY for active/today appointments, strictly blocked for past days */}
+                          {patientId && !isPastDay && (statusKey === 'in_progress' || statusKey === 'confirmed' || statusKey === 'scheduled') && (
                             <Button
-                              asChild
                               size='sm'
                               variant='secondary'
                               className='h-7 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800'
+                              onClick={() => handleStartAppointment(String(patientId), isTodayOverdue)}
                             >
-                              <Link to='/patients/$id' params={{ id: String(patientId) }}>
-                                <FileText className='me-1 h-3.5 w-3.5' /> 🦷 Qabulni Olib Borish
-                              </Link>
+                              <FileText className='me-1 h-3.5 w-3.5' /> 🦷 Qabulni Olib Borish
                             </Button>
                           )}
-                          {!isDoctor && statusKey === 'scheduled' && (
+
+                          {/* Tasdiqlash */}
+                          {!isDoctor && !isPastDay && statusKey === 'scheduled' && (
                             <Button
                               size='sm'
                               variant='outline'
@@ -374,16 +425,31 @@ export function AppointmentsList() {
                               ✅ Tasdiqlash
                             </Button>
                           )}
-                          {statusKey === 'confirmed' && (
+
+                          {/* Boshlash (only for today) */}
+                          {!isPastDay && statusKey === 'confirmed' && (
                             <Button
                               size='sm'
                               variant='outline'
                               className='h-7 text-xs text-blue-600 border-blue-300 hover:bg-blue-50'
-                              onClick={() => handleStatusChange(String(app.id), 'in_progress', 'Boshlandi 🔄')}
+                              onClick={async () => {
+                                if (isTodayOverdue) {
+                                  const ok = await confirmSwal({
+                                    title: "⚠️ Bemor kechikkan qabul!",
+                                    text: "Ushbu navbatning belgilangan vaqti o'tib ketgan. Bemor kechikib kelganligi sababli qabulni hozir boshlaysizmi?",
+                                    confirmButtonText: "Ha, qabulni boshlash",
+                                    cancelButtonText: "Bekor qilish",
+                                  })
+                                  if (!ok) return
+                                }
+                                handleStatusChange(String(app.id), 'in_progress', 'Boshlandi 🔄')
+                              }}
                             >
                               🔄 Boshlash
                             </Button>
                           )}
+
+                          {/* Yakunlash */}
                           {statusKey === 'in_progress' && (
                             <Button
                               size='sm'
@@ -394,6 +460,20 @@ export function AppointmentsList() {
                               🎉 Yakunlash
                             </Button>
                           )}
+
+                          {/* Ko'chirish (Reschedule) for overdue/scheduled/confirmed */}
+                          {(isOverdue || statusKey === 'scheduled' || statusKey === 'confirmed') && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='h-7 text-xs text-primary border-primary/30 hover:bg-primary/5'
+                              onClick={() => handleReschedule(app)}
+                            >
+                              <CalendarDays className='me-1 h-3 w-3' /> Ko'chirish
+                            </Button>
+                          )}
+
+                          {/* Kelmagan (No-show) */}
                           {isOverdue && statusKey !== 'no_show' && statusKey !== 'completed' && statusKey !== 'cancelled' && (
                             <Button
                               size='sm'
@@ -404,6 +484,8 @@ export function AppointmentsList() {
                               Kelmagan
                             </Button>
                           )}
+
+                          {/* Bekor qilish */}
                           {statusKey !== 'cancelled' && statusKey !== 'completed' && (
                             <Button
                               size='sm'
