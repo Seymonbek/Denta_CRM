@@ -142,6 +142,35 @@ class DoctorProfile(BaseModel):
 # ---------------------------------------------------------------------------
 # WorkingHours
 # ---------------------------------------------------------------------------
+class WorkingHoursQuerySet(models.QuerySet):
+    def filter(self, *args, **kwargs):
+        if "doctor" in kwargs:
+            doc = kwargs.pop("doctor")
+            kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        if "doctor__id" in kwargs:
+            doc_id = kwargs.pop("doctor__id")
+            kwargs["user__doctor_profile__id"] = doc_id
+        return super().filter(*args, **kwargs)
+
+    def create(self, **kwargs):
+        if "doctor" in kwargs:
+            doc = kwargs.pop("doctor")
+            kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        return super().create(**kwargs)
+
+    def update_or_create(self, defaults=None, **kwargs):
+        if "doctor" in kwargs:
+            doc = kwargs.pop("doctor")
+            kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        return super().update_or_create(defaults=defaults, **kwargs)
+
+    def get_or_create(self, defaults=None, **kwargs):
+        if "doctor" in kwargs:
+            doc = kwargs.pop("doctor")
+            kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        return super().get_or_create(defaults=defaults, **kwargs)
+
+
 class WorkingHours(BaseModel):
     """Recurring weekly shift for a user."""
 
@@ -158,6 +187,20 @@ class WorkingHours(BaseModel):
     )
     start_time = models.TimeField(_("Boshlanish"))
     end_time = models.TimeField(_("Tugash"))
+
+    objects = WorkingHoursQuerySet.as_manager()
+
+    def __init__(self, *args, **kwargs):
+        if "doctor" in kwargs:
+            doc = kwargs.pop("doctor")
+            kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        super().__init__(*args, **kwargs)
+
+    @property
+    def doctor(self):
+        if hasattr(self.user, "doctor_profile"):
+            return self.user.doctor_profile
+        return getattr(self.user, "doctorprofile", None)
 
     class Meta:
         verbose_name = _("Ish soati")
