@@ -286,23 +286,40 @@ def _collect_history_events(patient: Patient) -> list[dict[str, Any]]:
         except LookupError:
             Appointment = None  # noqa: N806
         if Appointment is not None:
-            # T122: pull ``doctor`` + ``department`` in one JOIN so future
-            # changes to the event summary can reach into either without
-            # incurring per-row queries.
             queryset = (
-                Appointment.objects.select_related("doctor", "department")
+                Appointment.objects.select_related("doctor", "doctor__user", "department", "procedure_type")
                 .filter(patient=patient)
                 .order_by("-scheduled_start")[:50]
             )
             for appt in queryset:
+                doc_name = (
+                    f"Dr. {appt.doctor.user.first_name} {appt.doctor.user.last_name}".strip()
+                    if appt.doctor and hasattr(appt.doctor, "user") and appt.doctor.user
+                    else ""
+                )
+                proc_name = appt.procedure_type.name if appt.procedure_type else "Ko'rik va maslahat"
+                dept_name = appt.department.name if appt.department else ""
+                summary_parts = []
+                if doc_name:
+                    summary_parts.append(f"Shifokor: {doc_name}")
+                if dept_name:
+                    summary_parts.append(f"Bo'lim: {dept_name}")
+                if appt.notes:
+                    summary_parts.append(f"Izoh: {appt.notes}")
+
                 events.append(
                     {
                         "id": f"appointment-{appt.pk}",
                         "type": "appointment",
                         "occurredAt": appt.scheduled_start,
-                        "title": f"Navbat ({appt.get_status_display()})",
-                        "summary": "",
-                        "meta": {"appointmentId": str(appt.pk)},
+                        "title": f"Navbat: {proc_name} ({appt.get_status_display()})",
+                        "summary": " • ".join(summary_parts) if summary_parts else "",
+                        "meta": {
+                            "appointmentId": str(appt.pk),
+                            "doctorName": doc_name,
+                            "departmentName": dept_name,
+                            "status": appt.status,
+                        },
                     }
                 )
 
@@ -313,23 +330,42 @@ def _collect_history_events(patient: Patient) -> list[dict[str, Any]]:
         except LookupError:
             Treatment = None  # noqa: N806
         if Treatment is not None:
-            # T122: same rationale as the appointment queryset above.
             queryset = (
                 Treatment.objects.select_related(
-                    "doctor", "department", "procedure_type"
+                    "doctor", "doctor__user", "department", "procedure_type"
                 )
                 .filter(patient=patient)
                 .order_by("-created_at")[:50]
             )
             for tr in queryset:
+                doc_name = (
+                    f"Dr. {tr.doctor.user.first_name} {tr.doctor.user.last_name}".strip()
+                    if tr.doctor and hasattr(tr.doctor, "user") and tr.doctor.user
+                    else ""
+                )
+                proc_name = tr.procedure_type.name if tr.procedure_type else ""
+                title = f"Muolaja: {proc_name or tr.diagnosis or 'Muolaja'}"
+                summary_parts = []
+                if tr.diagnosis:
+                    summary_parts.append(f"Tashxis: {tr.diagnosis}")
+                if tr.description:
+                    summary_parts.append(f"Xulosa: {tr.description}")
+                if doc_name:
+                    summary_parts.append(f"Shifokor: {doc_name}")
+
                 events.append(
                     {
                         "id": f"treatment-{tr.pk}",
                         "type": "treatment",
                         "occurredAt": tr.created_at,
-                        "title": getattr(tr, "diagnosis", "") or "Davolash",
-                        "summary": getattr(tr, "description", "") or "",
-                        "meta": {"treatmentId": str(tr.pk)},
+                        "title": title,
+                        "summary": " • ".join(summary_parts) if summary_parts else "",
+                        "meta": {
+                            "treatmentId": str(tr.pk),
+                            "doctorName": doc_name,
+                            "price": str(tr.price),
+                            "stage": tr.stage,
+                        },
                     }
                 )
 
@@ -340,23 +376,55 @@ def _collect_history_events(patient: Patient) -> list[dict[str, Any]]:
         except LookupError:
             Payment = None  # noqa: N806
         if Payment is not None:
-            # T122: eager-load ``received_by`` for future summary use.
             queryset = (
                 Payment.objects.select_related("received_by", "treatment")
                 .filter(patient=patient)
                 .order_by("-created_at")[:50]
             )
             for pay in queryset:
+                method_display = pay.get_payment_method_display() if hasattr(pay, "get_payment_method_display") else pay.payment_method
+                admin_name = pay.received_by.get_full_name() if pay.received_by else "Kassa"
                 events.append(
                     {
                         "id": f"payment-{pay.pk}",
                         "type": "payment",
                         "occurredAt": pay.created_at,
-                        "title": f"To'lov — {pay.amount}",
-                        "summary": "",
+                        "title": f"To'lov: {pay.amount:,.0f} so'm ({method_display})",
+                        "summary": f"Qabul qildi: {admin_name}. {pay.notes or ''}".strip(),
                         "meta": {
                             "paymentId": str(pay.pk),
                             "amount": str(pay.amount),
+                            "method": pay.payment_method,
+                            "status": pay.status,
+                        },
+                    }
+                )
+
+    # Prescriptions — added in T18.
+    if django_apps.is_installed("apps.prescriptions"):
+        try:
+            Prescription = django_apps.get_model("prescriptions", "Prescription")  # noqa: N806
+        except LookupError:
+            Prescription = None  # noqa: N806
+        if Prescription is not None:
+            queryset = (
+                Prescription.objects.select_related("template", "created_by", "treatment")
+                .filter(treatment__patient=patient)
+                .order_by("-created_at")[:50]
+            )
+            for pr in queryset:
+                tpl_name = pr.template.name if pr.template else "Tibbiy Retsept"
+                author = pr.created_by.get_full_name() if pr.created_by else ""
+                events.append(
+                    {
+                        "id": f"prescription-{pr.pk}",
+                        "type": "prescription",
+                        "occurredAt": pr.created_at,
+                        "title": f"Retsept: {tpl_name}",
+                        "summary": f"{author + ': ' if author else ''}{pr.content}".strip(),
+                        "meta": {
+                            "prescriptionId": str(pr.pk),
+                            "sentAt": str(pr.sent_to_telegram_at) if pr.sent_to_telegram_at else None,
                         },
                     }
                 )

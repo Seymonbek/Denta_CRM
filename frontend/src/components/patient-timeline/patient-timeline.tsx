@@ -19,11 +19,11 @@ export function PatientTimeline({ history = [] }: { history: any[] }) {
       {items.map((item: any, idx: number) => {
         const itemType = item?.type || 'appointment'
         const icon = getTimelineIcon(itemType)
-        const dateStr = String(item?.date || item?.createdAt || item?.created_at || item?.scheduledStart || item?.scheduled_start || '')
+        const dateStr = String(item?.occurredAt || item?.date || item?.createdAt || item?.created_at || item?.scheduledStart || item?.scheduled_start || '')
         const title = String(item?.title || item?.diagnosis || item?.procedureName || item?.description || 'Tarix yozuvi')
-        const doctorName = String(item?.doctorName || item?.doctor_name || (item?.doctor ? `Dr. ${item.doctor.firstName || ''} ${item.doctor.lastName || ''}`.trim() : ''))
-        const description = String(item?.description || item?.notes || '')
-        const amount = item?.amount || item?.totalPrice || item?.total_price
+        const doctorName = String(item?.meta?.doctorName || item?.doctorName || item?.doctor_name || (item?.doctor ? `Dr. ${item.doctor.firstName || ''} ${item.doctor.lastName || ''}`.trim() : ''))
+        const description = String(item?.summary || item?.description || item?.notes || '')
+        const amount = item?.meta?.amount || item?.amount || item?.totalPrice || item?.total_price
 
         return (
           <div key={item?.id || idx} className='relative group'>
@@ -33,12 +33,12 @@ export function PatientTimeline({ history = [] }: { history: any[] }) {
             </div>
 
             <div className='flex flex-col gap-1 rounded-xl border bg-card p-4 shadow-sm hover:shadow-md transition-shadow'>
-              <div className='flex items-center justify-between gap-2'>
-                <h4 className='font-semibold text-sm tracking-tight'>
+              <div className='flex items-center justify-between gap-2 flex-wrap'>
+                <h4 className='font-semibold text-sm tracking-tight text-foreground'>
                   {title}
                 </h4>
                 {dateStr && (
-                  <time className='text-[11px] text-muted-foreground font-mono'>
+                  <time className='text-[11px] text-muted-foreground font-mono bg-muted/40 px-2 py-0.5 rounded'>
                     {formatDateSafely(dateStr)}
                   </time>
                 )}
@@ -46,20 +46,20 @@ export function PatientTimeline({ history = [] }: { history: any[] }) {
 
               {doctorName && (
                 <p className='text-xs text-muted-foreground font-medium'>
-                  Shifokor: <span className='text-foreground'>{doctorName}</span>
+                  Shifokor: <span className='text-foreground font-semibold'>{doctorName}</span>
                 </p>
               )}
 
               {description && (
-                <p className='text-xs text-muted-foreground line-clamp-2 mt-1'>
+                <p className='text-xs text-muted-foreground mt-1 leading-relaxed whitespace-pre-line'>
                   {description}
                 </p>
               )}
 
-              {amount != null && (
+              {amount != null && Number(amount) > 0 && (
                 <div className='mt-2 flex items-center justify-between border-t pt-2 text-xs'>
-                  <span className='text-muted-foreground'>To'lov summasi:</span>
-                  <Badge variant='outline' className='font-bold text-emerald-600 dark:text-emerald-400'>
+                  <span className='text-muted-foreground'>Summa:</span>
+                  <Badge variant='outline' className='font-bold font-mono text-emerald-600 dark:text-emerald-400'>
                     {Number(amount).toLocaleString()} so'm
                   </Badge>
                 </div>
