@@ -134,37 +134,91 @@ export function PaymentsList() {
     ? allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === patientId)
     : allModalTreatments
 
+  const [isSplitMode, setIsSplitMode] = useState(false)
+  const [splitCash, setSplitCash] = useState('')
+  const [splitCard, setSplitCard] = useState('')
+  const [splitClick, setSplitClick] = useState('')
+  const [splitPayme, setSplitPayme] = useState('')
+
   const openPaymentModal = (tId: string, pId: string, amt: string) => {
     setTreatmentId(tId)
     setPatientId(pId)
     setAmount(amt)
+    setSplitCash(amt || '')
+    setSplitCard('')
+    setSplitClick('')
+    setSplitPayme('')
+    setIsSplitMode(false)
     setIsModalOpen(true)
   }
 
+  const totalSplit = Number(splitCash || 0) + Number(splitCard || 0) + Number(splitClick || 0) + Number(splitPayme || 0)
+  const targetAmount = Number(amount || 0)
+
   const handleCreatePayment = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!patientId || !amount) {
-      toast.error('Bemor va summani kiriting.')
+    if (!patientId) {
+      toast.error('Bemorni tanlang.')
       return
     }
 
     if (isSubmittingRef.current) return
     isSubmittingRef.current = true
 
-    const idempotencyKey = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-
     try {
-      await createPaymentMutation.mutateAsync({
-        data: {
-          treatment: treatmentId || undefined,
-          patientId: patientId,
-          amount: amount.toString().replace(',', '.'),
-          method,
-        },
-        idempotencyKey,
-      })
-      toast.success('To’lov muvaffaqiyatli qabul qilindi!')
-      setIsModalOpen(false)
+      if (!isSplitMode) {
+        if (!amount || Number(amount) <= 0) {
+          toast.error('To\'lov summasini kiriting.')
+          isSubmittingRef.current = false
+          return
+        }
+
+        const idempotencyKey = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+        const res = await createPaymentMutation.mutateAsync({
+          data: {
+            treatment: treatmentId || undefined,
+            patientId: patientId,
+            amount: amount.toString().replace(',', '.'),
+            method,
+          },
+          idempotencyKey,
+        })
+        toast.success('To’lov muvaffaqiyatli qabul qilindi!')
+        setIsModalOpen(false)
+        if (res) triggerPrint(res)
+      } else {
+        // Split Mode Validation
+        if (totalSplit <= 0) {
+          toast.error('Aralash to\'lov summasini kiriting.')
+          isSubmittingRef.current = false
+          return
+        }
+
+        const splitItems: { amount: string; method: PaymentMethod }[] = []
+        if (Number(splitCash) > 0) splitItems.push({ amount: splitCash, method: 'cash' })
+        if (Number(splitCard) > 0) splitItems.push({ amount: splitCard, method: 'card' })
+        if (Number(splitClick) > 0) splitItems.push({ amount: splitClick, method: 'click' })
+        if (Number(splitPayme) > 0) splitItems.push({ amount: splitPayme, method: 'payme' })
+
+        let lastRes: any = null
+        for (const item of splitItems) {
+          const idempotencyKey = `pay_split_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+          lastRes = await createPaymentMutation.mutateAsync({
+            data: {
+              treatment: treatmentId || undefined,
+              patientId: patientId,
+              amount: item.amount.toString().replace(',', '.'),
+              method: item.method,
+            },
+            idempotencyKey,
+          })
+        }
+
+        toast.success(`Aralash to'lov muvaffaqiyatli qabul qilindi (${splitItems.length} ta usulda)!`)
+        setIsModalOpen(false)
+        if (lastRes) triggerPrint(lastRes)
+      }
+
       setAmount('')
       setTreatmentId('')
       setPatientId('')
@@ -183,12 +237,6 @@ export function PaymentsList() {
           msg = Array.isArray(errObj.amount) ? String(errObj.amount[0]) : String(errObj.amount)
         } else if (errObj?.non_field_errors) {
           msg = Array.isArray(errObj.non_field_errors) ? String(errObj.non_field_errors[0]) : String(errObj.non_field_errors)
-        } else if (typeof errObj === 'object' && errObj !== null) {
-          const firstKey = Object.keys(errObj)[0]
-          if (firstKey) {
-            const val = errObj[firstKey]
-            msg = Array.isArray(val) ? String(val[0]) : String(val)
-          }
         }
       }
       toast.error(msg)
@@ -565,41 +613,140 @@ export function PaymentsList() {
                 </Select>
               </div>
 
-              <div className='grid grid-cols-2 gap-3'>
-                <div className='space-y-1'>
-                  <label className='text-xs font-medium'>To'lov Summasi (so'm) *</label>
-                  <Input
-                    type='number'
-                    placeholder='200000'
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className='space-y-1 overflow-x-auto w-full'>
-                  <label className='text-xs font-medium'>To'lov Usuli *</label>
-                  <Select value={method} onValueChange={(val) => setMethod(val as PaymentMethod)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='cash'>Naqd Pul</SelectItem>
-                      <SelectItem value='card'>Plastik Karta</SelectItem>
-                      <SelectItem value='payme'>Payme</SelectItem>
-                      <SelectItem value='click'>Click</SelectItem>
-                      <SelectItem value='bank_transfer'>Bank O’tkazmasi</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Payment Mode Selector */}
+              <div className='flex items-center justify-between p-1 bg-muted rounded-lg'>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant={!isSplitMode ? 'default' : 'ghost'}
+                  className='flex-1 h-8 text-xs font-semibold'
+                  onClick={() => setIsSplitMode(false)}
+                >
+                  💵 Yagona To'lov
+                </Button>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant={isSplitMode ? 'default' : 'ghost'}
+                  className='flex-1 h-8 text-xs font-semibold'
+                  onClick={() => {
+                    setIsSplitMode(true)
+                    if (!splitCash && amount) setSplitCash(amount)
+                  }}
+                >
+                  🔀 Aralash To'lov (Split)
+                </Button>
               </div>
+
+              {!isSplitMode ? (
+                /* Single Payment Mode */
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='space-y-1'>
+                    <label className='text-xs font-medium'>To'lov Summasi (so'm) *</label>
+                    <Input
+                      type='number'
+                      placeholder='200000'
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className='space-y-1 overflow-x-auto w-full'>
+                    <label className='text-xs font-medium'>To'lov Usuli *</label>
+                    <Select value={method} onValueChange={(val) => setMethod(val as PaymentMethod)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='cash'>Naqd Pul</SelectItem>
+                        <SelectItem value='card'>Plastik Karta</SelectItem>
+                        <SelectItem value='payme'>Payme</SelectItem>
+                        <SelectItem value='click'>Click</SelectItem>
+                        <SelectItem value='bank_transfer'>Bank O’tkazmasi</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ) : (
+                /* Split Payment Mode */
+                <div className='space-y-3 bg-muted/20 p-3 rounded-xl border border-dashed'>
+                  <div className='grid grid-cols-2 gap-2.5'>
+                    <div className='space-y-1'>
+                      <label className='text-xs font-medium flex items-center gap-1'>💵 Naqd pul</label>
+                      <Input
+                        type='number'
+                        placeholder='0'
+                        className='h-8 text-xs font-mono'
+                        value={splitCash}
+                        onChange={(e) => setSplitCash(e.target.value)}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <label className='text-xs font-medium flex items-center gap-1'>💳 Plastik karta</label>
+                      <Input
+                        type='number'
+                        placeholder='0'
+                        className='h-8 text-xs font-mono'
+                        value={splitCard}
+                        onChange={(e) => setSplitCard(e.target.value)}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <label className='text-xs font-medium flex items-center gap-1'>📱 Click</label>
+                      <Input
+                        type='number'
+                        placeholder='0'
+                        className='h-8 text-xs font-mono'
+                        value={splitClick}
+                        onChange={(e) => setSplitClick(e.target.value)}
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <label className='text-xs font-medium flex items-center gap-1'>🟣 Payme</label>
+                      <Input
+                        type='number'
+                        placeholder='0'
+                        className='h-8 text-xs font-mono'
+                        value={splitPayme}
+                        onChange={(e) => setSplitPayme(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Split Summary Bar */}
+                  <div className='flex items-center justify-between text-xs pt-2 border-t font-mono'>
+                    <span className='text-muted-foreground'>Jami kiritildi:</span>
+                    <span className='font-bold text-foreground'>{totalSplit.toLocaleString()} so'm</span>
+                  </div>
+                  {targetAmount > 0 && (
+                    <div className='flex items-center justify-between text-xs font-mono'>
+                      <span className='text-muted-foreground'>Muolaja summasi:</span>
+                      <span className='font-semibold'>{targetAmount.toLocaleString()} so'm</span>
+                    </div>
+                  )}
+                  {targetAmount > 0 && (
+                    <div className='text-center pt-1'>
+                      {totalSplit === targetAmount ? (
+                        <Badge className='bg-emerald-600 text-[10px]'>✅ To'liq qoplandi</Badge>
+                      ) : totalSplit > targetAmount ? (
+                        <Badge className='bg-blue-600 text-[10px]'>💵 Qaytim: {(totalSplit - targetAmount).toLocaleString()} so'm</Badge>
+                      ) : (
+                        <Badge variant='outline' className='text-amber-600 border-amber-300 text-[10px]'>
+                          ⚠️ Qoldiq: {(targetAmount - totalSplit).toLocaleString()} so'm
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <DialogFooter className='pt-2'>
                 <Button type='button' variant='outline' onClick={() => setIsModalOpen(false)}>
                   Bekor qilish
                 </Button>
                 <Button type='submit' disabled={createPaymentMutation.isPending}>
-                  {createPaymentMutation.isPending ? 'To’lanmoqda...' : 'To’lovni Qabul Qilish'}
+                  {createPaymentMutation.isPending ? 'To’lanmoqda...' : isSplitMode ? `Aralash To'lovni Qabul Qilish (${totalSplit.toLocaleString()} so'm)` : "To'lovni Qabul Qilish"}
                 </Button>
               </DialogFooter>
             </form>
