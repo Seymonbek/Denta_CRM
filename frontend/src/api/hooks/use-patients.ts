@@ -8,6 +8,8 @@ import {
   getPatientOdontogramApi,
   getPatientOdontogramHistoryApi,
   getPatientBalanceApi,
+  getPatientRecallApi,
+  sendPatientRecallApi,
 } from '../patients'
 
 export const PATIENTS_QUERY_KEY = ['patients']
@@ -77,5 +79,22 @@ export function usePatientBalance(id: string) {
     queryKey: ['patients', id, 'balance'],
     queryFn: () => getPatientBalanceApi(id),
     enabled: Boolean(id),
+  })
+}
+
+export function usePatientRecall(days: number = 90) {
+  return useQuery({
+    queryKey: ['patients', 'recall', days],
+    queryFn: () => getPatientRecallApi(days),
+  })
+}
+
+export function useSendPatientRecall() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, message }: { id: string; message?: string }) => sendPatientRecallApi(id, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patients', 'recall'] })
+    },
   })
 }

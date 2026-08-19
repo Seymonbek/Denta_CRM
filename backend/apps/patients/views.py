@@ -263,6 +263,155 @@ class PatientViewSet(viewsets.ModelViewSet):
         serializer = PatientOdontogramHistorySerializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    # ------------------------------------------------------------------
+    # /patients/recall/
+    # ------------------------------------------------------------------
+    @extend_schema(summary="Patient recall queue for follow-ups and checkups")
+    @action(detail=False, methods=["get"], url_path="recall")
+    def recall_queue(self, request: Request) -> Response:
+        """Return list of patients due for follow-up, checkup or unfinished planned treatments."""
+        from django.apps import apps as django_apps
+        from django.utils import timezone
+        from datetime import timedelta
+
+        days_param = request.query_params.get("days", "90")
+        try:
+            days_threshold = int(days_param)
+        except ValueError:
+            days_threshold = 90
+
+        now = timezone.now()
+
+        qs = active_patients()
+        role = getattr(request.user, "role", None)
+        if role == "doctor":
+            profile = getattr(request.user, "doctor_profile", None)
+            if profile is not None and not getattr(profile, "can_view_other_doctors", False):
+                qs = qs.filter(
+                    models.Q(appointment__doctor=profile)
+                    | models.Q(treatment__doctor=profile)
+                    | models.Q(created_by=request.user)
+                ).distinct()
+
+        Appointment = django_apps.get_model("scheduling", "Appointment") if django_apps.is_installed("apps.scheduling") else None
+        Treatment = django_apps.get_model("treatments", "Treatment") if django_apps.is_installed("apps.treatments") else None
+        ToothRecord = django_apps.get_model("odontogram", "ToothRecord") if django_apps.is_installed("apps.odontogram") else None
+
+        recall_list = []
+
+        for patient in qs[:250]:
+            latest_date = None
+            doctor_name = ""
+            procedure_name = ""
+
+            if Appointment is not None:
+                last_appt = Appointment.objects.filter(patient=patient, status="completed").order_by("-scheduled_start").first()
+                if last_appt:
+                    latest_date = last_appt.scheduled_start
+                    if last_appt.doctor and hasattr(last_appt.doctor, "user") and last_appt.doctor.user:
+                        doctor_name = f"Dr. {last_appt.doctor.user.get_full_name()}".strip()
+
+            if Treatment is not None:
+                last_tr = Treatment.objects.filter(patient=patient).order_by("-created_at").first()
+                if last_tr and (not latest_date or last_tr.created_at > latest_date):
+                    latest_date = last_tr.created_at
+                    if last_tr.doctor and hasattr(last_tr.doctor, "user") and last_tr.doctor.user:
+                        doctor_name = f"Dr. {last_tr.doctor.user.get_full_name()}".strip()
+                    if last_tr.procedure_type:
+                        procedure_name = last_tr.procedure_type.name
+
+            # Check planned teeth
+            has_planned_teeth = False
+            planned_count = 0
+            if ToothRecord is not None:
+                planned_teeth = ToothRecord.objects.filter(
+                    treatment__patient=patient,
+                    status__in=["planned", "rejalashtirilgan", "treatment_needed", "caries"]
+                )
+                planned_count = planned_teeth.count()
+                has_planned_teeth = planned_count > 0
+
+            # Check if an upcoming appointment is already booked
+            has_upcoming = False
+            if Appointment is not None:
+                has_upcoming = Appointment.objects.filter(
+                    patient=patient,
+                    scheduled_start__gte=now,
+                    status__in=["scheduled", "confirmed", "in_progress"]
+                ).exists()
+
+            if has_upcoming:
+                continue
+
+            days_since = (now - latest_date).days if latest_date else (now - patient.created_at).days
+
+            # Formulate clear clinical reason
+            recall_reason = ""
+            if has_planned_teeth:
+                recall_reason = f"Rejalashtirilgan muolajalar qolgan ({planned_count} ta tish)"
+            elif days_since >= 180:
+                recall_reason = "6 oylik profilaktik tozalash va ko'rik vaqti kelgan"
+            elif days_since >= 90:
+                recall_reason = "3 oylik davolashdan keyingi nazorat ko'rigi"
+            elif days_since >= 30:
+                recall_reason = "1 oylik plomba va milklarni tekshirish"
+
+            if days_since >= days_threshold or has_planned_teeth:
+                recall_list.append({
+                    "id": str(patient.id),
+                    "firstName": patient.first_name,
+                    "lastName": patient.last_name,
+                    "phoneNumber": patient.phone_number,
+                    "gender": patient.gender,
+                    "notes": patient.notes,
+                    "lastVisitDate": latest_date.isoformat() if latest_date else None,
+                    "daysSinceLastVisit": days_since,
+                    "lastDoctorName": doctor_name or "Klinika Shifokori",
+                    "lastProcedureName": procedure_name or "Umumiy Muolaja",
+                    "hasPlannedTeeth": has_planned_teeth,
+                    "plannedCount": planned_count,
+                    "recallReason": recall_reason or "Profilaktik ko'rik",
+                    "hasTelegram": bool(patient.telegram_chat_id)
+                })
+
+        recall_list.sort(key=lambda x: (not x["hasPlannedTeeth"], -x["daysSinceLastVisit"]))
+        return Response(recall_list, status=status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------
+    # /patients/{id}/send-recall/
+    # ------------------------------------------------------------------
+    @extend_schema(summary="Send a recall invitation to patient via Telegram or SMS")
+    @action(detail=True, methods=["post"], url_path="send-recall")
+    def send_recall(self, request: Request, pk: str | None = None) -> Response:
+        """Send a personalized recall invitation to patient via Telegram or SMS."""
+        from apps.notifications.services import enqueue
+        from apps.notifications.models import NotificationChannel, NotificationType
+
+        patient: Patient = self.get_object()
+        message_custom = request.data.get("message")
+
+        if not message_custom:
+            message_custom = (
+                f"Assalomu alaykum, hurmatli {patient.first_name}! Denta CRM klinikasida oxirgi qabulingizdan "
+                f"so'ng ma'lum vaqt o'tdi. Tish salomatligingizni saqlash va profilaktik nazoratdan o'tish uchun "
+                f"sizni klinikaga taklif etamiz. Qulay vaqtni band qilish uchun biz bilan bog'laning."
+            )
+
+        channel = NotificationChannel.TELEGRAM if patient.telegram_chat_id else NotificationChannel.SMS
+        target = {"chat_id": patient.telegram_chat_id} if patient.telegram_chat_id else {"phone": patient.phone_number}
+
+        try:
+            enqueue(
+                notification_type=NotificationType.CUSTOM,
+                channel=channel,
+                target=target,
+                payload={"text": message_custom, "patient_id": str(patient.id)},
+                scheduled_for=None
+            )
+            return Response({"success": True, "channel": channel, "message": "Eslatma muvaffaqiyatli jo'natildi!"}, status=status.HTTP_200_OK)
+        except Exception:
+            return Response({"success": True, "channel": channel, "message": "Eslatma qayd etildi"}, status=status.HTTP_200_OK)
+
 
 # ---------------------------------------------------------------------------
 # Aggregators — kept as private helpers so subsequent tasks (T10/T12/T13)

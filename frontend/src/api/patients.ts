@@ -60,3 +60,31 @@ export async function getPatientBalanceApi(id: string): Promise<PatientBalance> 
   const response = await apiClient.get<PatientBalance>(`patients/${id}/balance/`)
   return response.data
 }
+
+export interface RecallPatient {
+  id: string
+  firstName: string
+  lastName: string
+  phoneNumber: string
+  gender?: string
+  notes?: string
+  lastVisitDate: string | null
+  daysSinceLastVisit: number
+  lastDoctorName: string
+  lastProcedureName: string
+  hasPlannedTeeth: boolean
+  plannedCount: number
+  recallReason: string
+  hasTelegram: boolean
+}
+
+export async function getPatientRecallApi(days?: number): Promise<RecallPatient[]> {
+  const params = days ? { days } : {}
+  const response = await apiClient.get<RecallPatient[]>('patients/recall/', { params })
+  return response.data
+}
+
+export async function sendPatientRecallApi(id: string, message?: string): Promise<{ success: boolean; channel: string; message: string }> {
+  const response = await apiClient.post<{ success: boolean; channel: string; message: string }>(`patients/${id}/send-recall/`, { message })
+  return response.data
+}
