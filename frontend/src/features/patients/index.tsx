@@ -215,6 +215,7 @@ export function PatientsList() {
                   const pGender = String(patient?.gender || 'unknown')
                   const pAddress = String(patient?.address || '-')
                   const pCreatedAt = String(patient?.createdAt || patient?.created_at || '')
+                  const pNotes = String(patient?.notes || '')
 
                   return (
                     <TableRow key={String(patient?.id)} className='hover:bg-muted/20'>
@@ -223,7 +224,14 @@ export function PatientsList() {
                           <div className='flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs shrink-0'>
                             {pFirstName[0] || 'B'}
                           </div>
-                          <span className='truncate'>{pFirstName} {pLastName}</span>
+                          <div className='flex flex-col'>
+                            <span className='truncate font-semibold'>{pFirstName} {pLastName}</span>
+                            {pNotes && (
+                              <span className='inline-flex items-center gap-1 text-[10px] text-rose-600 dark:text-rose-400 font-medium'>
+                                ⚠️ {pNotes.length > 30 ? pNotes.slice(0, 30) + '...' : pNotes}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className='text-xs font-mono whitespace-nowrap'>{pPhone}</TableCell>
@@ -344,13 +352,49 @@ export function PatientsList() {
                 />
               </div>
 
-              <div className='space-y-1'>
-                <label className='text-xs font-medium'>Eslatmalar (Allergiya, surunkali kasalliklar)</label>
+              <div className='space-y-1.5'>
+                <label className='text-xs font-medium flex items-center gap-1.5'>
+                  <span className='text-rose-600 font-bold'>⚠️</span>
+                  <span>Tibbiy Eslatma va Allergiyalar:</span>
+                </label>
+                
+                {/* Quick Medical Alert Chips */}
+                <div className='flex flex-wrap gap-1.5 mb-1.5'>
+                  {[
+                    '⚠️ Lidokain allergiyasi',
+                    '⚠️ Penitsillin allergiyasi',
+                    '🩸 Gipertoniya (Qon bosimi)',
+                    '🍬 Qandli diabet',
+                    '🤰 Homiladorlik',
+                    '⚡ Anesteziyaga sezuvchanlik'
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type='button'
+                      onClick={() => {
+                        if (notes.includes(chip)) {
+                          setNotes(notes.replace(chip, '').replace(/,\s*,/g, ',').trim())
+                        } else {
+                          setNotes(notes ? `${notes}, ${chip}` : chip)
+                        }
+                      }}
+                      className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
+                        notes.includes(chip)
+                          ? 'bg-rose-500 text-white border-rose-600 font-semibold shadow-xs'
+                          : 'bg-muted/40 hover:bg-muted text-muted-foreground border-border'
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+
                 <Textarea
-                  placeholder='Penitsillinga allergiya va h.k.'
+                  placeholder='Allergiyalar, surunkali kasalliklar yoki boshqa muhim tibbiy maʼlumotlar...'
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
+                  className='text-xs'
                 />
               </div>
 

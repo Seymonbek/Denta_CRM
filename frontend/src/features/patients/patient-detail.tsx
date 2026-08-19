@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useParams, Link } from '@tanstack/react-router'
-import { ArrowLeft, Phone, MapPin, Calendar } from 'lucide-react'
+import { ArrowLeft, Phone, MapPin, Calendar, ShieldAlert } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   usePatient,
@@ -250,9 +250,15 @@ export function PatientDetail() {
                 )}
               </div>
               {notes && (
-                <p className='mt-2 text-xs bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 p-2 rounded-md'>
-                  📌 <strong>Eslatma:</strong> {notes}
-                </p>
+                <div className='mt-3 flex items-start gap-2.5 bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-300 p-2.5 rounded-lg shadow-xs'>
+                  <ShieldAlert className='h-5 w-5 text-rose-600 shrink-0 mt-0.5' />
+                  <div>
+                    <span className='font-bold text-xs uppercase tracking-wider block text-rose-700 dark:text-rose-400'>
+                      ⚠️ TIBBIY XAVFSIZLIK VA ALLERGIYA OGOHLANTIRISHI:
+                    </span>
+                    <p className='text-xs mt-0.5 font-medium'>{notes}</p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

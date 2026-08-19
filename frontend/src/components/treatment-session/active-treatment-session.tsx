@@ -11,7 +11,8 @@ import {
   Plus, 
   Calendar,
   Sparkles,
-  Stethoscope
+  Stethoscope,
+  ShieldAlert
 } from 'lucide-react'
 import { useUpdateTreatment, useUploadTreatmentPhoto, useTreatment } from '@/api/hooks/use-treatments'
 import { useUpdateAppointment, useCreateAppointment } from '@/api/hooks/use-appointments'
@@ -19,7 +20,7 @@ import { usePrescriptions, useIssuePrescription, usePrescriptionTemplates } from
 import { useProcedureTypes } from '@/api/hooks/use-procedure-types'
 import { getProcedureBOMsApi } from '@/api/inventory'
 import { useMaterials, useCreateMaterialUsage, useMaterialUsages } from '@/api/hooks/use-inventory'
-import { usePatientOdontogram } from '@/api/hooks/use-patients'
+import { usePatientOdontogram, usePatient } from '@/api/hooks/use-patients'
 import { createToothRecordApi } from '@/api/treatments'
 import { toast } from 'sonner'
 import { confirmSwal } from '@/lib/sweetalert'
@@ -65,6 +66,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
   
   const { data: treatment, isLoading: isTreatmentLoading } = useTreatment(treatmentId)
   const resolvedPatientId = patientId || (treatment as any)?.patientId || (treatment as any)?.patient?.id || (treatment as any)?.patient || ''
+  const { data: patientData } = usePatient(resolvedPatientId)
   
   const { data: toothRecordsData = [] } = usePatientOdontogram(resolvedPatientId)
   const toothRecords: ToothRecord[] = Array.isArray(toothRecordsData) ? toothRecordsData : []
@@ -457,6 +459,21 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
           )}
         </div>
       </div>
+
+      {/* Medical Alert / Allergy Warning Banner */}
+      {patientData?.notes && (
+        <div className="flex items-start gap-3 p-3.5 rounded-xl bg-rose-500/10 border-2 border-rose-500/40 text-rose-900 dark:text-rose-200 shadow-sm animate-pulse">
+          <ShieldAlert className="w-5 h-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+          <div className="text-xs">
+            <p className="font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">
+              ⚠️ DIQQAT! BEMORNING TIBBIY OGOHLANTIRISH VA ALLERGIYALARI:
+            </p>
+            <p className="text-rose-900 dark:text-rose-200 font-semibold mt-0.5 text-xs">
+              {patientData.notes}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Administrator Read-only Notice */}
       {isAdministrator && (
