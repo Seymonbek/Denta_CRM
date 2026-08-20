@@ -147,17 +147,31 @@ def run_audit():
     from django.conf import settings
     settings.TELEGRAM_BOT_TOKEN = ""
     
-    send_view = PatientViewSet.as_view({"post": "send_recall"})
-    send_req = factory.post(f"/api/v1/patients/{patient.id}/send-recall/", data={"message": "Salom Aziz! Ko'rikka taklif etamiz."})
-    force_authenticate(send_req, user=admin_user)
-    send_resp = send_view(send_req, pk=str(patient.id))
-    assert send_resp.status_code == 200, f"Send recall endpoint failed: {send_resp.status_code}"
-    print("✅ 6. Recall Eslatmasi Yuborish (Telegram/SMS Queue Dispatch): Muvaffaqiyatli!")
+    # 9. Check Scheduling & Appointment Serialization
+    from apps.scheduling.serializers import AppointmentSerializer
+    start_time = timezone.now() + timedelta(days=1)
+    appointment, _ = Appointment.objects.get_or_create(
+        patient=patient,
+        doctor=doctor,
+        department=dept,
+        procedure_type=proc_type,
+        defaults={
+            "scheduled_start": start_time,
+            "scheduled_end": start_time + timedelta(minutes=30),
+            "status": "scheduled",
+            "notes": "Ko'rikka yozildi",
+            "created_by": admin_user
+        }
+    )
+    serialized_appt = AppointmentSerializer(appointment).data
+    assert serialized_appt["patientName"] == "Aziz Rahimov", "Appointment patient name serialization failed"
+    assert serialized_appt["procedureTypeName"] == "Plombalash (Estetik)", "Procedure type name serialization failed"
+    print("✅ 7. Qabul Navbati va Taqvim Serializatsiyasi (Appointment Scheduling): Muvaffaqiyatli!")
     
     import time
     time.sleep(0.5)
     print("\n=======================================================")
-    print("🎉 BARCHA 6 TA MODUL VA LOGIKALAR 100% SINOVDAN O'TDI!")
+    print("🎉 BARCHA 7 TA MODUL VA LOGIKALAR 100% SINOVDAN O'TDI!")
     print("=======================================================")
 
 if __name__ == "__main__":

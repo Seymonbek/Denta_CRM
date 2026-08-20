@@ -148,6 +148,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             else ""
         )
         department_name = instance.department.name if instance.department else ""
+        procedure_type_name = instance.procedure_type.name if instance.procedure_type else ""
         now = timezone.now()
         local_end = timezone.localtime(instance.scheduled_end)
         local_today = timezone.localdate()
