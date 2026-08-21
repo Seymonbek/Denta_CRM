@@ -546,12 +546,12 @@ export function PaymentsList() {
 
         {/* Create Payment Modal */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className='sm:max-w-md max-w-[95vw] overflow-hidden'>
+          <DialogContent className='sm:max-w-lg w-full max-w-[95vw] p-5 sm:p-6'>
             <DialogHeader>
               <DialogTitle>Mijozdan To'lov Qabul Qilish</DialogTitle>
             </DialogHeader>
 
-            <form onSubmit={handleCreatePayment} className='space-y-3 py-2'>
+            <form onSubmit={handleCreatePayment} className='space-y-3 py-1'>
               <div className='space-y-1 w-full min-w-0'>
                 <label className='text-xs font-medium'>Bemor *</label>
                 <Select 
@@ -561,17 +561,20 @@ export function PaymentsList() {
                     const patientTreatments = allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === val)
                     if (patientTreatments.length === 1) {
                       setTreatmentId(patientTreatments[0].id)
-                      setAmount(String(Math.round(Number(patientTreatments[0].price || 0))))
+                      const cleanPrice = String(Math.round(Number(patientTreatments[0].price || 0)))
+                      setAmount(cleanPrice)
+                      setSplitCash(cleanPrice)
                     } else {
                       setTreatmentId('')
                       setAmount('')
+                      setSplitCash('')
                     }
                   }}
                 >
                   <SelectTrigger className='w-full text-xs h-9 truncate'>
                     <SelectValue placeholder='Bemor tanlang' />
                   </SelectTrigger>
-                  <SelectContent className='max-h-60 max-w-[90vw] sm:max-w-[400px]'>
+                  <SelectContent className='max-h-60 max-w-[90vw] sm:max-w-[440px]'>
                     {patients.map((p: any) => (
                       <SelectItem key={String(p.id)} value={String(p.id)} className='text-xs truncate'>
                         {p.firstName || ''} {p.lastName || ''}
@@ -590,14 +593,16 @@ export function PaymentsList() {
                     const tr = allModalTreatments.find((t: any) => String(t.id) === val)
                     if (tr) {
                       setPatientId(typeof tr.patient === 'object' ? (tr.patient as any).id : tr.patient)
-                      setAmount(String(Math.round(Number(tr.price || 0))))
+                      const cleanPrice = String(Math.round(Number(tr.price || 0)))
+                      setAmount(cleanPrice)
+                      setSplitCash(cleanPrice)
                     }
                   }}
                 >
                   <SelectTrigger className='w-full text-xs h-9 truncate'>
-                    <SelectValue placeholder='Davolash ishini tanlang' className='truncate max-w-[320px]' />
+                    <SelectValue placeholder='Davolash ishini tanlang' className='truncate' />
                   </SelectTrigger>
-                  <SelectContent className='max-h-60 max-w-[90vw] sm:max-w-[420px]'>
+                  <SelectContent className='max-h-60 max-w-[90vw] sm:max-w-[460px]'>
                     {filteredTreatments.map((t: any) => {
                       const patientName = t.patient ? `${t.patient.firstName || ''} ${t.patient.lastName || ''}`.trim() : 'Bemor'
                       const procedureName = t.procedureType?.name || t.procedureTypeName || 'Umumiy Muolaja'
@@ -652,7 +657,7 @@ export function PaymentsList() {
                     />
                   </div>
 
-                  <div className='space-y-1 overflow-x-auto w-full'>
+                  <div className='space-y-1 w-full'>
                     <label className='text-xs font-medium'>To'lov Usuli *</label>
                     <Select value={method} onValueChange={(val) => setMethod(val as PaymentMethod)}>
                       <SelectTrigger>
@@ -717,23 +722,23 @@ export function PaymentsList() {
                   {/* Split Summary Bar */}
                   <div className='flex items-center justify-between text-xs pt-2 border-t font-mono'>
                     <span className='text-muted-foreground'>Jami kiritildi:</span>
-                    <span className='font-bold text-foreground'>{totalSplit.toLocaleString()} so'm</span>
+                    <span className='font-bold text-foreground'>{Math.round(totalSplit).toLocaleString()} so'm</span>
                   </div>
                   {targetAmount > 0 && (
                     <div className='flex items-center justify-between text-xs font-mono'>
                       <span className='text-muted-foreground'>Muolaja summasi:</span>
-                      <span className='font-semibold'>{targetAmount.toLocaleString()} so'm</span>
+                      <span className='font-semibold'>{Math.round(targetAmount).toLocaleString()} so'm</span>
                     </div>
                   )}
                   {targetAmount > 0 && (
                     <div className='text-center pt-1'>
-                      {totalSplit === targetAmount ? (
+                      {Math.round(totalSplit) === Math.round(targetAmount) ? (
                         <Badge className='bg-emerald-600 text-[10px]'>✅ To'liq qoplandi</Badge>
                       ) : totalSplit > targetAmount ? (
-                        <Badge className='bg-blue-600 text-[10px]'>💵 Qaytim: {(totalSplit - targetAmount).toLocaleString()} so'm</Badge>
+                        <Badge className='bg-blue-600 text-[10px]'>💵 Qaytim: {Math.round(totalSplit - targetAmount).toLocaleString()} so'm</Badge>
                       ) : (
                         <Badge variant='outline' className='text-amber-600 border-amber-300 text-[10px]'>
-                          ⚠️ Qoldiq: {(targetAmount - totalSplit).toLocaleString()} so'm
+                          ⚠️ Qoldiq: {Math.round(targetAmount - totalSplit).toLocaleString()} so'm
                         </Badge>
                       )}
                     </div>
@@ -741,12 +746,12 @@ export function PaymentsList() {
                 </div>
               )}
 
-              <DialogFooter className='pt-2'>
+              <DialogFooter className='pt-3 flex flex-row items-center justify-end gap-2'>
                 <Button type='button' variant='outline' onClick={() => setIsModalOpen(false)}>
                   Bekor qilish
                 </Button>
-                <Button type='submit' disabled={createPaymentMutation.isPending}>
-                  {createPaymentMutation.isPending ? 'To’lanmoqda...' : isSplitMode ? `Aralash To'lovni Qabul Qilish (${totalSplit.toLocaleString()} so'm)` : "To'lovni Qabul Qilish"}
+                <Button type='submit' disabled={createPaymentMutation.isPending} className='font-semibold'>
+                  {createPaymentMutation.isPending ? 'To’lanmoqda...' : isSplitMode ? `To'lovni Qabul Qilish (${Math.round(totalSplit).toLocaleString()} so'm)` : "To'lovni Qabul Qilish"}
                 </Button>
               </DialogFooter>
             </form>
