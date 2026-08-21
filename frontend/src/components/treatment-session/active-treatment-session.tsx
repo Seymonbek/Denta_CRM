@@ -385,19 +385,32 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
         }
       })
 
-      // 2. Update appointment status to completed
-      await updateAppointment.mutateAsync({
-        id: appointmentId,
-        data: { status: 'completed' }
-      })
+      // 2. Update appointment status to completed if appointment ID exists
+      if (appointmentId && appointmentId.trim() !== '' && appointmentId !== 'undefined') {
+        try {
+          await updateAppointment.mutateAsync({
+            id: appointmentId,
+            data: { status: 'completed' }
+          })
+        } catch {
+          // ignore
+        }
+      }
 
       localStorage.removeItem(`treatment_draft_${treatmentId}`)
+      await queryClient.invalidateQueries({ queryKey: ['treatments'] })
+      await queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      await queryClient.invalidateQueries({ queryKey: ['patients', resolvedPatientId] })
       toast.success("Qabul muvaffaqiyatli yakunlandi! Kassaga hisob uzatildi.")
       
       // Open Follow-up Appointment Modal
       setIsFollowUpModalOpen(true)
-    } catch {
-      toast.error("Yakunlashda xatolik yuz berdi")
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.stage?.[0] || 
+                     err?.response?.data?.detail || 
+                     err?.response?.data?.non_field_errors?.[0] || 
+                     "Yakunlashda xatolik yuz berdi"
+      toast.error(errMsg)
     }
   }
 
