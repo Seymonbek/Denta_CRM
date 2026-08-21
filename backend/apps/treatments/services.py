@@ -478,6 +478,22 @@ def update_treatment(
         )
         update_fields.append("payment_status")
 
+    if procedure_type is not ...:
+        new_pt = _resolve_procedure_type(procedure_type)
+        if new_pt is not None and new_pt.department_id != treatment.department_id:
+            if treatment.doctor.departments.filter(pk=new_pt.department_id).exists():
+                treatment.department = new_pt.department
+                update_fields.append("department")
+            else:
+                dept_name = new_pt.department.name if new_pt.department else "boshqa bo'lim"
+                raise ValidationError(
+                    {"procedure_type": [
+                        f"Muolaja turi '{dept_name}' bo'limiga tegishli."
+                    ]}
+                )
+        treatment.procedure_type = new_pt
+        update_fields.append("procedure_type")
+
     if stage is not None:
         new_stage = _clean_choice(
             stage, choices=TreatmentStage, field="stage"
@@ -495,7 +511,7 @@ def update_treatment(
             )
             
         # Material Usage Guard & Auto-Deduction
-        if new_stage == TreatmentStage.COMPLETED and not treatment.usages.exists():
+        if new_stage == TreatmentStage.COMPLETED and not treatment.material_usages.exists():
             proc_type = getattr(treatment, "procedure_type", None)
             if not proc_type:
                 raise ValidationError(
@@ -523,25 +539,8 @@ def update_treatment(
                         quantity_used=bom.default_quantity,
                     )
             
-            
         treatment.stage = new_stage
         update_fields.append("stage")
-
-    if procedure_type is not ...:
-        new_pt = _resolve_procedure_type(procedure_type)
-        if new_pt is not None and new_pt.department_id != treatment.department_id:
-            if treatment.doctor.departments.filter(pk=new_pt.department_id).exists():
-                treatment.department = new_pt.department
-                update_fields.append("department")
-            else:
-                dept_name = new_pt.department.name if new_pt.department else "boshqa bo'lim"
-                raise ValidationError(
-                    {"procedure_type": [
-                        f"Muolaja turi '{dept_name}' bo'limiga tegishli."
-                    ]}
-                )
-        treatment.procedure_type = new_pt
-        update_fields.append("procedure_type")
 
     if is_active is not None:
         treatment.is_active = bool(is_active)
