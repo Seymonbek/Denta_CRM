@@ -530,11 +530,16 @@ def update_treatment(
     if procedure_type is not ...:
         new_pt = _resolve_procedure_type(procedure_type)
         if new_pt is not None and new_pt.department_id != treatment.department_id:
-            raise ValidationError(
-                {"procedure_type": [
-                    "Muolaja turi tanlangan bo'limga tegishli emas."
-                ]}
-            )
+            if treatment.doctor.departments.filter(pk=new_pt.department_id).exists():
+                treatment.department = new_pt.department
+                update_fields.append("department")
+            else:
+                dept_name = new_pt.department.name if new_pt.department else "boshqa bo'lim"
+                raise ValidationError(
+                    {"procedure_type": [
+                        f"Muolaja turi '{dept_name}' bo'limiga tegishli."
+                    ]}
+                )
         treatment.procedure_type = new_pt
         update_fields.append("procedure_type")
 

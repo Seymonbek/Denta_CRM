@@ -3,10 +3,10 @@ import { getProcedureTypesApi, createProcedureTypeApi } from '../procedure-types
 
 export const PROCEDURE_TYPES_QUERY_KEY = ['procedure-types']
 
-export function useProcedureTypes() {
+export function useProcedureTypes(params?: { department?: string }) {
   return useQuery({
-    queryKey: PROCEDURE_TYPES_QUERY_KEY,
-    queryFn: getProcedureTypesApi,
+    queryKey: [...PROCEDURE_TYPES_QUERY_KEY, params],
+    queryFn: () => getProcedureTypesApi(params),
   })
 }
 

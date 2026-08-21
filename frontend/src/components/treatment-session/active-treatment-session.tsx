@@ -68,11 +68,23 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
   const resolvedPatientId = patientId || (treatment as any)?.patientId || (treatment as any)?.patient?.id || (treatment as any)?.patient || ''
   const { data: patientData } = usePatient(resolvedPatientId)
   
+  const treatmentDepartmentId = typeof treatment?.department === 'object' ? (treatment.department as any)?.id : treatment?.department
+  const treatmentDepartmentName = typeof treatment?.department === 'object' ? (treatment.department as any)?.name : ''
+
   const { data: toothRecordsData = [] } = usePatientOdontogram(resolvedPatientId)
   const toothRecords: ToothRecord[] = Array.isArray(toothRecordsData) ? toothRecordsData : []
   
   const { data: procedureTypesData = [] } = useProcedureTypes()
-  const procedureTypes: any[] = Array.isArray(procedureTypesData) ? procedureTypesData : []
+  const procedureTypesList: any[] = Array.isArray(procedureTypesData) ? procedureTypesData : []
+
+  const availableProcedures = useMemo(() => {
+    if (!treatmentDepartmentId) return procedureTypesList
+    const filtered = procedureTypesList.filter((p: any) => {
+      const pDeptId = typeof p.department === 'object' ? p.department?.id : p.department
+      return !pDeptId || String(pDeptId) === String(treatmentDepartmentId)
+    })
+    return filtered.length > 0 ? filtered : procedureTypesList
+  }, [procedureTypesList, treatmentDepartmentId])
 
   const updateTreatment = useUpdateTreatment()
   const uploadPhoto = useUploadTreatmentPhoto()
@@ -154,7 +166,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
   // Handle Procedure Type Selection with Auto-Price and Auto-BOM suggestions
   const handleSelectProcedure = async (procId: string) => {
     setSelectedProcedureId(procId)
-    const proc = procedureTypes.find((p: any) => String(p.id) === String(procId))
+    const proc = availableProcedures.find((p: any) => String(p.id) === String(procId)) || procedureTypesList.find((p: any) => String(p.id) === String(procId))
     if (proc) {
       // 1. Auto-fill price
       if (proc.defaultPrice && Number(proc.defaultPrice) > 0) {
@@ -195,8 +207,10 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
             price: proc.defaultPrice || price
           }
         })
-      } catch {
-        // ignore
+        toast.success(`Muolaja tanlandi: ${proc.name}`)
+      } catch (_err: any) {
+        const errMsg = _err?.response?.data?.procedure_type?.[0] || _err?.response?.data?.detail || "Muolajani saqlashda xatolik."
+        toast.error(errMsg)
       }
     }
   }
@@ -537,20 +551,27 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
           {/* Tooth Quick Actions & Procedure Dropdown */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <Stethoscope className="w-3.5 h-3.5 text-primary" /> Muolaja Turi (Katalogdan) *
+              <Label className="text-xs font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Stethoscope className="w-3.5 h-3.5 text-primary" /> Muolaja Turi (Katalogdan) *
+                </span>
+                {treatmentDepartmentName && (
+                  <Badge variant="outline" className="text-[10px] font-normal border-primary/30 text-primary">
+                    {treatmentDepartmentName}
+                  </Badge>
+                )}
               </Label>
               <Select 
                 value={selectedProcedureId} 
                 onValueChange={handleSelectProcedure}
                 disabled={!canEditTreatment}
               >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Muolaja turini tanlang..." />
+                <SelectTrigger className="h-9 text-xs truncate">
+                  <SelectValue placeholder={availableProcedures.length > 0 ? "Muolaja turini tanlang..." : "Bo'limga tegishli muolajalar..."} />
                 </SelectTrigger>
-                <SelectContent>
-                  {procedureTypes.map((proc: any) => (
-                    <SelectItem key={proc.id} value={proc.id}>
+                <SelectContent className="max-h-64">
+                  {availableProcedures.map((proc: any) => (
+                    <SelectItem key={proc.id} value={proc.id} className="text-xs">
                       {proc.name} — <span className="font-mono font-bold text-primary">{Number(proc.defaultPrice || 0).toLocaleString()} so'm</span>
                     </SelectItem>
                   ))}
