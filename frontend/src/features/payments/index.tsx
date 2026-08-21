@@ -546,13 +546,13 @@ export function PaymentsList() {
 
         {/* Create Payment Modal */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className='sm:max-w-md'>
+          <DialogContent className='sm:max-w-md max-w-[95vw] overflow-hidden'>
             <DialogHeader>
               <DialogTitle>Mijozdan To'lov Qabul Qilish</DialogTitle>
             </DialogHeader>
 
             <form onSubmit={handleCreatePayment} className='space-y-3 py-2'>
-              <div className='space-y-1 overflow-x-auto w-full'>
+              <div className='space-y-1 w-full min-w-0'>
                 <label className='text-xs font-medium'>Bemor *</label>
                 <Select 
                   value={patientId} 
@@ -561,19 +561,19 @@ export function PaymentsList() {
                     const patientTreatments = allModalTreatments.filter((t: any) => (t.patient?.id || t.patient) === val)
                     if (patientTreatments.length === 1) {
                       setTreatmentId(patientTreatments[0].id)
-                      setAmount(patientTreatments[0].price || '')
+                      setAmount(String(Math.round(Number(patientTreatments[0].price || 0))))
                     } else {
                       setTreatmentId('')
                       setAmount('')
                     }
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder='Bemor' />
+                  <SelectTrigger className='w-full text-xs h-9 truncate'>
+                    <SelectValue placeholder='Bemor tanlang' />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className='max-h-60 max-w-[90vw] sm:max-w-[400px]'>
                     {patients.map((p: any) => (
-                      <SelectItem key={String(p.id)} value={String(p.id)}>
+                      <SelectItem key={String(p.id)} value={String(p.id)} className='text-xs truncate'>
                         {p.firstName || ''} {p.lastName || ''}
                       </SelectItem>
                     ))}
@@ -581,7 +581,7 @@ export function PaymentsList() {
                 </Select>
               </div>
 
-              <div className='space-y-1 overflow-x-auto w-full'>
+              <div className='space-y-1 w-full min-w-0'>
                 <label className='text-xs font-medium'>Davolash Ishi (Treatment) *</label>
                 <Select
                   value={treatmentId}
@@ -590,22 +590,22 @@ export function PaymentsList() {
                     const tr = allModalTreatments.find((t: any) => String(t.id) === val)
                     if (tr) {
                       setPatientId(typeof tr.patient === 'object' ? (tr.patient as any).id : tr.patient)
-                      setAmount(String(tr.price || ''))
+                      setAmount(String(Math.round(Number(tr.price || 0))))
                     }
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder='Davolash ishini tanlang' />
+                  <SelectTrigger className='w-full text-xs h-9 truncate'>
+                    <SelectValue placeholder='Davolash ishini tanlang' className='truncate max-w-[320px]' />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className='max-h-60 max-w-[90vw] sm:max-w-[420px]'>
                     {filteredTreatments.map((t: any) => {
                       const patientName = t.patient ? `${t.patient.firstName || ''} ${t.patient.lastName || ''}`.trim() : 'Bemor'
                       const procedureName = t.procedureType?.name || t.procedureTypeName || 'Umumiy Muolaja'
                       const dateStr = t.createdAt || t.created_at || ''
                       const dateFormatted = dateStr ? format(new Date(dateStr), 'dd.MM.yy HH:mm') : ''
                       return (
-                        <SelectItem key={String(t.id)} value={String(t.id)}>
-                          {patientName} - {procedureName} {dateFormatted ? `(${dateFormatted})` : ''} - {Number(t.price || 0).toLocaleString()} so'm
+                        <SelectItem key={String(t.id)} value={String(t.id)} className='text-xs truncate py-1.5'>
+                          {patientName} - {procedureName} {dateFormatted ? `(${dateFormatted})` : ''} - {Math.round(Number(t.price || 0)).toLocaleString()} so'm
                         </SelectItem>
                       )
                     })}
@@ -631,7 +631,7 @@ export function PaymentsList() {
                   className='flex-1 h-8 text-xs font-semibold'
                   onClick={() => {
                     setIsSplitMode(true)
-                    if (!splitCash && amount) setSplitCash(amount)
+                    if (!splitCash && amount) setSplitCash(String(Math.round(Number(amount))))
                   }}
                 >
                   🔀 Aralash To'lov (Split)

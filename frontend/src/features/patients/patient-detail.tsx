@@ -390,7 +390,11 @@ export function PatientDetail() {
           )}
 
           <TabsContent value='odontogram' className='pt-2'>
-            <Odontogram patientId={patient.id} toothRecords={toothRecords} onSaveRecord={handleSaveToothRecord} />
+            <Odontogram 
+              patientId={patient.id} 
+              toothRecords={toothRecords} 
+              onSaveRecord={activeTreatment ? handleSaveToothRecord : undefined} 
+            />
           </TabsContent>
 
           <TabsContent value='timeline' className='pt-2'>

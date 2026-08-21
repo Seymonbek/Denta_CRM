@@ -216,81 +216,108 @@ export function Odontogram({ patientId, toothRecords = [], onSaveRecord, readOnl
 
       {/* Tooth Detail / Edit Modal */}
       <Dialog open={selectedTooth !== null} onOpenChange={(open) => !open && setSelectedTooth(null)}>
-        <DialogContent className='sm:max-w-md'>
+        <DialogContent className='sm:max-w-md max-w-[95vw] max-h-[85vh] overflow-y-auto'>
           <DialogHeader>
-            <DialogTitle>Tish #{selectedTooth} - Ma'lumotlar</DialogTitle>
+            <DialogTitle>Tish #{selectedTooth} - Holati va Tarixi</DialogTitle>
             <DialogDescription>
-              Tishning muolaja holati va tarixi.
+              FDI #{selectedTooth} tishining klinik muolaja holati.
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="edit" className="w-full">
+          <Tabs defaultValue={!onSaveRecord ? "history" : "edit"} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="edit">Joriy Holat</TabsTrigger>
               <TabsTrigger value="history">Tarix</TabsTrigger>
             </TabsList>
             
             <TabsContent value="edit" className="space-y-4 py-2 mt-2">
-              <div className='grid gap-4'>
-                <div className='space-y-1.5'>
-                  <label className='text-xs font-medium'>Holat (Status)</label>
-                  <Select value={status} onValueChange={(val) => setStatus(val as ToothStatus)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='healthy'>Sog'lom (Healthy)</SelectItem>
-                      <SelectItem value='treated'>Davolangan (Treated)</SelectItem>
-                      <SelectItem value='planned'>Rejalashtirilgan (Planned)</SelectItem>
-                      <SelectItem value='missing'>Yo'q / O'chirilgan (Missing)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {onSaveRecord && !readOnly ? (
+                <div className='grid gap-3'>
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-medium'>Holat (Status)</label>
+                    <Select value={status} onValueChange={(val) => setStatus(val as ToothStatus)}>
+                      <SelectTrigger className='text-xs h-9'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='healthy'>Sog'lom (Healthy)</SelectItem>
+                        <SelectItem value='treated'>Davolangan (Treated)</SelectItem>
+                        <SelectItem value='planned'>Rejalashtirilgan (Planned)</SelectItem>
+                        <SelectItem value='missing'>Yo'q / O'chirilgan (Missing)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className='space-y-1.5'>
-                  <label className='text-xs font-medium'>Muolaja (Procedure)</label>
-                  <Select value={procedure} onValueChange={(val) => setProcedure(val as ToothProcedure)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(PROCEDURE_LABELS).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-medium'>Muolaja (Procedure)</label>
+                    <Select value={procedure} onValueChange={(val) => setProcedure(val as ToothProcedure)}>
+                      <SelectTrigger className='text-xs h-9'>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(PROCEDURE_LABELS).map(([k, v]) => (
+                          <SelectItem key={k} value={k} className='text-xs'>
+                            {v}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className='space-y-1.5'>
-                  <label className='text-xs font-medium'>Izoh (Notes)</label>
-                  <Textarea
-                    placeholder='Tish bo’yicha qo’shimcha izohlar...'
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-              </div>
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-medium'>Izoh (Notes)</label>
+                    <Textarea
+                      placeholder='Tish bo’yicha qo’shimcha izohlar...'
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={3}
+                      className='text-xs'
+                    />
+                  </div>
 
-              <div className="flex justify-end space-x-2 pt-2">
-                <Button variant='outline' onClick={() => setSelectedTooth(null)}>
-                  Bekor qilish
-                </Button>
-                {!readOnly && onSaveRecord && (
-                  <Button onClick={handleSave} disabled={isSubmitting}>
-                    {isSubmitting ? 'Saqlanmoqda...' : 'Saqlash'}
-                  </Button>
-                )}
-              </div>
+                  <div className="flex justify-end space-x-2 pt-2">
+                    <Button variant='outline' size='sm' onClick={() => setSelectedTooth(null)}>
+                      Bekor qilish
+                    </Button>
+                    <Button size='sm' onClick={handleSave} disabled={isSubmitting}>
+                      {isSubmitting ? 'Saqlanmoqda...' : 'Saqlash'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className='space-y-3 py-1'>
+                  <div className='rounded-xl border bg-muted/20 p-4 space-y-2.5'>
+                    <div className='flex justify-between items-center'>
+                      <span className='text-xs text-muted-foreground'>Joriy Holati:</span>
+                      <Badge className={STATUS_CONFIG[status]?.bg + ' ' + STATUS_CONFIG[status]?.text + ' border'}>
+                        {STATUS_CONFIG[status]?.label || status}
+                      </Badge>
+                    </div>
+                    <div className='flex justify-between items-center'>
+                      <span className='text-xs text-muted-foreground'>Muolaja Turi:</span>
+                      <span className='text-xs font-medium'>{PROCEDURE_LABELS[procedure] || procedure}</span>
+                    </div>
+                    {notes && (
+                      <div className='pt-2 border-t text-xs text-muted-foreground'>
+                        <span className='font-medium text-foreground block mb-0.5'>Izoh:</span>
+                        {notes}
+                      </div>
+                    )}
+                  </div>
+                  <div className='flex justify-end pt-1'>
+                    <Button variant='outline' size='sm' onClick={() => setSelectedTooth(null)}>
+                      Yopish
+                    </Button>
+                  </div>
+                </div>
+              )}
             </TabsContent>
 
-            <TabsContent value="history" className="mt-2 h-[300px] overflow-y-auto pr-2">
+            <TabsContent value="history" className="mt-2 max-h-[300px] overflow-y-auto pr-1">
               {patientId && selectedTooth ? (
                 <ToothHistoryList patientId={patientId} toothNumber={selectedTooth} />
               ) : (
-                <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">
                   Tarix mavjud emas.
                 </div>
               )}
@@ -375,32 +402,34 @@ function ToothSvg({ status }: { status: ToothStatus }) {
 function ToothHistoryList({ patientId, toothNumber }: { patientId: string; toothNumber: number }) {
   const { data: history, isLoading, error } = usePatientOdontogramHistory(patientId, toothNumber)
 
-  if (isLoading) return <div className="p-4 text-center text-sm text-muted-foreground">Yuklanmoqda...</div>
-  if (error) return <div className="p-4 text-center text-sm text-destructive">Xatolik yuz berdi.</div>
+  if (isLoading) return <div className="p-3 text-center text-xs text-muted-foreground">Yuklanmoqda...</div>
+  if (error) return <div className="p-3 text-center text-xs text-destructive">Xatolik yuz berdi.</div>
   if (!history || history.length === 0) {
-    return <div className="p-4 text-center text-sm text-muted-foreground">Ushbu tish uchun tarix topilmadi.</div>
+    return <div className="p-3 text-center text-xs text-muted-foreground">Ushbu tish uchun tarix topilmadi.</div>
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {history.map((record) => (
-        <div key={record.id} className="rounded-lg border p-3 text-sm">
-          <div className="flex justify-between items-start mb-2">
-            <div className="font-medium">
-              {record.procedure ? PROCEDURE_LABELS[record.procedure] || record.procedure : 'Sog\'lom'}
-              <span className="text-xs text-muted-foreground ml-2">({record.status})</span>
+        <div key={record.id} className="rounded-lg border bg-card p-2.5 text-xs shadow-2xs">
+          <div className="flex justify-between items-center mb-1">
+            <div className="font-semibold text-foreground flex items-center gap-1.5">
+              <span>{record.procedure ? PROCEDURE_LABELS[record.procedure] || record.procedure : 'Sog\'lom'}</span>
+              <Badge variant="outline" className="text-[10px] py-0 px-1 font-normal">
+                {record.status}
+              </Badge>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {format(new Date(record.createdAt), 'dd.MM.yyyy HH:mm')}
+            <div className="text-[10px] text-muted-foreground font-mono">
+              {record.createdAt ? format(new Date(record.createdAt), 'dd.MM.yyyy HH:mm') : ''}
             </div>
           </div>
           {record.doctorName && (
-            <div className="text-xs text-muted-foreground mb-1">
+            <div className="text-[11px] text-muted-foreground">
               Shifokor: {record.doctorName}
             </div>
           )}
           {record.notes && (
-            <div className="text-xs bg-muted/50 p-2 rounded-md mt-2">
+            <div className="text-[11px] bg-muted/40 p-1.5 rounded mt-1.5 text-foreground/80">
               {record.notes}
             </div>
           )}
@@ -411,49 +440,44 @@ function ToothHistoryList({ patientId, toothNumber }: { patientId: string; tooth
 }
 
 function FullToothHistoryList({ patientId }: { patientId: string }) {
-  // Use the same hook, but without passing toothNumber, so it fetches all tooth history
   const { data: history, isLoading, error } = usePatientOdontogramHistory(patientId)
 
-  if (isLoading) return <div className="p-4 text-center text-sm text-muted-foreground">Yuklanmoqda...</div>
-  if (error) return <div className="p-4 text-center text-sm text-destructive">Xatolik yuz berdi.</div>
+  if (isLoading) return <div className="p-4 text-center text-xs text-muted-foreground">Yuklanmoqda...</div>
+  if (error) return <div className="p-4 text-center text-xs text-destructive">Xatolik yuz berdi.</div>
   if (!history || history.length === 0) {
-    return <div className="p-4 text-center text-sm text-muted-foreground">Bemorda tish xaritasi tarixi mavjud emas.</div>
+    return <div className="p-4 text-center text-xs text-muted-foreground">Bemorda tish xaritasi tarixi mavjud emas.</div>
   }
 
-  // Group by date or just display all.
-  // The API returns them ordered by -created_at
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {history.map((record) => (
-        <div key={record.id} className="rounded-lg border p-4 text-sm">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 pb-3 border-b border-dashed gap-2">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary font-bold">
-                {record.toothNumber}
+        <div key={record.id} className="rounded-lg border bg-card p-3 text-xs shadow-2xs">
+          <div className="flex justify-between items-center mb-1.5 pb-1.5 border-b border-dashed">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center h-6 w-6 rounded-md bg-primary/10 text-primary font-bold text-xs">
+                #{record.toothNumber}
               </div>
-              <div className="font-medium text-base">
+              <span className="font-semibold text-xs">
                 {record.procedure ? PROCEDURE_LABELS[record.procedure] || record.procedure : 'Sog\'lom'}
-              </div>
-              <Badge variant="outline">{record.status}</Badge>
+              </span>
+              <Badge variant="outline" className="text-[10px] py-0 px-1">{record.status}</Badge>
             </div>
-            <div className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-              {format(new Date(record.createdAt), 'dd.MM.yyyy HH:mm')}
+            <div className="text-[11px] text-muted-foreground font-mono">
+              {record.createdAt ? format(new Date(record.createdAt), 'dd.MM.yyyy HH:mm') : ''}
             </div>
           </div>
           
-          <div className="flex justify-between items-end">
-            <div className="space-y-1 w-full">
-              {record.doctorName && (
-                <div className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground mr-1">Shifokor:</span> {record.doctorName}
-                </div>
-              )}
-              {record.notes && (
-                <div className="text-xs bg-muted/50 p-2 rounded-md mt-2">
-                  {record.notes}
-                </div>
-              )}
-            </div>
+          <div className="space-y-1">
+            {record.doctorName && (
+              <div className="text-[11px] text-muted-foreground">
+                <span className="font-medium text-foreground">Shifokor:</span> {record.doctorName}
+              </div>
+            )}
+            {record.notes && (
+              <div className="text-[11px] bg-muted/40 p-1.5 rounded text-foreground/80">
+                {record.notes}
+              </div>
+            )}
           </div>
         </div>
       ))}

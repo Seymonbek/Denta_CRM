@@ -120,25 +120,17 @@ def create_tooth_record(
     )
     notes_clean = _clean_notes(notes)
 
-    try:
-        return ToothRecord.objects.create(
-            treatment=treatment_obj,
-            tooth_number=number,
-            procedure=procedure_value,
-            status=status_clean,
-            notes=notes_clean,
-            is_active=True,
-        )
-    except IntegrityError as exc:
-        # Unique (treatment, tooth_number) violation → surface as a
-        # validation error the API layer already knows how to render.
-        raise ValidationError(
-            {
-                "tooth_number": [
-                    "Ushbu davolashda bu tish uchun yozuv allaqachon mavjud."
-                ]
-            }
-        ) from exc
+    record, _ = ToothRecord.objects.update_or_create(
+        treatment=treatment_obj,
+        tooth_number=number,
+        defaults={
+            "procedure": procedure_value,
+            "status": status_clean,
+            "notes": notes_clean,
+            "is_active": True,
+        },
+    )
+    return record
 
 
 @transaction.atomic
