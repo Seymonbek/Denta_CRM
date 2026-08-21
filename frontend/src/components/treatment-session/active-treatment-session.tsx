@@ -93,9 +93,13 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
   
   // Prescription Hooks
   const { data: prescriptionsData } = usePrescriptions({ treatment: treatmentId })
-  const prescriptionsList: any[] = Array.isArray(prescriptionsData) ? prescriptionsData : []
+  const prescriptionsList: any[] = Array.isArray(prescriptionsData)
+    ? prescriptionsData
+    : (prescriptionsData as any)?.results || []
   const { data: templatesData } = usePrescriptionTemplates()
-  const templates: any[] = Array.isArray(templatesData) ? templatesData : []
+  const templates: any[] = Array.isArray(templatesData)
+    ? templatesData
+    : (templatesData as any)?.results || []
   const issuePrescriptionMutation = useIssuePrescription()
 
   // Form states
@@ -124,9 +128,13 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
 
   // Material usage states
   const { data: materialsData } = useMaterials()
-  const materials: any[] = Array.isArray(materialsData) ? materialsData : []
+  const materials: any[] = Array.isArray(materialsData)
+    ? materialsData
+    : (materialsData as any)?.results || []
   const { data: materialUsagesData } = useMaterialUsages({ treatment: treatmentId })
-  const materialUsages: any[] = Array.isArray(materialUsagesData) ? materialUsagesData : []
+  const materialUsages: any[] = Array.isArray(materialUsagesData)
+    ? materialUsagesData
+    : (materialUsagesData as any)?.results || []
   const createMaterialUsage = useCreateMaterialUsage()
   const [selectedMaterialId, setSelectedMaterialId] = useState('')
   const [materialQuantity, setMaterialQuantity] = useState('1')
