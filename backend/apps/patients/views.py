@@ -531,7 +531,11 @@ def _collect_history_events(patient: Patient) -> list[dict[str, Any]]:
                 .order_by("-created_at")[:50]
             )
             for pay in queryset:
-                method_display = pay.get_payment_method_display() if hasattr(pay, "get_payment_method_display") else pay.payment_method
+                method_display = (
+                    pay.get_method_display()
+                    if hasattr(pay, "get_method_display")
+                    else getattr(pay, "method", "")
+                )
                 admin_name = pay.received_by.get_full_name() if pay.received_by else "Kassa"
                 events.append(
                     {
@@ -539,12 +543,12 @@ def _collect_history_events(patient: Patient) -> list[dict[str, Any]]:
                         "type": "payment",
                         "occurredAt": pay.created_at,
                         "title": f"To'lov: {pay.amount:,.0f} so'm ({method_display})",
-                        "summary": f"Qabul qildi: {admin_name}. {pay.notes or ''}".strip(),
+                        "summary": f"Qabul qildi: {admin_name}. {getattr(pay, 'note', '')}".strip(),
                         "meta": {
                             "paymentId": str(pay.pk),
                             "amount": str(pay.amount),
-                            "method": pay.payment_method,
-                            "status": pay.status,
+                            "method": getattr(pay, "method", ""),
+                            "refundStatus": getattr(pay, "refund_status", ""),
                         },
                     }
                 )
