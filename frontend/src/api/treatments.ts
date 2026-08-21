@@ -25,7 +25,7 @@ export async function getTreatmentApi(id: string): Promise<Treatment> {
 }
 
 export async function createTreatmentApi(data: {
-  appointment: string
+  appointment?: string
   doctor: string
   patient: string
   department: string

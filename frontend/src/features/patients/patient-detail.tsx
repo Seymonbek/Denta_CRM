@@ -114,7 +114,7 @@ export function PatientDetail() {
       let treatmentId = treatmentsList[0]?.id
 
       if (!treatmentId) {
-        // Find an active appointment to link the treatment to
+        // Find an active appointment or fallback to current doctor
         const { getAppointmentsApi } = await import('@/api/appointments')
         
         let apptsRes = await getAppointmentsApi({ patient: id, status: 'in_progress' })
@@ -127,21 +127,41 @@ export function PatientDetail() {
 
         const activeFoundAppt = appts[0]
 
-        if (!activeFoundAppt) {
-          toast.error("Bemorning faol navbati topilmadi. Avval qabulni boshlang (Jarayonda).")
-          return
+        let doctorId = activeFoundAppt ? (typeof activeFoundAppt.doctor === 'object' ? activeFoundAppt.doctor.id : activeFoundAppt.doctor) : null
+        let departmentId = activeFoundAppt ? (typeof activeFoundAppt.department === 'object' ? activeFoundAppt.department.id : activeFoundAppt.department) : null
+        const procedureTypeId = activeFoundAppt?.procedureType ? (typeof activeFoundAppt.procedureType === 'object' ? activeFoundAppt.procedureType.id : activeFoundAppt.procedureType) : ''
+
+        if (!doctorId || !departmentId) {
+          const { getDoctorsApi } = await import('@/api/doctors')
+          const docs = await getDoctorsApi()
+          const docList = Array.isArray(docs) ? docs : (docs as any)?.results || []
+          const myDoc = docList.find((d: any) => d.user?.id === user?.id || d.id === (user as any)?.doctorId) || docList[0]
+          
+          if (myDoc) {
+            doctorId = doctorId || myDoc.id
+            const docDept = myDoc.departments?.[0] || myDoc.department
+            departmentId = departmentId || (typeof docDept === 'object' ? docDept?.id : docDept)
+          }
+
+          if (!departmentId) {
+            const { getDepartmentsApi } = await import('@/api/departments')
+            const depts = await getDepartmentsApi()
+            const deptList = Array.isArray(depts) ? depts : (depts as any)?.results || []
+            if (deptList[0]) departmentId = deptList[0].id
+          }
         }
 
-        const doctorId = typeof activeFoundAppt.doctor === 'object' ? activeFoundAppt.doctor.id : activeFoundAppt.doctor
-        const departmentId = typeof activeFoundAppt.department === 'object' ? activeFoundAppt.department.id : activeFoundAppt.department
-        const procedureTypeId = activeFoundAppt.procedureType ? (typeof activeFoundAppt.procedureType === 'object' ? activeFoundAppt.procedureType.id : activeFoundAppt.procedureType) : ''
+        if (!doctorId || !departmentId) {
+          toast.error("Muolajani boshlash uchun shifokor va bo'lim topilmadi.")
+          return
+        }
         
         const newTreatment = await createTreatmentApi({
           patient: id,
           doctor: String(doctorId),
           department: String(departmentId),
           procedureType: String(procedureTypeId || ''),
-          appointment: String(activeFoundAppt.id),
+          appointment: activeFoundAppt ? String(activeFoundAppt.id) : undefined,
           diagnosis: `Tish #${record.toothNumber} ko'rik va muolajasi`,
           description: record.notes || "Tish xaritasiga yozuv kiritildi",
           price: "0",
@@ -158,8 +178,9 @@ export function PatientDetail() {
         })
       }
 
-      // 2. Refresh Odontogram
+      // 2. Refresh Odontogram and Treatments
       await queryClient.invalidateQueries({ queryKey: ['patients', id, 'odontogram'] })
+      await queryClient.invalidateQueries({ queryKey: ['treatments'] })
       toast.success(`Tish #${record.toothNumber} saqlandi va yangilandi!`)
     } catch (_err: any) {
       const errMsg = _err?.response?.data?.department?.[0] || _err?.response?.data?.detail || _err?.response?.data?.non_field_errors?.[0] || "Saqlashda xatolik yuz berdi."
@@ -170,27 +191,49 @@ export function PatientDetail() {
   }
 
   const handleStartSession = async () => {
-    if (!activeAppt) {
-       toast.error("Bemorning faol navbati yo'q!")
-       return
-    }
     if (isStartingSessionRef.current) return
     isStartingSessionRef.current = true
     try {
-      const doctorId = typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor
-      const departmentId = typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department
-      const procedureTypeId = activeAppt.procedureType ? (typeof activeAppt.procedureType === 'object' ? activeAppt.procedureType.id : activeAppt.procedureType) : ''
+      let doctorId = activeAppt ? (typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor) : null
+      let departmentId = activeAppt ? (typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department) : null
+      const procedureTypeId = activeAppt?.procedureType ? (typeof activeAppt.procedureType === 'object' ? activeAppt.procedureType.id : activeAppt.procedureType) : ''
+
+      if (!doctorId || !departmentId) {
+        const { getDoctorsApi } = await import('@/api/doctors')
+        const docs = await getDoctorsApi()
+        const docList = Array.isArray(docs) ? docs : (docs as any)?.results || []
+        const myDoc = docList.find((d: any) => d.user?.id === user?.id || d.id === (user as any)?.doctorId) || docList[0]
+        
+        if (myDoc) {
+          doctorId = doctorId || myDoc.id
+          const docDept = myDoc.departments?.[0] || myDoc.department
+          departmentId = departmentId || (typeof docDept === 'object' ? docDept?.id : docDept)
+        }
+
+        if (!departmentId) {
+          const { getDepartmentsApi } = await import('@/api/departments')
+          const depts = await getDepartmentsApi()
+          const deptList = Array.isArray(depts) ? depts : (depts as any)?.results || []
+          if (deptList[0]) departmentId = deptList[0].id
+        }
+      }
+
+      if (!doctorId || !departmentId) {
+        toast.error("Muolajani boshlash uchun shifokor va bo'lim topilmadi.")
+        return
+      }
       
       await createTreatment.mutateAsync({
         patient: id,
         doctor: String(doctorId),
         department: String(departmentId),
         procedureType: String(procedureTypeId || ''),
-        appointment: String(activeAppt.id),
+        appointment: activeAppt ? String(activeAppt.id) : undefined,
         diagnosis: "",
         description: "Qabul boshlandi",
         price: "0",
       })
+      await queryClient.invalidateQueries({ queryKey: ['treatments'] })
       toast.success("Muolaja sessiyasi boshlandi!")
     } catch (_err: unknown) {
       toast.error("Xatolik yuz berdi")
