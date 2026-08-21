@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useParams, Link } from '@tanstack/react-router'
-import { ArrowLeft, Phone, MapPin, Calendar, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Phone, MapPin, Calendar, ShieldAlert, Clock, Lock, Play } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   usePatient,
@@ -47,8 +47,8 @@ export function PatientDetail() {
     ? appointmentsData
     : []
 
-  const activeAppt = appointments.find((a: any) => {
-    if (a.status === 'in_progress') return true
+  const inProgressAppt = appointments.find((a: any) => a.status === 'in_progress')
+  const todayScheduledAppt = appointments.find((a: any) => {
     if (a.status === 'confirmed' || a.status === 'scheduled') {
       const start = a.scheduledStart || a.scheduled_start
       return start && new Date(start).toDateString() === new Date().toDateString()
@@ -194,9 +194,10 @@ export function PatientDetail() {
     if (isStartingSessionRef.current) return
     isStartingSessionRef.current = true
     try {
-      let doctorId = activeAppt ? (typeof activeAppt.doctor === 'object' ? activeAppt.doctor.id : activeAppt.doctor) : null
-      let departmentId = activeAppt ? (typeof activeAppt.department === 'object' ? activeAppt.department.id : activeAppt.department) : null
-      const procedureTypeId = activeAppt?.procedureType ? (typeof activeAppt.procedureType === 'object' ? activeAppt.procedureType.id : activeAppt.procedureType) : ''
+      const targetAppt = inProgressAppt || todayScheduledAppt
+      let doctorId = targetAppt ? (typeof targetAppt.doctor === 'object' ? targetAppt.doctor.id : targetAppt.doctor) : null
+      let departmentId = targetAppt ? (typeof targetAppt.department === 'object' ? targetAppt.department.id : targetAppt.department) : null
+      const procedureTypeId = targetAppt?.procedureType ? (typeof targetAppt.procedureType === 'object' ? targetAppt.procedureType.id : targetAppt.procedureType) : ''
 
       if (!doctorId || !departmentId) {
         const { getDoctorsApi } = await import('@/api/doctors')
@@ -222,19 +223,26 @@ export function PatientDetail() {
         toast.error("Muolajani boshlash uchun shifokor va bo'lim topilmadi.")
         return
       }
+
+      // If appointment was scheduled/confirmed, transition it to in_progress
+      if (todayScheduledAppt && todayScheduledAppt.status !== 'in_progress') {
+        const { updateAppointmentApi } = await import('@/api/appointments')
+        await updateAppointmentApi(todayScheduledAppt.id, { status: 'in_progress' })
+        await queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      }
       
       await createTreatment.mutateAsync({
         patient: id,
         doctor: String(doctorId),
         department: String(departmentId),
         procedureType: String(procedureTypeId || ''),
-        appointment: activeAppt ? String(activeAppt.id) : undefined,
+        appointment: targetAppt ? String(targetAppt.id) : undefined,
         diagnosis: "",
         description: "Qabul boshlandi",
         price: "0",
       })
       await queryClient.invalidateQueries({ queryKey: ['treatments'] })
-      toast.success("Muolaja sessiyasi boshlandi!")
+      toast.success("Bemor qabuli va muolaja sessiyasi boshlandi!")
     } catch (_err: unknown) {
       toast.error("Xatolik yuz berdi")
     } finally {
@@ -260,6 +268,23 @@ export function PatientDetail() {
       </Header>
 
       <Main>
+        {/* Scheduled Appointment Notice */}
+        {todayScheduledAppt && !activeTreatment && (
+          <div className='mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-900 dark:text-blue-200 shadow-2xs'>
+            <div className='flex items-center gap-2.5 text-xs font-semibold'>
+              <Clock className='w-4 h-4 text-blue-600 shrink-0' />
+              <span>
+                Bugun soat {todayScheduledAppt.scheduledStart ? new Date(todayScheduledAppt.scheduledStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} ga navbat belgilangan ({todayScheduledAppt.procedureTypeName || 'Ko’rik'}). Bemor kelganida qabulni boshlang.
+              </span>
+            </div>
+            {!isAdministrator && (
+              <Button size='sm' className='h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white shrink-0 shadow-xs' onClick={handleStartSession} disabled={createTreatment.isPending}>
+                <Play className='w-3.5 h-3.5 mr-1 fill-current' /> {createTreatment.isPending ? 'Boshlanmoqda...' : 'Qabulni Boshlash'}
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* Top Header Card */}
         <div className='mb-6 rounded-xl border bg-card p-6 shadow-sm flex flex-col md:flex-row justify-between gap-6'>
           <div className='flex items-start gap-4'>
@@ -330,14 +355,14 @@ export function PatientDetail() {
         </div>
 
         {/* Detail Tabs */}
-        <Tabs defaultValue={activeTreatment || activeAppt ? 'session' : 'odontogram'} className='space-y-4'>
+        <Tabs defaultValue={activeTreatment ? 'session' : 'odontogram'} className='space-y-4'>
           <TabsList className='w-full justify-start overflow-x-auto border-b rounded-none bg-transparent p-0'>
-            {(activeTreatment || activeAppt) && (
+            {activeTreatment && (
               <TabsTrigger
                 value='session'
-                className='data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent px-4 py-2 text-xs font-semibold'
+                className='data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent px-4 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400'
               >
-                🔴 Joriy Muolaja
+                🔴 Joriy Qabul (Jarayonda)
               </TabsTrigger>
             )}
             <TabsTrigger
@@ -360,39 +385,36 @@ export function PatientDetail() {
             </TabsTrigger>
           </TabsList>
 
-          {(activeTreatment || activeAppt) && (
+          {activeTreatment && (
             <TabsContent value='session' className='pt-2'>
-              {activeTreatment ? (
-                <ActiveTreatmentSession 
-                  treatmentId={activeTreatment.id} 
-                  appointmentId={activeAppt?.id || activeTreatment.appointmentId || activeTreatment.appointment || ''} 
-                  patientId={id} 
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-xl bg-muted/10 text-center">
-                  <h3 className="text-lg font-bold mb-2">Qabul boshlangan, lekin muolaja sessiyasi ochilmagan</h3>
-                  <p className="text-sm text-muted-foreground mb-6 max-w-md">
-                    Bemorning qabuliga rasmlar yuklash, tashxis yozish va yakunlash uchun muolaja sessiyasini boshlang. Yoki tish xaritasiga yozuv kiritish orqali avtomatik ochishingiz mumkin.
-                  </p>
-                  
-                  {isAdministrator ? (
-                    <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md font-medium">
-                      Administratorlar muolaja sessiyasini boshlash huquqiga ega emas. Iltimos, muolajani boshlash uchun tegishli shifokor profiliga kiring.
-                    </div>
-                  ) : (
-                    <Button onClick={handleStartSession} disabled={createTreatment.isPending}>
-                      {createTreatment.isPending ? 'Boshlanmoqda...' : 'Muolaja Sessiyasini Boshlash'}
-                    </Button>
-                  )}
-                </div>
-              )}
+              <ActiveTreatmentSession 
+                treatmentId={activeTreatment.id} 
+                appointmentId={activeTreatment.appointmentId || activeTreatment.appointment || inProgressAppt?.id || ''} 
+                patientId={id} 
+              />
             </TabsContent>
           )}
 
           <TabsContent value='odontogram' className='pt-2'>
+            {!activeTreatment && (
+              <div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-muted/40 border rounded-xl text-xs text-muted-foreground mb-4'>
+                <div className='flex items-center gap-2'>
+                  <Lock className='w-4 h-4 text-amber-500 shrink-0' />
+                  <span>
+                    Tish xaritasi ko'rish rejimida. Tishlar holatini davolash faqat faol qabul sessiyasida amalga oshiriladi.
+                  </span>
+                </div>
+                {!isAdministrator && (
+                  <Button size='sm' variant='outline' className='h-8 text-xs shrink-0' onClick={handleStartSession} disabled={createTreatment.isPending}>
+                    <Play className='w-3.5 h-3.5 mr-1 fill-current' /> {createTreatment.isPending ? 'Boshlanmoqda...' : 'Qabulni Boshlash'}
+                  </Button>
+                )}
+              </div>
+            )}
             <Odontogram 
               patientId={patient.id} 
               toothRecords={toothRecords} 
+              readOnly={!activeTreatment}
               onSaveRecord={activeTreatment ? handleSaveToothRecord : undefined} 
             />
           </TabsContent>
