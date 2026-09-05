@@ -253,6 +253,7 @@ def restock(
     amount: Any,
     performed_by: Any = None,
     note: str = "",
+    payment_method: str = "bank_transfer",
 ) -> MaterialStockLog:
     """Increase ``material.quantity_in_stock`` by ``amount``."""
     delta = _to_decimal(amount, field="amount")
@@ -286,7 +287,9 @@ def restock(
             )
             
             shift = None
-            if isinstance(performed_by, User):
+            method_choice = payment_method if payment_method in PaymentMethod.values else PaymentMethod.BANK_TRANSFER
+
+            if method_choice == PaymentMethod.CASH and isinstance(performed_by, User):
                 shift = CashShift.objects.filter(
                     administrator=performed_by, status=CashShiftStatus.OPEN
                 ).first()
@@ -297,11 +300,11 @@ def restock(
                 description=f"{material.name} xaridi ({delta} {material.unit})",
                 date=timezone.now(),
                 recorded_by=performed_by if isinstance(performed_by, User) else None,
-                payment_method=PaymentMethod.CASH,
+                payment_method=method_choice,
                 cash_shift=shift,
             )
             
-            if shift:
+            if shift and method_choice == PaymentMethod.CASH:
                 shift.cash_expenses += total_cost
                 shift.save(update_fields=["cash_expenses", "updated_at"])
                 

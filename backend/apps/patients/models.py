@@ -64,6 +64,25 @@ class Patient(BaseModel):
         null=True,
         blank=True,
     )
+    birth_date = models.DateField(
+        _("Tug'ilgan sana"),
+        null=True,
+        blank=True,
+        help_text=_("Bemorning tug'ilgan sanasi (yosh va profilaktika uchun)."),
+    )
+    blood_group = models.CharField(
+        _("Qon guruhi"),
+        max_length=10,
+        blank=True,
+        default="",
+        help_text=_("Masalan: I+, II+, III-, IV+"),
+    )
+    allergies = models.TextField(
+        _("Allergiyalar"),
+        blank=True,
+        default="",
+        help_text=_("Dori, anesteziya yoki boshqa moddalarga allergik reaksiyalar."),
+    )
     address = models.CharField(
         _("Manzil"),
         max_length=500,
@@ -131,6 +150,16 @@ class Patient(BaseModel):
     def full_name(self) -> str:
         parts = [self.first_name, self.last_name]
         return " ".join(p for p in parts if p).strip()
+
+    @property
+    def age(self) -> int | None:
+        if not self.birth_date:
+            return None
+        from django.utils import timezone
+        today = timezone.localdate()
+        return today.year - self.birth_date.year - (
+            (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
+        )
 
     # ------------------------------------------------------------------
     # Validation / normalisation

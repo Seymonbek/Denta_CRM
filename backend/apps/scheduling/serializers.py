@@ -155,7 +155,11 @@ class AppointmentSerializer(serializers.ModelSerializer):
         
         is_past_day = (
             local_end.date() < local_today
-            and instance.status in [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]
+            and instance.status in [
+                AppointmentStatus.SCHEDULED,
+                AppointmentStatus.CONFIRMED,
+                AppointmentStatus.IN_PROGRESS,
+            ]
         )
         is_today_overdue = (
             local_end.date() == local_today
@@ -164,8 +168,13 @@ class AppointmentSerializer(serializers.ModelSerializer):
         )
         is_overdue = (
             instance.scheduled_end < now
-            and instance.status in [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED]
+            and instance.status in [
+                AppointmentStatus.SCHEDULED,
+                AppointmentStatus.CONFIRMED,
+                AppointmentStatus.IN_PROGRESS,
+            ]
         )
+        is_auto_settled = bool(instance.notes and "[Tizim:" in instance.notes)
 
         return {
             "id": str(instance.id),
@@ -192,6 +201,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "isOverdue": is_overdue,
             "isPastDay": is_past_day,
             "isTodayOverdue": is_today_overdue,
+            "isAutoSettled": is_auto_settled,
             "notes": instance.notes or "",
             "reminder1dSent": instance.reminder_1d_sent,
             "reminder2hSent": instance.reminder_2h_sent,
@@ -199,6 +209,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "createdAt": instance.created_at.isoformat() if instance.created_at else None,
             "updatedAt": instance.updated_at.isoformat() if instance.updated_at else None,
         }
+
 
     # ------------------------------------------------------------------
     # Create

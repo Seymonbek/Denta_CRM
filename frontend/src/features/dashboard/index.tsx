@@ -72,8 +72,8 @@ export function Dashboard() {
   // Support backend kpi payload nested structure
   const kpi = report?.kpi || {}
   const totalRevenue = kpi.revenue ?? report?.totalRevenue ?? report?.total_revenue ?? 0
-  const totalExpenses = kpi.expenses ?? 0
-  const netProfit = kpi.netProfit ?? 0
+  const totalExpenses = (report as any)?.expenses ?? kpi.expenses ?? 0
+  const netProfit = (report as any)?.netProfit ?? kpi.netProfit ?? 0
   const totalPatients = kpi.newPatients ?? report?.totalPatients ?? report?.total_patients ?? 0
   const newPatientsCount = kpi.newPatients ?? report?.newPatientsCount ?? report?.new_patients_count ?? 0
   const completedAppts = kpi.appointmentsCompleted ?? report?.completedAppointments ?? report?.completed_appointments ?? 0

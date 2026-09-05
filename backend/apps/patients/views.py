@@ -43,13 +43,21 @@ from .serializers import (
 )
 from .services import soft_delete_patient
 
-# FDI numbering used by the frontend odontogram — permanent adult teeth
-# only. Deciduous (51-85) are out of scope per PROJECT_BRIEF.
+# FDI numbering used by the frontend odontogram — permanent adult teeth (32)
+# and deciduous / primary child teeth (20).
 _FDI_TEETH: tuple[int, ...] = tuple(
     n
     for quadrant in (10, 20, 30, 40)
     for n in range(quadrant + 1, quadrant + 9)
 )  # → (11..18, 21..28, 31..38, 41..48) = 32 teeth
+
+_FDI_PRIMARY_TEETH: tuple[int, ...] = tuple(
+    n
+    for quadrant in (50, 60, 70, 80)
+    for n in range(quadrant + 1, quadrant + 6)
+)  # → (51..55, 61..65, 71..75, 81..85) = 20 teeth
+
+_ALL_FDI_TEETH: tuple[int, ...] = _FDI_TEETH + _FDI_PRIMARY_TEETH
 
 
 @extend_schema(tags=["patients"])
@@ -209,19 +217,37 @@ class PatientViewSet(viewsets.ModelViewSet):
     # /patients/{id}/odontogram/
     # ------------------------------------------------------------------
     @extend_schema(
-        summary="Patient odontogram snapshot",
+        summary="Patient odontogram snapshot (GET) or update/save tooth (POST)",
         responses={200: PatientOdontogramToothSerializer(many=True)},
     )
-    @action(detail=True, methods=["get"], url_path="odontogram")
+    @action(detail=True, methods=["get", "post"], url_path="odontogram")
     def odontogram(self, request: Request, pk: str | None = None) -> Response:
-        """Return one entry per FDI tooth with the most-recent status.
-
-        Prior to T13 (odontogram app) every tooth is reported as
-        ``healthy`` — the endpoint still returns the full 32-tooth
-        payload so the SVG component renders correctly.
-        """
+        """Return full tooth snapshot (GET) or record/update a tooth state (POST)."""
         patient: Patient = self.get_object()
-        teeth = _collect_odontogram(patient)
+        if request.method.lower() == "post":
+            from apps.odontogram.services import create_tooth_record
+            from apps.odontogram.serializers import ToothRecordSerializer
+            
+            tooth_number = request.data.get("toothNumber") or request.data.get("tooth_number")
+            procedure = request.data.get("procedure", "filling")
+            status_val = request.data.get("status", "treated")
+            notes = request.data.get("notes", "")
+            surfaces = request.data.get("surfaces", [])
+            treatment_id = request.data.get("treatmentId") or request.data.get("treatment")
+            
+            record = create_tooth_record(
+                patient=patient,
+                treatment=treatment_id,
+                tooth_number=tooth_number,
+                procedure=procedure,
+                status_value=status_val,
+                surfaces=surfaces,
+                notes=notes,
+            )
+            return Response(ToothRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+        dentition = request.query_params.get("dentition")
+        teeth = _collect_odontogram(patient, dentition=dentition)
         serializer = PatientOdontogramToothSerializer(teeth, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -586,9 +612,18 @@ def _collect_history_events(patient: Patient) -> list[dict[str, Any]]:
     return events
 
 
-def _collect_odontogram(patient: Patient) -> list[dict[str, Any]]:
-    """Build a 32-tooth snapshot; overlay tooth records if available."""
-    from django.apps import apps as django_apps  # local import
+def _collect_odontogram(patient: Patient, dentition: str | None = None) -> list[dict[str, Any]]:
+    """Build a snapshot for adult (32) and child (20) teeth; overlay tooth records."""
+    from django.apps import apps as django_apps
+    from django.db.models import Q
+
+    if dentition == "all":
+        target_teeth = _ALL_FDI_TEETH
+    elif dentition in ("primary", "child"):
+        target_teeth = _FDI_PRIMARY_TEETH
+    else:
+        # Default: 32 permanent adult teeth
+        target_teeth = _FDI_TEETH
 
     # Default arch — every tooth healthy.
     snapshot: dict[int, dict[str, Any]] = {
@@ -596,12 +631,12 @@ def _collect_odontogram(patient: Patient) -> list[dict[str, Any]]:
             "toothNumber": n,
             "status": "healthy",
             "procedure": None,
+            "surfaces": [],
             "notes": "",
         }
-        for n in _FDI_TEETH
+        for n in target_teeth
     }
 
-    # Overlay real records from the odontogram app once T13 lands.
     if django_apps.is_installed("apps.odontogram"):
         try:
             ToothRecord = django_apps.get_model("odontogram", "ToothRecord")  # noqa: N806
@@ -609,8 +644,11 @@ def _collect_odontogram(patient: Patient) -> list[dict[str, Any]]:
             ToothRecord = None  # noqa: N806
         if ToothRecord is not None:
             records = (
-                ToothRecord.objects.filter(treatment__patient=patient)
-                .order_by("tooth_number", "-treatment__created_at")
+                ToothRecord.objects.filter(
+                    Q(patient=patient) | Q(treatment__patient=patient),
+                    is_active=True,
+                )
+                .order_by("tooth_number", "-created_at")
             )
             seen: set[int] = set()
             for rec in records:
@@ -622,9 +660,12 @@ def _collect_odontogram(patient: Patient) -> list[dict[str, Any]]:
                     "toothNumber": tooth,
                     "status": getattr(rec, "status", "healthy") or "healthy",
                     "procedure": getattr(rec, "procedure", None),
+                    "surfaces": getattr(rec, "surfaces", []) or [],
                     "notes": getattr(rec, "notes", "") or "",
+                    "treatmentId": str(rec.treatment_id) if rec.treatment_id else None,
+                    "updatedAt": rec.updated_at.isoformat() if getattr(rec, "updated_at", None) else None,
                 }
-    return [snapshot[n] for n in _FDI_TEETH]
+    return [snapshot[n] for n in target_teeth]
 
 
 __all__ = ["PatientViewSet"]

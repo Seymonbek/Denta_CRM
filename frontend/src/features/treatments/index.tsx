@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react'
-import { Plus, Camera, FileText, CreditCard } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, Camera, FileText, CreditCard, Search, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { format } from 'date-fns'
 import { MobileImageUploader } from '@/components/ui/mobile-image-uploader'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   useTreatments,
   useCreateTreatment,
@@ -54,6 +55,17 @@ export function TreatmentsList() {
   const [photoType, setPhotoType] = useState<'before' | 'after' | 'xray'>('before')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
+  // Search, Filter & Pagination State
+  const [searchTerm, setSearchTerm] = useState('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('')
+  const [stageFilter, setStageFilter] = useState<string>('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, paymentStatusFilter, stageFilter])
+
   // Form State
   const [appointmentId, setAppointmentId] = useState('')
   const [patientId, setPatientId] = useState('')
@@ -66,12 +78,19 @@ export function TreatmentsList() {
   const [defaultPrice, setDefaultPrice] = useState<number>(0)
   const [discountReason, setDiscountReason] = useState('')
 
-  const { data: treatmentsData, isLoading } = useTreatments()
+  const { data: treatmentsData, isLoading } = useTreatments({
+    search: searchTerm.trim() || undefined,
+    payment_status: paymentStatusFilter && paymentStatusFilter !== 'all' ? paymentStatusFilter : undefined,
+    stage: stageFilter && stageFilter !== 'all' ? stageFilter : undefined,
+    page,
+    page_size: pageSize,
+  })
   const treatments = Array.isArray(treatmentsData?.results)
     ? treatmentsData.results
     : Array.isArray(treatmentsData)
     ? treatmentsData
     : []
+  const totalCount = treatmentsData?.count ?? treatments.length
 
   const { data: appointmentsData } = useAppointments()
   const appointments = Array.isArray(appointmentsData?.results)
@@ -177,6 +196,71 @@ export function TreatmentsList() {
           <Button onClick={() => setIsModalOpen(true)} className='shadow'>
             <Plus className='me-2 h-4 w-4' /> Yangi Davolash Yozuvi
           </Button>
+        </div>
+
+        {/* Search & Filters */}
+        <div className='mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 flex-wrap'>
+          <div className='flex items-center gap-2.5 flex-1 min-w-[240px] max-w-md'>
+            <div className='relative w-full'>
+              <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+              <Input
+                type='text'
+                placeholder='Bemor ismi, telefon yoki tashxis...'
+                className='pl-8 h-9 text-xs'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button
+                  type='button'
+                  onClick={() => setSearchTerm('')}
+                  className='absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground'
+                >
+                  <X className='h-3.5 w-3.5' />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className='flex items-center gap-2 flex-wrap'>
+            <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+              <SelectTrigger className='w-[160px] h-9 text-xs'>
+                <SelectValue placeholder="To'lov holati" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='all'>Barcha to'lovlar</SelectItem>
+                <SelectItem value='paid'>To'langan</SelectItem>
+                <SelectItem value='partial'>Qisman to'langan</SelectItem>
+                <SelectItem value='unpaid'>To'lanmagan</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={stageFilter} onValueChange={setStageFilter}>
+              <SelectTrigger className='w-[150px] h-9 text-xs'>
+                <SelectValue placeholder='Bosqich' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='all'>Barcha bosqichlar</SelectItem>
+                <SelectItem value='in_progress'>Jarayonda</SelectItem>
+                <SelectItem value='completed'>Yakunlangan</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {(searchTerm || (paymentStatusFilter && paymentStatusFilter !== 'all') || (stageFilter && stageFilter !== 'all')) && (
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-9 px-2 text-xs text-muted-foreground hover:text-foreground'
+                onClick={() => {
+                  setSearchTerm('')
+                  setPaymentStatusFilter('')
+                  setStageFilter('')
+                }}
+              >
+                <X className='me-1 h-3.5 w-3.5' /> Tozalash
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Treatments Table */}
@@ -322,6 +406,16 @@ export function TreatmentsList() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Table Pagination */}
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          className='mt-2'
+        />
 
         {/* Create Treatment Modal */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

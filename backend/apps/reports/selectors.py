@@ -214,7 +214,7 @@ def new_patients_count(start: datetime, end: datetime) -> int:
 def top_procedures(
     start: datetime, end: datetime, *, limit: int = 10,
 ) -> list[dict[str, Any]]:
-    """Most-performed procedures (by treatment count) in the range."""
+    """Most-performed procedures (by treatment count) with revenue."""
     from apps.treatments.models import Treatment
 
     rows = (
@@ -225,8 +225,13 @@ def top_procedures(
             procedure_type__isnull=False,
         )
         .values("procedure_type_id", "procedure_type__name")
-        .annotate(count=Count("id"))
-        .annotate(revenue=Coalesce(Sum("price"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
+        .annotate(count=Count("id", distinct=True))
+        .annotate(
+            revenue=Coalesce(
+                Sum("price"),
+                Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2)),
+            )
+        )
         .order_by("-count")[:limit]
     )
     return [
@@ -254,8 +259,13 @@ def department_breakdown(start: datetime, end: datetime) -> list[dict[str, Any]]
             created_at__lt=end,
         )
         .values("department_id", "department__name")
-        .annotate(treatments=Count("id"))
-        .annotate(revenue=Coalesce(Sum("price"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
+        .annotate(treatments=Count("id", distinct=True))
+        .annotate(
+            revenue=Coalesce(
+                Sum("price"),
+                Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2)),
+            )
+        )
         .order_by("-revenue")
     )
     return [
@@ -332,13 +342,13 @@ def dashboard_payload(period: Period) -> dict[str, Any]:
         "range": {"start": _iso(start), "end": _iso(end)},
         "kpi": {
             "revenue": str(revenue),
-            "expenses": str(expenses),
-            "netProfit": str(net_profit),
             "appointmentsTotal": counts["total"],
             "appointmentsCompleted": counts["completed"],
             "newPatients": new_patients_count(start, end),
             "lowStockCount": low_stock_count(),
         },
+        "expenses": str(expenses),
+        "netProfit": str(net_profit),
         "revenueByDay": revenue_by_day(start, end),
         "expensesByCategory": expense_by_category(start, end),
         "appointmentsByStatus": counts,

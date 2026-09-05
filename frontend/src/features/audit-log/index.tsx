@@ -1,5 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
+import { Search, X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   Table,
   TableBody,
@@ -63,13 +67,26 @@ function ChangesModal({ changes, open, onOpenChange }: { changes: Record<string,
 }
 
 export function AuditLogFeature() {
+  const [searchTerm, setSearchTerm] = useState('')
   const [actionFilter, setActionFilter] = useState<string>('')
   const [modelFilter, setModelFilter] = useState<string>('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, actionFilter, modelFilter])
   
   const { data, isLoading } = useAuditLogs({
+    search: searchTerm.trim() || undefined,
     action: actionFilter || undefined,
     model_name: modelFilter || undefined,
+    page,
+    page_size: pageSize,
   })
+
+  const logs = data?.results ?? []
+  const totalCount = data?.count ?? logs.length
   
   const [selectedChanges, setSelectedChanges] = useState<Record<string, { old: unknown; new: unknown }> | null>(null)
 
@@ -93,11 +110,31 @@ export function AuditLogFeature() {
   return (
     <>
       <Header>
-        <div className='flex items-center justify-between w-full'>
+        <div className='flex flex-col md:flex-row items-stretch md:items-center justify-between w-full gap-3'>
           <h2 className='text-2xl font-bold tracking-tight'>Tizim Jurnali (Audit Log)</h2>
-          <div className='flex items-center space-x-4'>
+          <div className='flex items-center space-x-2 flex-wrap'>
+            <div className="relative min-w-[180px] max-w-xs">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Foydalanuvchi, model..."
+                className="pl-8 h-9 text-xs"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
             <select
-              className="flex h-9 w-[150px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-9 w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value)}
             >
@@ -110,7 +147,7 @@ export function AuditLogFeature() {
             </select>
             
             <select
-              className="flex h-9 w-[150px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-9 w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               value={modelFilter}
               onChange={(e) => setModelFilter(e.target.value)}
             >
@@ -121,6 +158,21 @@ export function AuditLogFeature() {
               <option value="DoctorProfile">Shifokorlar</option>
               <option value="Material">Sklad (Material)</option>
             </select>
+
+            {(searchTerm || actionFilter || modelFilter) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setSearchTerm('')
+                  setActionFilter('')
+                  setModelFilter('')
+                }}
+              >
+                <X className="me-1 h-3.5 w-3.5" /> Tozalash
+              </Button>
+            )}
             
             <ProfileDropdown />
           </div>
@@ -180,6 +232,16 @@ export function AuditLogFeature() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Table Pagination */}
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          className='mt-2'
+        />
         
         <ChangesModal 
           changes={selectedChanges} 

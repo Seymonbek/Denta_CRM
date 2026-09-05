@@ -78,8 +78,12 @@ api_v1_patterns: list = [
     path("departments/", include("apps.departments.urls", namespace="departments")),
     path("doctors/", include("apps.doctors.urls", namespace="doctors")),
     path(
-        "payments/doctors/",
+        "doctors/",
         include((payments_doctor_commission_urls, "payments-doctor-commissions")),
+    ),
+    path(
+        "payments/doctors/",
+        include((payments_doctor_commission_urls, "payments-doctor-commissions-alias")),
     ),
     path(
         "procedure-types/",

@@ -3,6 +3,8 @@ import {
   type Patient,
   type PatientBalance,
   type ToothRecord,
+  type ToothProcedure,
+  type ToothStatus,
   type PaginatedResponse,
   type OdontogramHistoryRecord,
 } from '@/types/api'
@@ -28,6 +30,9 @@ export async function createPatientApi(data: {
   phoneNumber: string
   gender?: string
   address?: string
+  birthDate?: string | null
+  bloodGroup?: string
+  allergies?: string
   notes?: string
   telegramChatId?: number
 }): Promise<Patient> {
@@ -47,6 +52,21 @@ export async function getPatientHistoryApi(id: string): Promise<Record<string, u
 
 export async function getPatientOdontogramApi(id: string): Promise<ToothRecord[]> {
   const response = await apiClient.get<ToothRecord[]>(`patients/${id}/odontogram/`)
+  return response.data
+}
+
+export async function savePatientOdontogramApi(
+  id: string,
+  data: {
+    tooth_number: number
+    procedure: ToothProcedure
+    status: ToothStatus
+    surfaces?: string[]
+    notes?: string
+    treatment_id?: string
+  }
+): Promise<ToothRecord> {
+  const response = await apiClient.post<ToothRecord>(`patients/${id}/odontogram/`, data)
   return response.data
 }
 

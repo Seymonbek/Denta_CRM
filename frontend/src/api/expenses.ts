@@ -43,9 +43,13 @@ export async function getExpensesApi(params?: {
   category?: string
   payment_method?: string
   cash_shift?: string
+  search?: string
   page?: number
+  page_size?: number
 }): Promise<PaginatedResponse<Expense>> {
-  const response = await apiClient.get<PaginatedResponse<Expense>>('expenses/', { params })
+  const response = await apiClient.get<PaginatedResponse<Expense>>('expenses/', {
+    params: { page_size: 20, ...params },
+  })
   return response.data
 }
 

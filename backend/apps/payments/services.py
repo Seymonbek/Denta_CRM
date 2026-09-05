@@ -226,7 +226,8 @@ def record_payment(
         from apps.payments.models import CashShift
         active_shift = CashShift.objects.filter(administrator=received_by, status="open").first()
         if not active_shift:
-            raise ValidationError({"detail": ["Ushbu foydalanuvchi uchun ochiq kassa smenasi topilmadi. Avval smenani oching."]})
+            # Fallback: check if there is ANY active open cash shift in the clinic
+            active_shift = CashShift.objects.filter(status="open").first()
 
     payment = Payment.objects.create(
         treatment=treatment,

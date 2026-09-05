@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useParams, Link } from '@tanstack/react-router'
-import { ArrowLeft, Phone, MapPin, Calendar, ShieldAlert, Clock, Lock, Play } from 'lucide-react'
+import { ArrowLeft, Phone, MapPin, Calendar, ShieldAlert, Clock, Play } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   usePatient,
@@ -11,7 +11,8 @@ import {
 import { useAuthStore } from '@/stores/auth-store'
 import { useAppointments } from '@/api/hooks/use-appointments'
 import { useTreatments, useCreateTreatment } from '@/api/hooks/use-treatments'
-import { getTreatmentsApi, createTreatmentApi, createToothRecordApi } from '@/api/treatments'
+import { getTreatmentsApi } from '@/api/treatments'
+import { savePatientOdontogramApi } from '@/api/patients'
 import { ActiveTreatmentSession } from '@/components/treatment-session/active-treatment-session'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -29,13 +30,13 @@ import { toast } from 'sonner'
 export function PatientDetail() {
   const { id } = useParams({ from: '/_authenticated/patients/$id' })
   const queryClient = useQueryClient()
-  const user = useAuthStore((state) => state.user)
+  const user = useAuthStore((s) => s.user)
   const isAdministrator = user?.role === 'administrator'
 
   const isSavingToothRef = useRef(false)
   const isStartingSessionRef = useRef(false)
 
-  const { data: patient, isLoading: isPatientLoading } = usePatient(id)
+  const { data: patient, isLoading, error } = usePatient(id)
   const { data: history = [] } = usePatientHistory(id)
   const { data: toothRecords = [] } = usePatientOdontogram(id)
   const { data: balanceData } = usePatientBalance(id)
@@ -56,43 +57,48 @@ export function PatientDetail() {
     return false
   })
 
-  const { data: treatmentsData } = useTreatments({ patient: id })
-  const treatments = Array.isArray(treatmentsData?.results)
-    ? treatmentsData.results
-    : Array.isArray(treatmentsData)
-    ? treatmentsData
-    : []
-
-  const activeTreatment = treatments.find((t: any) => t.stage === 'in_progress')
+  const { data: activeTreatmentsData } = useTreatments({
+    patient: id,
+    stage: 'in_progress',
+  })
+  const activeTreatment = Array.isArray(activeTreatmentsData?.results)
+    ? activeTreatmentsData.results[0]
+    : Array.isArray(activeTreatmentsData)
+    ? activeTreatmentsData[0]
+    : undefined
 
   const createTreatment = useCreateTreatment()
 
-  if (isPatientLoading) {
+  if (isLoading) {
     return (
-      <div className='flex h-screen items-center justify-center'>
-        <p className='text-muted-foreground'>Bemor ma'lumotlari yuklanmoqda...</p>
+      <div className='flex h-[50vh] items-center justify-center'>
+        <div className='text-sm text-muted-foreground'>Yuklanmoqda...</div>
       </div>
     )
   }
 
-  if (!patient) {
+  if (error || !patient) {
     return (
-      <div className='flex h-screen flex-col items-center justify-center gap-4'>
-        <p className='text-muted-foreground'>Bemor topilmadi</p>
-        <Button asChild variant='outline'>
-          <Link to='/patients'>Bemorlar ro'yxatiga qaytish</Link>
+      <div className='flex h-[50vh] flex-col items-center justify-center gap-2'>
+        <div className='text-sm text-destructive'>Bemor topilmadi yoki xatolik yuz berdi.</div>
+        <Button asChild variant='outline' size='sm'>
+          <Link to='/patients'>Orqaga qaytish</Link>
         </Button>
       </div>
     )
   }
 
-  const firstName = patient.firstName || 'Bemor'
+  const firstName = patient.firstName || ''
   const lastName = patient.lastName || ''
   const phoneNumber = patient.phoneNumber || ''
-  const gender = patient.gender || 'unknown'
+  const gender = patient.gender
   const address = patient.address || ''
   const notes = patient.notes || ''
   const createdAtStr = patient.createdAt || ''
+  const birthDate = patient.birthDate
+  const age = patient.age
+  const bloodGroup = patient.bloodGroup
+  const allergies = patient.allergies
 
   const balanceDue = Number(balanceData?.balanceDue || 0)
   const totalBilled = Number(balanceData?.totalBilled || 0)
@@ -103,87 +109,33 @@ export function PatientDetail() {
     toothNumber: number
     procedure: ToothProcedure
     status: ToothStatus
+    surfaces?: string[]
     notes: string
   }) => {
     if (isSavingToothRef.current) return
     isSavingToothRef.current = true
     try {
-      // 1. Find or create an active treatment container for this patient
+      // If there's an active treatment, associate with it; otherwise save directly to patient baseline odontogram
       const treatmentsRes = await getTreatmentsApi({ patient: id, stage: 'in_progress' })
       const treatmentsList = (treatmentsRes as any)?.results || (Array.isArray(treatmentsRes) ? treatmentsRes : [])
-      let treatmentId = treatmentsList[0]?.id
+      const activeTreatmentId = treatmentsList[0]?.id
 
-      if (!treatmentId) {
-        // Find an active appointment or fallback to current doctor
-        const { getAppointmentsApi } = await import('@/api/appointments')
-        
-        let apptsRes = await getAppointmentsApi({ patient: id, status: 'in_progress' })
-        let appts = (apptsRes as any)?.results || (Array.isArray(apptsRes) ? apptsRes : [])
-        
-        if (appts.length === 0) {
-           apptsRes = await getAppointmentsApi({ patient: id, status: 'confirmed' })
-           appts = (apptsRes as any)?.results || (Array.isArray(apptsRes) ? apptsRes : [])
-        }
+      await savePatientOdontogramApi(id, {
+        tooth_number: record.toothNumber,
+        procedure: record.procedure,
+        status: record.status,
+        surfaces: record.surfaces,
+        notes: record.notes,
+        treatment_id: activeTreatmentId,
+      })
 
-        const activeFoundAppt = appts[0]
-
-        let doctorId = activeFoundAppt ? (typeof activeFoundAppt.doctor === 'object' ? activeFoundAppt.doctor.id : activeFoundAppt.doctor) : null
-        let departmentId = activeFoundAppt ? (typeof activeFoundAppt.department === 'object' ? activeFoundAppt.department.id : activeFoundAppt.department) : null
-        const procedureTypeId = activeFoundAppt?.procedureType ? (typeof activeFoundAppt.procedureType === 'object' ? activeFoundAppt.procedureType.id : activeFoundAppt.procedureType) : ''
-
-        if (!doctorId || !departmentId) {
-          const { getDoctorsApi } = await import('@/api/doctors')
-          const docs = await getDoctorsApi()
-          const docList = Array.isArray(docs) ? docs : (docs as any)?.results || []
-          const myDoc = docList.find((d: any) => d.user?.id === user?.id || d.id === (user as any)?.doctorId) || docList[0]
-          
-          if (myDoc) {
-            doctorId = doctorId || myDoc.id
-            const docDept = myDoc.departments?.[0] || myDoc.department
-            departmentId = departmentId || (typeof docDept === 'object' ? docDept?.id : docDept)
-          }
-
-          if (!departmentId) {
-            const { getDepartmentsApi } = await import('@/api/departments')
-            const depts = await getDepartmentsApi()
-            const deptList = Array.isArray(depts) ? depts : (depts as any)?.results || []
-            if (deptList[0]) departmentId = deptList[0].id
-          }
-        }
-
-        if (!doctorId || !departmentId) {
-          toast.error("Muolajani boshlash uchun shifokor va bo'lim topilmadi.")
-          return
-        }
-        
-        const newTreatment = await createTreatmentApi({
-          patient: id,
-          doctor: String(doctorId),
-          department: String(departmentId),
-          procedureType: String(procedureTypeId || ''),
-          appointment: activeFoundAppt ? String(activeFoundAppt.id) : undefined,
-          diagnosis: `Tish #${record.toothNumber} ko'rik va muolajasi`,
-          description: record.notes || "Tish xaritasiga yozuv kiritildi",
-          price: "0",
-        })
-        treatmentId = newTreatment.id
-      }
-
-      if (treatmentId) {
-        await createToothRecordApi(treatmentId, {
-          toothNumber: record.toothNumber,
-          procedure: record.procedure,
-          status: record.status,
-          notes: record.notes,
-        })
-      }
-
-      // 2. Refresh Odontogram and Treatments
+      // Refresh Odontogram and History
       await queryClient.invalidateQueries({ queryKey: ['patients', id, 'odontogram'] })
+      await queryClient.invalidateQueries({ queryKey: ['patients', id, 'odontogram-history'] })
       await queryClient.invalidateQueries({ queryKey: ['treatments'] })
       toast.success(`Tish #${record.toothNumber} saqlandi va yangilandi!`)
     } catch (_err: any) {
-      const errMsg = _err?.response?.data?.department?.[0] || _err?.response?.data?.detail || _err?.response?.data?.non_field_errors?.[0] || "Saqlashda xatolik yuz berdi."
+      const errMsg = _err?.response?.data?.detail || _err?.response?.data?.non_field_errors?.[0] || "Saqlashda xatolik yuz berdi."
       toast.error(errMsg)
     } finally {
       isSavingToothRef.current = false
@@ -292,18 +244,33 @@ export function PatientDetail() {
               {firstName[0] || 'B'}
             </div>
             <div>
-              <div className='flex items-center gap-3'>
+              <div className='flex items-center gap-3 flex-wrap'>
                 <h1 className='text-xl font-bold tracking-tight'>
                   {firstName} {lastName}
                 </h1>
                 <Badge variant='outline' className='text-xs uppercase'>
                   {gender === 'male' ? 'Erkak' : gender === 'female' ? 'Ayol' : 'Noma’lum'}
                 </Badge>
+                {bloodGroup && (
+                  <Badge variant='secondary' className='text-xs font-mono font-semibold'>
+                    {bloodGroup}
+                  </Badge>
+                )}
+                {age != null && (
+                  <Badge variant='outline' className='text-xs'>
+                    {age} yosh
+                  </Badge>
+                )}
               </div>
               <div className='mt-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground'>
                 {phoneNumber && (
                   <span className='flex items-center gap-1 font-mono'>
                     <Phone className='h-3.5 w-3.5 text-primary' /> {phoneNumber}
+                  </span>
+                )}
+                {birthDate && (
+                  <span className='flex items-center gap-1 font-mono'>
+                    <Calendar className='h-3.5 w-3.5 text-primary' /> Tug'ilgan: {birthDate}
                   </span>
                 )}
                 {address && (
@@ -317,12 +284,23 @@ export function PatientDetail() {
                   </span>
                 )}
               </div>
-              {notes && (
-                <div className='mt-3 flex items-start gap-2.5 bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-300 p-2.5 rounded-lg shadow-xs'>
+              {allergies && (
+                <div className='mt-3 flex items-start gap-2.5 bg-rose-500/15 border border-rose-500/40 text-rose-900 dark:text-rose-200 p-2.5 rounded-lg shadow-xs'>
                   <ShieldAlert className='h-5 w-5 text-rose-600 shrink-0 mt-0.5' />
                   <div>
                     <span className='font-bold text-xs uppercase tracking-wider block text-rose-700 dark:text-rose-400'>
-                      ⚠️ TIBBIY XAVFSIZLIK VA ALLERGIYA OGOHLANTIRISHI:
+                      ⚠️ DORI VOSITALARIGA ALLERGIYALARI MAVJUD:
+                    </span>
+                    <p className='text-xs mt-0.5 font-bold text-rose-800 dark:text-rose-300'>{allergies}</p>
+                  </div>
+                </div>
+              )}
+              {notes && (
+                <div className='mt-2 flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 p-2.5 rounded-lg shadow-xs'>
+                  <ShieldAlert className='h-5 w-5 text-amber-600 shrink-0 mt-0.5' />
+                  <div>
+                    <span className='font-bold text-xs uppercase tracking-wider block text-amber-700 dark:text-amber-400'>
+                      ℹ️ QO'SHIMCHA TIBBIY ESLATMA:
                     </span>
                     <p className='text-xs mt-0.5 font-medium'>{notes}</p>
                   </div>
@@ -389,33 +367,18 @@ export function PatientDetail() {
             <TabsContent value='session' className='pt-2'>
               <ActiveTreatmentSession 
                 treatmentId={activeTreatment.id} 
-                appointmentId={activeTreatment.appointmentId || activeTreatment.appointment || inProgressAppt?.id || ''} 
+                appointmentId={activeTreatment.appointmentId || activeTreatment.appointment || ''} 
                 patientId={id} 
               />
             </TabsContent>
           )}
 
           <TabsContent value='odontogram' className='pt-2'>
-            {!activeTreatment && (
-              <div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-muted/40 border rounded-xl text-xs text-muted-foreground mb-4'>
-                <div className='flex items-center gap-2'>
-                  <Lock className='w-4 h-4 text-amber-500 shrink-0' />
-                  <span>
-                    Tish xaritasi ko'rish rejimida. Tishlar holatini davolash faqat faol qabul sessiyasida amalga oshiriladi.
-                  </span>
-                </div>
-                {!isAdministrator && (
-                  <Button size='sm' variant='outline' className='h-8 text-xs shrink-0' onClick={handleStartSession} disabled={createTreatment.isPending}>
-                    <Play className='w-3.5 h-3.5 mr-1 fill-current' /> {createTreatment.isPending ? 'Boshlanmoqda...' : 'Qabulni Boshlash'}
-                  </Button>
-                )}
-              </div>
-            )}
             <Odontogram 
               patientId={patient.id} 
               toothRecords={toothRecords} 
-              readOnly={!activeTreatment}
-              onSaveRecord={activeTreatment ? handleSaveToothRecord : undefined} 
+              readOnly={false}
+              onSaveRecord={handleSaveToothRecord} 
             />
           </TabsContent>
 

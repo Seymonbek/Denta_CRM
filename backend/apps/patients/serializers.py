@@ -45,6 +45,22 @@ class PatientSerializer(serializers.ModelSerializer):
         allow_null=True,
         allow_blank=True,
     )
+    birth_date = serializers.DateField(
+        required=False,
+        allow_null=True,
+    )
+    blood_group = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=10,
+    )
+    allergies = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=2000,
+    )
     address = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -72,6 +88,9 @@ class PatientSerializer(serializers.ModelSerializer):
             "last_name",
             "phone_number",
             "gender",
+            "birth_date",
+            "blood_group",
+            "allergies",
             "address",
             "notes",
             "telegram_chat_id",
@@ -86,6 +105,8 @@ class PatientSerializer(serializers.ModelSerializer):
         "firstName": "first_name",
         "lastName": "last_name",
         "phoneNumber": "phone_number",
+        "birthDate": "birth_date",
+        "bloodGroup": "blood_group",
         "telegramChatId": "telegram_chat_id",
         "isActive": "is_active",
     }
@@ -109,6 +130,10 @@ class PatientSerializer(serializers.ModelSerializer):
             "lastName": instance.last_name,
             "phoneNumber": instance.phone_number,
             "gender": instance.gender or None,
+            "birthDate": instance.birth_date.isoformat() if instance.birth_date else None,
+            "age": instance.age,
+            "bloodGroup": instance.blood_group or "",
+            "allergies": instance.allergies or "",
             "address": instance.address or "",
             "notes": instance.notes or "",
             "telegramChatId": instance.telegram_chat_id,
@@ -135,6 +160,9 @@ class PatientSerializer(serializers.ModelSerializer):
                 last_name=validated_data["last_name"],
                 phone_number=validated_data["phone_number"],
                 gender=validated_data.get("gender"),
+                birth_date=validated_data.get("birth_date"),
+                blood_group=validated_data.get("blood_group", "") or "",
+                allergies=validated_data.get("allergies", "") or "",
                 address=validated_data.get("address", "") or "",
                 notes=validated_data.get("notes", "") or "",
                 telegram_chat_id=validated_data.get("telegram_chat_id"),
@@ -157,6 +185,11 @@ class PatientSerializer(serializers.ModelSerializer):
                 gender=validated_data["gender"]
                 if "gender" in validated_data
                 else ...,
+                birth_date=validated_data["birth_date"]
+                if "birth_date" in validated_data
+                else ...,
+                blood_group=validated_data.get("blood_group"),
+                allergies=validated_data.get("allergies"),
                 address=validated_data.get("address"),
                 notes=validated_data.get("notes"),
                 telegram_chat_id=validated_data["telegram_chat_id"]
@@ -199,17 +232,15 @@ class PatientHistoryEventSerializer(serializers.Serializer):
 
 
 class PatientOdontogramToothSerializer(serializers.Serializer):
-    """One tooth in the patient odontogram snapshot.
+    """One tooth in the patient odontogram snapshot (permanent 11-48 and deciduous 51-85)."""
 
-    Populated in full by T13 (odontogram app). We return the full FDI
-    map (11-18, 21-28, 31-38, 41-48) with default ``healthy`` status so
-    the frontend Odontogram component always renders a complete arch.
-    """
-
-    toothNumber = serializers.IntegerField(min_value=11, max_value=48)  # noqa: N815
+    toothNumber = serializers.IntegerField(min_value=11, max_value=85)  # noqa: N815
     status = serializers.CharField()
     procedure = serializers.CharField(allow_null=True, required=False)
+    surfaces = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     notes = serializers.CharField(allow_blank=True, required=False)
+    treatmentId = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    updatedAt = serializers.CharField(allow_blank=True, allow_null=True, required=False)
 
 
 class PatientOdontogramHistorySerializer(serializers.Serializer):
@@ -219,9 +250,10 @@ class PatientOdontogramHistorySerializer(serializers.Serializer):
     toothNumber = serializers.IntegerField(source="tooth_number")  # noqa: N815
     status = serializers.CharField()
     procedure = serializers.CharField(allow_null=True, required=False)
+    surfaces = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     notes = serializers.CharField(allow_blank=True)
     createdAt = serializers.DateTimeField(source="created_at")  # noqa: N815
-    treatmentId = serializers.UUIDField(source="treatment_id")  # noqa: N815
+    treatmentId = serializers.UUIDField(source="treatment_id", allow_null=True, required=False)  # noqa: N815
     doctorName = serializers.SerializerMethodField()  # noqa: N815
 
     def get_doctorName(self, obj: Any) -> str | None:

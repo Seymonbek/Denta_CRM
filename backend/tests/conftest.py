@@ -47,6 +47,8 @@ def pytest_configure(config):  # noqa: ARG001 — pytest hook signature
             "KEY_PREFIX": "dentacrm",
         }
     }
+    settings.CELERY_TASK_ALWAYS_EAGER = False
+
 
 
 @pytest.fixture(autouse=True)

@@ -17,7 +17,9 @@ export function useTreatments(params?: {
   payment_status?: string
   stage?: string
   approval_status?: string
+  search?: string
   page?: number
+  page_size?: number
 }) {
   return useQuery({
     queryKey: [...TREATMENTS_QUERY_KEY, params],

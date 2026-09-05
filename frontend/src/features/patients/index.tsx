@@ -63,6 +63,9 @@ export function PatientsList() {
   const [lastName, setLastName] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('+998')
   const [gender, setGender] = useState<string>('male')
+  const [birthDate, setBirthDate] = useState('')
+  const [bloodGroup, setBloodGroup] = useState('')
+  const [allergies, setAllergies] = useState('')
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
 
@@ -111,6 +114,9 @@ export function PatientsList() {
         lastName,
         phoneNumber,
         gender,
+        birthDate: birthDate || null,
+        bloodGroup: bloodGroup || undefined,
+        allergies: allergies || undefined,
         address,
         notes,
       })
@@ -120,6 +126,10 @@ export function PatientsList() {
       setFirstName('')
       setLastName('')
       setPhoneNumber('+998')
+      setGender('male')
+      setBirthDate('')
+      setBloodGroup('')
+      setAllergies('')
       setAddress('')
       setNotes('')
     } catch (err: any) {
@@ -533,6 +543,35 @@ export function PatientsList() {
                 </div>
               </div>
 
+              <div className='grid grid-cols-2 gap-3'>
+                <div className='space-y-1'>
+                  <label className='text-xs font-medium'>Tug'ilgan sana</label>
+                  <Input
+                    type='date'
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <label className='text-xs font-medium'>Qon guruhi</label>
+                  <Select value={bloodGroup} onValueChange={setBloodGroup}>
+                    <SelectTrigger>
+                      <SelectValue placeholder='Tanlang...' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='O(I) Rh+'>O(I) Rh+</SelectItem>
+                      <SelectItem value='O(I) Rh-'>O(I) Rh-</SelectItem>
+                      <SelectItem value='A(II) Rh+'>A(II) Rh+</SelectItem>
+                      <SelectItem value='A(II) Rh-'>A(II) Rh-</SelectItem>
+                      <SelectItem value='B(III) Rh+'>B(III) Rh+</SelectItem>
+                      <SelectItem value='B(III) Rh-'>B(III) Rh-</SelectItem>
+                      <SelectItem value='AB(IV) Rh+'>AB(IV) Rh+</SelectItem>
+                      <SelectItem value='AB(IV) Rh-'>AB(IV) Rh-</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className='space-y-1'>
                 <label className='text-xs font-medium'>Manzili</label>
                 <Input
@@ -542,21 +581,29 @@ export function PatientsList() {
                 />
               </div>
 
+              <div className='space-y-1'>
+                <label className='text-xs font-medium text-rose-600 dark:text-rose-400 font-semibold'>Allergiyalar (Dori vositalariga)</label>
+                <Input
+                  placeholder='Masalan: Lidokain, Penitsillin'
+                  value={allergies}
+                  onChange={(e) => setAllergies(e.target.value)}
+                />
+              </div>
+
               <div className='space-y-1.5'>
                 <label className='text-xs font-medium flex items-center gap-1.5'>
                   <span className='text-rose-600 font-bold'>⚠️</span>
-                  <span>Tibbiy Eslatma va Allergiyalar:</span>
+                  <span>Tibbiy Eslatma va Holatlar:</span>
                 </label>
                 
                 {/* Quick Medical Alert Chips */}
                 <div className='flex flex-wrap gap-1.5 mb-1.5'>
                   {[
-                    '⚠️ Lidokain allergiyasi',
-                    '⚠️ Penitsillin allergiyasi',
                     '🩸 Gipertoniya (Qon bosimi)',
                     '🍬 Qandli diabet',
                     '🤰 Homiladorlik',
-                    '⚡ Anesteziyaga sezuvchanlik'
+                    '⚡ Anesteziyaga sezuvchanlik',
+                    '❤️ Yurak-qon tomir kasalligi',
                   ].map((chip) => (
                     <button
                       key={chip}
@@ -580,7 +627,7 @@ export function PatientsList() {
                 </div>
 
                 <Textarea
-                  placeholder='Allergiyalar, surunkali kasalliklar yoki boshqa muhim tibbiy maʼlumotlar...'
+                  placeholder='Surunkali kasalliklar yoki boshqa muhim tibbiy maʼlumotlar...'
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}

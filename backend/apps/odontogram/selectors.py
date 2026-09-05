@@ -22,11 +22,13 @@ def records_for_patient(patient_id: Any) -> QuerySet[ToothRecord]:
 
     Used by the ``GET /patients/{id}/odontogram/`` endpoint on the
     patients app so the frontend can show the *current* odontogram
-    (latest record per tooth) merged from all treatments.
+    (latest record per tooth) merged from all treatments and examinations.
     """
+    from django.db.models import Q
+
     return (
         ToothRecord.objects.filter(
-            treatment__patient_id=patient_id,
+            Q(patient_id=patient_id) | Q(treatment__patient_id=patient_id),
             is_active=True,
         )
         .select_related("treatment")

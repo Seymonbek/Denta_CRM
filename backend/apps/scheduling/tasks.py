@@ -49,7 +49,7 @@ def _enqueue_appointment_reminder(appointment, *, kind: str) -> None:
 
     # Reminder recipients: patient (primary) + creating user (fallback).
     patient = appointment.patient
-    if patient and (patient.telegram_chat_id or True):
+    if patient and patient.telegram_chat_id:
         enqueue(
             notification_type=notif_type,
             message=_appointment_msg(appointment, kind),
@@ -196,31 +196,25 @@ def send_followup_invite(*, months: int = 6) -> int:
 
 @shared_task(name="apps.scheduling.tasks.auto_expire_overdue_appointments")
 def auto_expire_overdue_appointments() -> int:
-    """Automatically marks unclosed appointments from past days as NO_SHOW.
-    
-    Runs periodically (e.g. nightly or hourly) to ensure past-day appointments
-    do not remain pending in scheduled/confirmed states.
-    """
-    from apps.scheduling.models import Appointment, AppointmentStatus
+    """Automatically settles unclosed appointments from past days.
 
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    stale_qs = Appointment.objects.filter(
-        is_active=True,
-        scheduled_end__lt=today_start,
-        status__in=[AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED],
-    )
-    
-    updated_count = 0
-    for appt in stale_qs:
-        appt.status = AppointmentStatus.NO_SHOW
-        appt.notes = (appt.notes + " [Tizim tomonidan avtomatik: Kelmagan deb belgilandi]").strip()
-        appt.save(update_fields=["status", "notes", "updated_at"])
-        updated_count += 1
-        
-    if updated_count:
-        logger.info("scheduling: auto-expired %d past overdue appointments to NO_SHOW", updated_count)
-    return updated_count
+    Runs periodically (e.g. nightly or hourly):
+    - IN_PROGRESS past appointments -> COMPLETED
+    - SCHEDULED / CONFIRMED past appointments -> NO_SHOW
+    """
+    from apps.scheduling.services import settle_overdue_appointments
+
+    res = settle_overdue_appointments(hours_buffer=4)
+    total = res["total_settled"]
+    if total:
+        logger.info(
+            "scheduling: auto-settled %d past overdue appointments (%d completed, %d no-show)",
+            total,
+            res["completed_count"],
+            res["no_show_count"],
+        )
+    return total
+
 
 
 __all__ = [

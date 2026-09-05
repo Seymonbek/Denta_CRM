@@ -25,6 +25,7 @@ from django.db import IntegrityError, transaction
 from apps.treatments.models import Treatment
 
 from .models import (
+    FDI_ALL_NUMBERS,
     FDI_VALID_NUMBERS,
     ToothProcedure,
     ToothRecord,
@@ -44,16 +45,29 @@ def _clean_tooth_number(value: Any) -> int:
         raise ValidationError(
             {"tooth_number": ["Tish raqami butun son bo'lishi kerak."]}
         ) from exc
-    if number not in FDI_VALID_NUMBERS:
+    if number not in FDI_ALL_NUMBERS:
         raise ValidationError(
             {
                 "tooth_number": [
-                    "FDI raqamlari faqat 11–18, 21–28, 31–38, 41–48 "
+                    "FDI raqamlari 11–48 (doimiy) yoki 51–85 (sut tishlari) "
                     "oralig'ida bo'lishi kerak."
                 ]
             }
         )
     return number
+
+
+def _clean_surfaces(value: Any) -> list[str]:
+    if not value:
+        return []
+    valid = {"O", "M", "D", "V", "B", "L", "P"}
+    if isinstance(value, str):
+        parts = [p.strip().upper() for p in value.replace(",", " ").split() if p.strip()]
+    elif isinstance(value, (list, tuple)):
+        parts = [str(p).strip().upper() for p in value if p]
+    else:
+        parts = []
+    return [p for p in parts if p in valid]
 
 
 def _clean_choice(value: Any, *, choices: type, field: str, default: str | None = None) -> str:
@@ -76,7 +90,9 @@ def _clean_notes(value: Any) -> str:
     return text
 
 
-def _resolve_treatment(treatment: Any) -> Treatment:
+def _resolve_treatment(treatment: Any) -> Treatment | None:
+    if treatment in (None, ""):
+        return None
     if isinstance(treatment, Treatment):
         return treatment
     try:
@@ -91,22 +107,27 @@ def _resolve_treatment(treatment: Any) -> Treatment:
 @transaction.atomic
 def create_tooth_record(
     *,
-    treatment: Any,
     tooth_number: Any,
     procedure: Any,
+    treatment: Any = None,
+    patient: Any = None,
+    surfaces: Any = None,
     status_value: Any = None,
     notes: Any = "",
 ) -> ToothRecord:
-    """Create a new :class:`ToothRecord` for a treatment.
-
-    Raises :class:`ValidationError` on any invalid input.
-    """
+    """Create or update a :class:`ToothRecord` for a treatment or patient baseline."""
     treatment_obj = _resolve_treatment(treatment)
 
-    if not treatment_obj.is_active:
+    if treatment_obj and not treatment_obj.is_active:
         raise ValidationError(
             {"treatment": ["Yopilgan davolashga tish yozuvi qo'shib bo'lmaydi."]}
         )
+
+    resolved_patient_id = None
+    if treatment_obj:
+        resolved_patient_id = treatment_obj.patient_id
+    elif patient:
+        resolved_patient_id = getattr(patient, "pk", patient)
 
     number = _clean_tooth_number(tooth_number)
     procedure_value = _clean_choice(
@@ -119,13 +140,34 @@ def create_tooth_record(
         default=ToothStatus.PLANNED,
     )
     notes_clean = _clean_notes(notes)
+    surfaces_clean = _clean_surfaces(surfaces)
+
+    if treatment_obj:
+        if ToothRecord.objects.filter(
+            treatment=treatment_obj, tooth_number=number, is_active=True
+        ).exists():
+            raise ValidationError(
+                {"tooth_number": ["Ushbu tish uchun yozuv bu davolashda allaqachon mavjud."]}
+            )
+        return ToothRecord.objects.create(
+            treatment=treatment_obj,
+            patient_id=resolved_patient_id,
+            tooth_number=number,
+            procedure=procedure_value,
+            status=status_clean,
+            surfaces=surfaces_clean,
+            notes=notes_clean,
+            is_active=True,
+        )
 
     record, _ = ToothRecord.objects.update_or_create(
-        treatment=treatment_obj,
+        patient_id=resolved_patient_id,
         tooth_number=number,
+        treatment__isnull=True,
         defaults={
             "procedure": procedure_value,
             "status": status_clean,
+            "surfaces": surfaces_clean,
             "notes": notes_clean,
             "is_active": True,
         },

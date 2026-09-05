@@ -30,15 +30,26 @@ from apps.core.models import BaseModel
 # ---------------------------------------------------------------------------
 # FDI numbering constants
 # ---------------------------------------------------------------------------
-#: All valid FDI tooth numbers (permanent dentition, adult). 32 items.
+#: Permanent adult dentition (32 teeth).
 FDI_VALID_NUMBERS: tuple[int, ...] = tuple(
     number
     for quadrant in (10, 20, 30, 40)
     for number in range(quadrant + 1, quadrant + 9)
 )
+FDI_PERMANENT_NUMBERS: tuple[int, ...] = FDI_VALID_NUMBERS
 
-FDI_MIN = min(FDI_VALID_NUMBERS)  # 11
-FDI_MAX = max(FDI_VALID_NUMBERS)  # 48
+#: Deciduous / primary / child dentition (20 teeth).
+FDI_PRIMARY_NUMBERS: tuple[int, ...] = tuple(
+    number
+    for quadrant in (50, 60, 70, 80)
+    for number in range(quadrant + 1, quadrant + 6)
+)
+
+#: All valid FDI tooth numbers (permanent + primary). 52 items total.
+FDI_ALL_NUMBERS: tuple[int, ...] = FDI_VALID_NUMBERS + FDI_PRIMARY_NUMBERS
+
+FDI_MIN = min(FDI_ALL_NUMBERS)  # 11
+FDI_MAX = max(FDI_ALL_NUMBERS)  # 85
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +65,7 @@ class ToothProcedure(models.TextChoices):
     IMPLANT = "implant", _("Implant")
     CLEANING = "cleaning", _("Tozalash")
     WHITENING = "whitening", _("Oqartirish")
+    OTHER = "other", _("Boshqa")
 
 
 class ToothStatus(models.TextChoices):
@@ -69,17 +81,28 @@ class ToothStatus(models.TextChoices):
 # ToothRecord
 # ---------------------------------------------------------------------------
 class ToothRecord(BaseModel):
-    """A single tooth's record inside a treatment."""
+    """A single tooth's record inside a treatment or general patient baseline chart."""
 
     Procedure = ToothProcedure  # convenience re-exports
     Status = ToothStatus
 
+    patient = models.ForeignKey(
+        "patients.Patient",
+        on_delete=models.CASCADE,
+        related_name="tooth_records",
+        related_query_name="tooth_record",
+        verbose_name=_("Bemor"),
+        null=True,
+        blank=True,
+    )
     treatment = models.ForeignKey(
         "treatments.Treatment",
         on_delete=models.CASCADE,
         related_name="tooth_records",
         related_query_name="tooth_record",
         verbose_name=_("Davolash"),
+        null=True,
+        blank=True,
     )
     tooth_number = models.PositiveSmallIntegerField(
         _("Tish raqami (FDI)"),
@@ -88,9 +111,14 @@ class ToothRecord(BaseModel):
             MaxValueValidator(FDI_MAX),
         ],
         help_text=_(
-            "FDI tish raqamlari: 11–18, 21–28, 31–38, 41–48 "
-            "(jami 32 ta doimiy tish)."
+            "FDI tish raqamlari: Doimiy 11–48 (32 ta) yoki Sut tishlari 51–85 (20 ta)."
         ),
+    )
+    surfaces = models.JSONField(
+        _("Tish sirtlari"),
+        default=list,
+        blank=True,
+        help_text=_("Tishning shikastlangan/davolangan yuzalari: O, M, D, V, L."),
     )
     procedure = models.CharField(
         _("Muolaja"),
@@ -120,31 +148,34 @@ class ToothRecord(BaseModel):
         ordering = ["tooth_number", "-created_at"]
         constraints = [
             models.CheckConstraint(
-                # FDI: quadrants 1–4 × positions 1–8. Equivalent to the
-                # explicit ``tooth_number in FDI_VALID_NUMBERS`` list but
-                # expressible as a simple range/modulo predicate SQL
-                # can enforce cheaply.
                 check=(
                     models.Q(tooth_number__gte=11, tooth_number__lte=18)
                     | models.Q(tooth_number__gte=21, tooth_number__lte=28)
                     | models.Q(tooth_number__gte=31, tooth_number__lte=38)
                     | models.Q(tooth_number__gte=41, tooth_number__lte=48)
+                    | models.Q(tooth_number__gte=51, tooth_number__lte=55)
+                    | models.Q(tooth_number__gte=61, tooth_number__lte=65)
+                    | models.Q(tooth_number__gte=71, tooth_number__lte=75)
+                    | models.Q(tooth_number__gte=81, tooth_number__lte=85)
                 ),
                 name="odontogram_toothrecord_fdi_range",
             ),
-            models.UniqueConstraint(
-                fields=["treatment", "tooth_number"],
-                name="odontogram_toothrecord_unique_per_treatment",
-            ),
         ]
         indexes = [
+            models.Index(fields=["patient", "tooth_number"], name="tr_pat_tn_idx"),
             models.Index(fields=["treatment", "tooth_number"], name="tr_tr_tn_idx"),
             models.Index(fields=["status"], name="tr_status_idx"),
         ]
 
+    def save(self, *args, **kwargs):
+        # Auto-link patient from treatment if not provided
+        if not self.patient_id and self.treatment_id:
+            self.patient_id = self.treatment.patient_id
+        super().save(*args, **kwargs)
+
     def __str__(self) -> str:  # pragma: no cover - repr helper
         return (
-            f"ToothRecord(treatment={self.treatment_id}, "
+            f"ToothRecord(patient={self.patient_id}, "
             f"tooth={self.tooth_number}, {self.procedure}/{self.status})"
         )
 
@@ -153,7 +184,10 @@ __all__ = [
     "ToothRecord",
     "ToothProcedure",
     "ToothStatus",
+    "FDI_PERMANENT_NUMBERS",
+    "FDI_PRIMARY_NUMBERS",
     "FDI_VALID_NUMBERS",
+    "FDI_ALL_NUMBERS",
     "FDI_MIN",
     "FDI_MAX",
 ]

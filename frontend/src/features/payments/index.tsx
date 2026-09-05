@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
-import { Plus, Ban, CreditCard, AlertCircle, Printer } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, Ban, CreditCard, AlertCircle, Printer, Search, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { confirmSwal } from '@/lib/sweetalert'
 import { format } from 'date-fns'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   usePayments,
   useCreatePayment,
@@ -61,18 +62,34 @@ export function PaymentsList() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('')
 
+  // Search, Filter & Pagination State
+  const [searchTerm, setSearchTerm] = useState('')
+  const [methodFilter, setMethodFilter] = useState<string>('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, methodFilter])
+
   // Form State
   const [treatmentId, setTreatmentId] = useState('')
   const [patientId, setPatientId] = useState('')
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<PaymentMethod>('cash')
 
-  const { data: paymentsData, isLoading } = usePayments()
+  const { data: paymentsData, isLoading } = usePayments({
+    search: searchTerm.trim() || undefined,
+    method: methodFilter && methodFilter !== 'all' ? methodFilter : undefined,
+    page,
+    page_size: pageSize,
+  })
   const payments = Array.isArray(paymentsData?.results)
     ? paymentsData.results
     : Array.isArray(paymentsData)
     ? paymentsData
     : []
+  const totalCount = paymentsData?.count ?? payments.length
 
   const { data: treatmentsData } = useTreatments()
   const treatments = Array.isArray(treatmentsData?.results)
@@ -344,6 +361,61 @@ export function PaymentsList() {
 
           {/* Payments Table with Mobile Responsive Horizontal Scroll */}
           <TabsContent value='payments'>
+            {/* Search & Method Filter */}
+            <div className='mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 flex-wrap'>
+              <div className='flex items-center gap-2.5 flex-1 min-w-[240px] max-w-md'>
+                <div className='relative w-full'>
+                  <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+                  <Input
+                    type='text'
+                    placeholder='Bemor ismi, telefon yoki chek №...'
+                    className='pl-8 h-9 text-xs'
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  {searchTerm && (
+                    <button
+                      type='button'
+                      onClick={() => setSearchTerm('')}
+                      className='absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground'
+                    >
+                      <X className='h-3.5 w-3.5' />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className='flex items-center gap-2 flex-wrap'>
+                <Select value={methodFilter} onValueChange={setMethodFilter}>
+                  <SelectTrigger className='w-[170px] h-9 text-xs'>
+                    <SelectValue placeholder="To'lov usuli" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='all'>Barcha usullar</SelectItem>
+                    <SelectItem value='cash'>Naqd Pul</SelectItem>
+                    <SelectItem value='card'>Plastik Karta</SelectItem>
+                    <SelectItem value='payme'>Payme</SelectItem>
+                    <SelectItem value='click'>Click</SelectItem>
+                    <SelectItem value='bank_transfer'>Bank O'tkazmasi</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {(searchTerm || (methodFilter && methodFilter !== 'all')) && (
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='h-9 px-2 text-xs text-muted-foreground hover:text-foreground'
+                    onClick={() => {
+                      setSearchTerm('')
+                      setMethodFilter('')
+                    }}
+                  >
+                    <X className='me-1 h-3.5 w-3.5' /> Tozalash
+                  </Button>
+                )}
+              </div>
+            </div>
+
             <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
               <Table className='min-w-[750px] sm:min-w-full'>
                 <TableHeader>
@@ -461,6 +533,16 @@ export function PaymentsList() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Table Pagination */}
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              className='mt-2'
+            />
           </TabsContent>
 
           {/* Commissions Tab */}

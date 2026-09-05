@@ -16,7 +16,7 @@ Key rules enforced:
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from django.contrib.auth import get_user_model
@@ -148,6 +148,12 @@ def _check_doctor_working_hours(
     weekday = start_local.weekday()
     time_start = start_local.time()
     time_end = end_local.time()
+
+    has_any_schedule = WorkingHours.objects.filter(user=doctor.user).exists()
+    if not has_any_schedule:
+        raise ValidationError(
+            {"scheduled_start": ["Shifokorning ish jadvali belgilanmagan. Iltimos, avval shifokor uchun ish soatlarini kiriting."]}
+        )
 
     shifts = WorkingHours.objects.filter(
         user=doctor.user,
@@ -468,9 +474,55 @@ def mark_reminder_sent(
     return appointment
 
 
+@transaction.atomic
+def settle_overdue_appointments(*, hours_buffer: int = 4) -> dict[str, int]:
+    """Auto-settles past-due appointments that were left unclosed.
+
+    - IN_PROGRESS appointments older than cutoff -> COMPLETED with system note
+    - SCHEDULED / CONFIRMED appointments older than cutoff -> NO_SHOW with system note
+    """
+    now = timezone.now()
+    cutoff = now - timedelta(hours=hours_buffer)
+
+    qs = Appointment.objects.filter(
+        is_active=True,
+        scheduled_end__lte=cutoff,
+        status__in=[
+            AppointmentStatus.SCHEDULED,
+            AppointmentStatus.CONFIRMED,
+            AppointmentStatus.IN_PROGRESS,
+        ],
+    )
+
+    completed_count = 0
+    no_show_count = 0
+
+    for appt in qs:
+        if appt.status == AppointmentStatus.IN_PROGRESS:
+            appt.status = AppointmentStatus.COMPLETED
+            note = "[Tizim: Kun yakunida avtomatik yakunlandi]"
+            appt.notes = f"{appt.notes} {note}".strip() if appt.notes else note
+            appt.save(update_fields=["status", "notes", "updated_at"])
+            completed_count += 1
+        elif appt.status in (AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED):
+            appt.status = AppointmentStatus.NO_SHOW
+            note = "[Tizim: Belgilangan vaqtda kelmagan (No-show)]"
+            appt.notes = f"{appt.notes} {note}".strip() if appt.notes else note
+            appt.save(update_fields=["status", "notes", "updated_at"])
+            no_show_count += 1
+
+    return {
+        "completed_count": completed_count,
+        "no_show_count": no_show_count,
+        "total_settled": completed_count + no_show_count,
+    }
+
+
 __all__ = [
     "create_appointment",
     "update_appointment",
     "cancel_appointment",
     "mark_reminder_sent",
+    "settle_overdue_appointments",
 ]
+

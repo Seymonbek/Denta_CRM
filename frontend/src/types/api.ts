@@ -84,6 +84,10 @@ export interface Patient {
   phoneNumber: string
   gender: Gender | null
   address: string | null
+  birthDate?: string | null
+  age?: number | null
+  bloodGroup?: string
+  allergies?: string
   notes: string | null
   telegramChatId: number | null
   createdAt: string
@@ -159,10 +163,12 @@ export type ToothStatus = 'healthy' | 'treated' | 'missing' | 'planned'
 
 export interface ToothRecord {
   id: string
-  treatment: string
-  toothNumber: number // FDI: 11-48
+  treatment?: string | null
+  patient?: string | null
+  toothNumber: number // FDI: 11-48 (adult) & 51-85 (primary)
   procedure: ToothProcedure
   status: ToothStatus
+  surfaces?: string[]
   notes: string
   updatedAt?: string
 }
@@ -172,9 +178,10 @@ export interface OdontogramHistoryRecord {
   toothNumber: number
   procedure: ToothProcedure | null
   status: ToothStatus
+  surfaces?: string[]
   notes: string
   createdAt: string
-  treatmentId: string
+  treatmentId?: string | null
   doctorName: string | null
 }
 

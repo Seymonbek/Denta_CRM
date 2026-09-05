@@ -198,11 +198,17 @@ def _assign_departments(profile: DoctorProfile, department_ids: Iterable[str]) -
 @transaction.atomic
 def create_working_hours(
     *,
-    user: "User",
+    user: "User" | None = None,
+    doctor: Any = None,
     weekday: int,
     start_time: Any,
     end_time: Any,
 ) -> WorkingHours:
+    if user is None:
+        if doctor is not None:
+            user = doctor.user if hasattr(doctor, "user") else doctor
+        else:
+            raise ValidationError({"user": ["Foydalanuvchi ko'rsatilishi shart."]})
     weekday_int = _validate_weekday(weekday)
     start = _clean_time(start_time, field="start_time")
     end = _clean_time(end_time, field="end_time")
@@ -261,11 +267,17 @@ def delete_working_hours(entry: WorkingHours) -> None:
 @transaction.atomic
 def create_time_off(
     *,
-    user: "User",
+    user: "User" | None = None,
+    doctor: Any = None,
     date_start: Any,
     date_end: Any,
     reason: str = "",
 ) -> TimeOff:
+    if user is None:
+        if doctor is not None:
+            user = doctor.user if hasattr(doctor, "user") else doctor
+        else:
+            raise ValidationError({"user": ["Foydalanuvchi ko'rsatilishi shart."]})
     start = _clean_date(date_start, field="date_start")
     end = _clean_date(date_end, field="date_end")
     if start > end:
@@ -495,8 +507,8 @@ def compute_available_slots(
             slot_start = cursor
             slot_end = cursor + step
             
-            # Skip if the slot is in the past
-            if slot_start < now_local:
+            # Skip if the slot is in the past for today's date
+            if day == now_local.date() and slot_start < now_local:
                 cursor = cursor + step
                 continue
 

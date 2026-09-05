@@ -6,11 +6,12 @@ export async function getAppointmentsApi(params?: {
   patient?: string
   status?: string
   date?: string
+  search?: string
   page?: number
   page_size?: number
 }): Promise<PaginatedResponse<Appointment>> {
   const response = await apiClient.get<PaginatedResponse<Appointment>>('appointments/', {
-    params: { page_size: 100, ...params },
+    params: { page_size: 20, ...params },
   })
   return response.data
 }
@@ -41,3 +42,21 @@ export async function cancelAppointmentApi(id: string, reason?: string): Promise
   const response = await apiClient.post<Appointment>(`appointments/${id}/cancel/`, { reason })
   return response.data
 }
+
+export async function cleanupOverdueAppointmentsApi(): Promise<{
+  status: string
+  completedCount: number
+  noShowCount: number
+  totalSettled: number
+  message: string
+}> {
+  const response = await apiClient.post<{
+    status: string
+    completedCount: number
+    noShowCount: number
+    totalSettled: number
+    message: string
+  }>('appointments/cleanup-overdue/')
+  return response.data
+}
+

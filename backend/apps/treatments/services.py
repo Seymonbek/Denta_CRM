@@ -513,31 +513,27 @@ def update_treatment(
         # Material Usage Guard & Auto-Deduction
         if new_stage == TreatmentStage.COMPLETED and not treatment.material_usages.exists():
             proc_type = getattr(treatment, "procedure_type", None)
-            if not proc_type:
-                raise ValidationError(
-                    {"stage": ["Davolashni yakunlash uchun ishlatilingan materiallarni kiriting yoki muolaja turini tanlang."]}
-                )
-            
-            boms = ProcedureBOM.objects.filter(procedure_type=proc_type, is_active=True)
-            if boms.exists():
-                # Check stock
-                errors = []
-                for bom in boms:
-                    if bom.material.quantity_in_stock < bom.default_quantity:
-                        errors.append(f"{bom.material.name} (kerak: {bom.default_quantity}, bor: {bom.material.quantity_in_stock} {bom.material.unit})")
-                
-                if errors:
-                    raise ValidationError(
-                        {"stage": [f"Omborda yetarli material yo'q: {', '.join(errors)}"]}
-                    )
+            if proc_type:
+                boms = ProcedureBOM.objects.filter(procedure_type=proc_type, is_active=True)
+                if boms.exists():
+                    # Check stock
+                    errors = []
+                    for bom in boms:
+                        if bom.material.quantity_in_stock < bom.default_quantity:
+                            errors.append(f"{bom.material.name} (kerak: {bom.default_quantity}, bor: {bom.material.quantity_in_stock} {bom.material.unit})")
                     
-                # Deduct stock
-                for bom in boms:
-                    record_usage(
-                        treatment=treatment,
-                        material=bom.material,
-                        quantity_used=bom.default_quantity,
-                    )
+                    if errors:
+                        raise ValidationError(
+                            {"stage": [f"Omborda yetarli material yo'q: {', '.join(errors)}"]}
+                        )
+                        
+                    # Deduct stock
+                    for bom in boms:
+                        record_usage(
+                            treatment=treatment,
+                            material=bom.material,
+                            quantity_used=bom.default_quantity,
+                        )
             
         treatment.stage = new_stage
         update_fields.append("stage")

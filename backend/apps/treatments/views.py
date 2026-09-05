@@ -49,8 +49,15 @@ class TreatmentViewSet(viewsets.ModelViewSet):
 
     serializer_class = TreatmentSerializer
     permission_classes = [TreatmentPermission]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ["payment_status", "stage", "department", "approval_status"]
+    search_fields = [
+        "patient__first_name",
+        "patient__last_name",
+        "patient__phone_number",
+        "diagnosis",
+        "description",
+    ]
     ordering_fields = ["created_at", "price"]
     ordering = ["-created_at"]
     parser_classes = [JSONParser, MultiPartParser, FormParser]

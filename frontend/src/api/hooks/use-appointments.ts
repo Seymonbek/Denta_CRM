@@ -5,16 +5,20 @@ import {
   createAppointmentApi,
   updateAppointmentApi,
   cancelAppointmentApi,
+  cleanupOverdueAppointmentsApi,
 } from '../appointments'
 
 export const APPOINTMENTS_QUERY_KEY = ['appointments']
+
 
 export function useAppointments(params?: {
   doctor?: string
   patient?: string
   status?: string
   date?: string
+  search?: string
   page?: number
+  page_size?: number
 }) {
   return useQuery({
     queryKey: [...APPOINTMENTS_QUERY_KEY, params],
@@ -61,3 +65,14 @@ export function useCancelAppointment() {
     },
   })
 }
+
+export function useCleanupOverdueAppointments() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: cleanupOverdueAppointmentsApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: APPOINTMENTS_QUERY_KEY })
+    },
+  })
+}
+

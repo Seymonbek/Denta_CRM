@@ -13,9 +13,13 @@ export async function getTreatmentsApi(params?: {
   payment_status?: string
   stage?: string
   approval_status?: string
+  search?: string
   page?: number
+  page_size?: number
 }): Promise<PaginatedResponse<Treatment>> {
-  const response = await apiClient.get<PaginatedResponse<Treatment>>('treatments/', { params })
+  const response = await apiClient.get<PaginatedResponse<Treatment>>('treatments/', {
+    params: { page_size: 20, ...params },
+  })
   return response.data
 }
 

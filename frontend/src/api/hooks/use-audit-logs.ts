@@ -10,7 +10,9 @@ export function useAuditLogs(params?: {
   model_name?: string
   date_from?: string
   date_to?: string
+  search?: string
   page?: number
+  page_size?: number
 }) {
   return useQuery({
     queryKey: [...AUDIT_LOGS_QUERY_KEY, params],

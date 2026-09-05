@@ -18,10 +18,13 @@ from .services import create_tooth_record, update_tooth_record
 class ToothRecordSerializer(serializers.ModelSerializer):
     """Read + write serializer for :class:`ToothRecord`."""
 
-    tooth_number = serializers.IntegerField(min_value=11, max_value=48)
+    tooth_number = serializers.IntegerField(min_value=11, max_value=85)
     procedure = serializers.ChoiceField(choices=ToothProcedure.choices)
     status = serializers.ChoiceField(
         choices=ToothStatus.choices, required=False, default=ToothStatus.PLANNED
+    )
+    surfaces = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
     )
     notes = serializers.CharField(
         max_length=5000, allow_blank=True, required=False, default=""
@@ -31,9 +34,12 @@ class ToothRecordSerializer(serializers.ModelSerializer):
         model = ToothRecord
         fields = (
             "id",
+            "patient",
+            "treatment",
             "tooth_number",
             "procedure",
             "status",
+            "surfaces",
             "notes",
             "is_active",
         )
@@ -42,6 +48,8 @@ class ToothRecordSerializer(serializers.ModelSerializer):
     _CAMEL_TO_SNAKE = {
         "toothNumber": "tooth_number",
         "isActive": "is_active",
+        "treatmentId": "treatment",
+        "patientId": "patient",
     }
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
@@ -56,10 +64,12 @@ class ToothRecordSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: ToothRecord) -> dict[str, Any]:
         return {
             "id": str(instance.id),
-            "treatmentId": str(instance.treatment_id),
+            "patientId": str(instance.patient_id) if instance.patient_id else None,
+            "treatmentId": str(instance.treatment_id) if instance.treatment_id else None,
             "toothNumber": instance.tooth_number,
             "procedure": instance.procedure,
             "status": instance.status,
+            "surfaces": instance.surfaces or [],
             "notes": instance.notes or "",
             "isActive": instance.is_active,
             "createdAt": instance.created_at.isoformat()
@@ -72,17 +82,21 @@ class ToothRecordSerializer(serializers.ModelSerializer):
 
     # ---- create / update via services --------------------------------------
     def create(self, validated_data: dict[str, Any]) -> ToothRecord:
-        treatment = self.context.get("treatment")
-        if treatment is None:
+        treatment = self.context.get("treatment") or validated_data.get("treatment")
+        patient = self.context.get("patient") or validated_data.get("patient")
+        
+        if treatment is None and patient is None:
             raise serializers.ValidationError(
-                {"treatment": ["Kontekstda davolash topilmadi."]}
+                {"detail": ["Davolash yoki bemor ko'rsatilishi shart."]}
             )
         try:
             return create_tooth_record(
                 treatment=treatment,
+                patient=patient,
                 tooth_number=validated_data["tooth_number"],
                 procedure=validated_data["procedure"],
                 status_value=validated_data.get("status"),
+                surfaces=validated_data.get("surfaces", []),
                 notes=validated_data.get("notes", "") or "",
             )
         except DjangoValidationError as exc:
@@ -130,8 +144,10 @@ class OdontogramSerializer(serializers.Serializer):
     toothNumber = serializers.IntegerField()
     procedure = serializers.CharField(allow_blank=True)
     status = serializers.CharField()
+    surfaces = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     notes = serializers.CharField(allow_blank=True)
     treatmentId = serializers.CharField(allow_blank=True, allow_null=True)
+    patientId = serializers.CharField(allow_blank=True, allow_null=True)
     updatedAt = serializers.CharField(allow_blank=True, allow_null=True)
 
 

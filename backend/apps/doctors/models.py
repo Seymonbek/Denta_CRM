@@ -143,31 +143,53 @@ class DoctorProfile(BaseModel):
 # WorkingHours
 # ---------------------------------------------------------------------------
 class WorkingHoursQuerySet(models.QuerySet):
-    def filter(self, *args, **kwargs):
+    def _resolve_kwargs(self, kwargs):
         if "doctor" in kwargs:
             doc = kwargs.pop("doctor")
             kwargs["user"] = doc.user if hasattr(doc, "user") else doc
-        if "doctor__id" in kwargs:
-            doc_id = kwargs.pop("doctor__id")
-            kwargs["user__doctor_profile__id"] = doc_id
-        return super().filter(*args, **kwargs)
+        if "doctor_id" in kwargs and "user" not in kwargs and "user_id" not in kwargs:
+            doc_id = kwargs.pop("doctor_id")
+            from apps.doctors.models import DoctorProfile
+            u_id = DoctorProfile.objects.filter(pk=doc_id).values_list("user_id", flat=True).first()
+            if u_id:
+                kwargs["user_id"] = u_id
+
+    def _remap_filter_kwargs(self, kwargs):
+        new_kwargs = {}
+        for k, v in kwargs.items():
+            if k == "doctor":
+                new_kwargs["user"] = v.user if hasattr(v, "user") else v
+            elif k == "doctor_id":
+                new_kwargs["user__doctor_profile__id"] = v
+            elif k.startswith("doctor__user__"):
+                suffix = k[len("doctor__user__"):]
+                new_kwargs[f"user__{suffix}"] = v
+            elif k == "doctor__user":
+                new_kwargs["user"] = v
+            elif k.startswith("doctor__"):
+                suffix = k[len("doctor__"):]
+                new_kwargs[f"user__doctor_profile__{suffix}"] = v
+            else:
+                new_kwargs[k] = v
+        return new_kwargs
+
+    def filter(self, *args, **kwargs):
+        return super().filter(*args, **self._remap_filter_kwargs(kwargs))
+
+    def exclude(self, *args, **kwargs):
+        return super().exclude(*args, **self._remap_filter_kwargs(kwargs))
+
 
     def create(self, **kwargs):
-        if "doctor" in kwargs:
-            doc = kwargs.pop("doctor")
-            kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        self._resolve_kwargs(kwargs)
         return super().create(**kwargs)
 
     def update_or_create(self, defaults=None, **kwargs):
-        if "doctor" in kwargs:
-            doc = kwargs.pop("doctor")
-            kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        self._resolve_kwargs(kwargs)
         return super().update_or_create(defaults=defaults, **kwargs)
 
     def get_or_create(self, defaults=None, **kwargs):
-        if "doctor" in kwargs:
-            doc = kwargs.pop("doctor")
-            kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        self._resolve_kwargs(kwargs)
         return super().get_or_create(defaults=defaults, **kwargs)
 
 
@@ -194,6 +216,12 @@ class WorkingHours(BaseModel):
         if "doctor" in kwargs:
             doc = kwargs.pop("doctor")
             kwargs["user"] = doc.user if hasattr(doc, "user") else doc
+        if "doctor_id" in kwargs and "user" not in kwargs and "user_id" not in kwargs:
+            doc_id = kwargs.pop("doctor_id")
+            from apps.doctors.models import DoctorProfile
+            u_id = DoctorProfile.objects.filter(pk=doc_id).values_list("user_id", flat=True).first()
+            if u_id:
+                kwargs["user_id"] = u_id
         super().__init__(*args, **kwargs)
 
     @property
@@ -201,6 +229,12 @@ class WorkingHours(BaseModel):
         if hasattr(self.user, "doctor_profile"):
             return self.user.doctor_profile
         return getattr(self.user, "doctorprofile", None)
+
+    @property
+    def doctor_id(self):
+        doc = self.doctor
+        return doc.id if doc else None
+
 
     class Meta:
         verbose_name = _("Ish soati")
@@ -230,8 +264,26 @@ class WorkingHours(BaseModel):
 # ---------------------------------------------------------------------------
 # TimeOff
 # ---------------------------------------------------------------------------
+class TimeOffQuerySet(models.QuerySet):
+    def filter(self, *args, **kwargs):
+        if "doctor" in kwargs:
+            doc = kwargs.pop("doctor")
+            kwargs["user"] = getattr(doc, "user", doc)
+        return super().filter(*args, **kwargs)
+
+
+class TimeOffManager(models.Manager.from_queryset(TimeOffQuerySet)):
+    def create(self, **kwargs):
+        if "doctor" in kwargs and "user" not in kwargs:
+            doc = kwargs.pop("doctor")
+            kwargs["user"] = getattr(doc, "user", doc)
+        return super().create(**kwargs)
+
+
 class TimeOff(BaseModel):
     """One-off leave (inclusive date range) that suspends working hours."""
+
+    objects = TimeOffManager()
 
     user = models.ForeignKey(
         "accounts.User",
@@ -266,12 +318,27 @@ class TimeOff(BaseModel):
             ),
         ]
 
+    def __init__(self, *args, **kwargs):
+        doctor = kwargs.pop("doctor", None)
+        if doctor is not None and "user" not in kwargs:
+            kwargs["user"] = getattr(doctor, "user", doctor)
+        super().__init__(*args, **kwargs)
+
+    @property
+    def doctor(self):
+        return getattr(self.user, "doctor_profile", None)
+
+    @doctor.setter
+    def doctor(self, value):
+        self.user = getattr(value, "user", value)
+
     def __str__(self) -> str:  # pragma: no cover
         return f"TimeOff({self.user_id}) {self.date_start} → {self.date_end}"
 
     def covers(self, day) -> bool:
         """Return True if ``day`` (a ``date``) falls inside the leave range."""
         return self.date_start <= day <= self.date_end
+
 
 
 # ---------------------------------------------------------------------------

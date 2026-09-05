@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Package, AlertTriangle, Plus, RefreshCw, Search } from 'lucide-react'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   useMaterials,
   useCreateMaterial,
@@ -55,6 +56,14 @@ export function InventoryList() {
   const [minimumThreshold, setMinimumThreshold] = useState('')
   const [unitCost, setUnitCost] = useState('')
 
+  // Pagination State
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, stockFilter])
+
   const { data: materialsData = [], isLoading } = useMaterials()
   const materialsList: Material[] = Array.isArray(materialsData) ? materialsData : []
 
@@ -67,6 +76,9 @@ export function InventoryList() {
     if (stockFilter === 'low' && !isLow) return false
     return nameMatch
   })
+
+  const totalCount = filteredMaterials.length
+  const paginatedMaterials = filteredMaterials.slice((page - 1) * pageSize, page * pageSize)
 
   const createMaterialMutation = useCreateMaterial()
   const restockMutation = useRestockMaterial()
@@ -181,14 +193,14 @@ export function InventoryList() {
                     Materiallar yuklanmoqda...
                   </TableCell>
                 </TableRow>
-              ) : filteredMaterials.length === 0 ? (
+              ) : paginatedMaterials.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className='text-center py-8 text-xs text-muted-foreground'>
-                    Hech qanday material topilmadi.
+                    Materiallar topilmadi.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredMaterials.map((m: Material) => {
+                paginatedMaterials.map((m: Material) => {
                   const stockNum = parseFloat(String(m.quantityInStock || 0))
                   const thresholdNum = parseFloat(String(m.minimumThreshold || 0))
                   const costNum = m.unitCost
@@ -243,6 +255,16 @@ export function InventoryList() {
             </TableBody>
           </Table>
         </div>
+
+        {/* Table Pagination */}
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          className='mt-2'
+        />
           </TabsContent>
 
           <TabsContent value="boms" className="m-0">

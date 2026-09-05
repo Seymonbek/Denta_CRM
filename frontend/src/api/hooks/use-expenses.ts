@@ -59,11 +59,18 @@ export function useDeleteExpenseCategory() {
  })
 }
 
-export function useExpenses(params?: { category?: string; payment_method?: string; cash_shift?: string; page?: number }) {
- return useQuery({
-  queryKey: ['expenses', params],
-  queryFn: () => getExpensesApi(params),
- })
+export function useExpenses(params?: {
+  category?: string
+  payment_method?: string
+  cash_shift?: string
+  search?: string
+  page?: number
+  page_size?: number
+}) {
+  return useQuery({
+    queryKey: ['expenses', params],
+    queryFn: () => getExpensesApi(params),
+  })
 }
 
 export function useCreateExpense() {

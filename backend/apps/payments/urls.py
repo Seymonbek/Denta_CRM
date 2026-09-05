@@ -52,6 +52,11 @@ patient_balance_urlpatterns = [
 
 doctor_commission_urlpatterns = [
     path(
+        "<uuid:doctor_id>/commissions/summary/",
+        DoctorCommissionsSummaryView.as_view(),
+        name="doctor-commissions-summary",
+    ),
+    path(
         "<uuid:doctor_id>/commissions/",
         DoctorCommissionsView.as_view(),
         name="doctor-commissions",
@@ -65,11 +70,6 @@ doctor_commission_urlpatterns = [
         "<uuid:doctor_id>/pay_salary/",
         SalaryPaymentCreateView.as_view(),
         name="doctor-pay-salary",
-    ),
-    path(
-        "<uuid:doctor_id>/commissions/summary/",
-        DoctorCommissionsSummaryView.as_view(),
-        name="doctor-commissions-summary",
     ),
 ]
 

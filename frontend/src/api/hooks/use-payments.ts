@@ -14,7 +14,9 @@ export function usePayments(params?: {
   patient?: string
   treatment?: string
   method?: string
+  search?: string
   page?: number
+  page_size?: number
   cash_shift?: string
   refund_status?: string
 }) {

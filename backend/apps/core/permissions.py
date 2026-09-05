@@ -49,19 +49,11 @@ class _RolePermission(BasePermission):
 
 
 class IsBoshShifokor(_RolePermission):
-    """Grants access only to head-doctor (``bosh_shifokor``) accounts.
-    Allows GET, HEAD, OPTIONS for all authenticated users."""
+    """Grants access only to head-doctor (``bosh_shifokor``) accounts."""
 
     required_role = ROLE_BOSH_SHIFOKOR
     message = "Only the head doctor (bosh_shifokor) can perform this action."
 
-    def has_permission(self, request: Request, view: Any) -> bool:
-        user = getattr(request, "user", None)
-        if user is None or not getattr(user, "is_authenticated", False):
-            return False
-        if request.method in ("GET", "HEAD", "OPTIONS"):
-            return getattr(user, "role", None) in ALL_ROLES
-        return super().has_permission(request, view)
 
 
 class IsOwnerOrBoshShifokor(BasePermission):

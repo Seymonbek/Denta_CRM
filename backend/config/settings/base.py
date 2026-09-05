@@ -696,6 +696,11 @@ CELERY_BEAT_SCHEDULE: dict[str, Any] = {
         # Every 30 minutes — belt-and-braces alongside the post_save signal.
         "schedule": crontab(minute="*/30"),
     },
+    "auto-expire-overdue-appointments": {
+        "task": "apps.scheduling.tasks.auto_expire_overdue_appointments",
+        # Run hourly at :15 to settle stale appointments.
+        "schedule": crontab(minute="15"),
+    },
 }
 
 

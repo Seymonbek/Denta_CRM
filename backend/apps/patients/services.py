@@ -101,6 +101,9 @@ def create_patient(
     last_name: str,
     phone_number: str,
     gender: str | None = None,
+    birth_date: Any = None,
+    blood_group: str = "",
+    allergies: str = "",
     address: str = "",
     notes: str = "",
     telegram_chat_id: Any = None,
@@ -124,6 +127,9 @@ def create_patient(
             last_name=last,
             phone_number=phone,
             gender=_clean_gender(gender),
+            birth_date=birth_date or None,
+            blood_group=_clean_optional_text(blood_group, max_length=10),
+            allergies=_clean_optional_text(allergies, max_length=2000),
             address=_clean_optional_text(address, max_length=500),
             notes=_clean_optional_text(notes, max_length=5000),
             telegram_chat_id=_clean_telegram_chat_id(telegram_chat_id),
@@ -147,6 +153,9 @@ def update_patient(
     last_name: str | None = None,
     phone_number: str | None = None,
     gender: Any = ...,  # sentinel: allow explicit ``None`` to clear
+    birth_date: Any = ...,
+    blood_group: str | None = None,
+    allergies: str | None = None,
     address: str | None = None,
     notes: str | None = None,
     telegram_chat_id: Any = ...,
@@ -176,6 +185,18 @@ def update_patient(
     if gender is not ...:
         patient.gender = _clean_gender(gender)
         update_fields.append("gender")
+
+    if birth_date is not ...:
+        patient.birth_date = birth_date or None
+        update_fields.append("birth_date")
+
+    if blood_group is not None:
+        patient.blood_group = _clean_optional_text(blood_group, max_length=10)
+        update_fields.append("blood_group")
+
+    if allergies is not None:
+        patient.allergies = _clean_optional_text(allergies, max_length=2000)
+        update_fields.append("allergies")
 
     if address is not None:
         patient.address = _clean_optional_text(address, max_length=500)

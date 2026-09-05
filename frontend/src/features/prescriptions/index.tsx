@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { FileText, Send, Plus, Search, Eye, Pill, Calendar, User, Printer } from 'lucide-react'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   usePrescriptionTemplates,
   useCreatePrescriptionTemplate,
@@ -53,6 +54,12 @@ export function PrescriptionsList() {
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, statusFilter])
 
   // Template Form State
   const [templateName, setTemplateName] = useState('')
@@ -114,6 +121,9 @@ export function PrescriptionsList() {
         : !sentAt
     return matchesSearch && matchesStatus
   })
+
+  const totalCount = filteredPrescriptions.length
+  const paginatedPrescriptions = filteredPrescriptions.slice((page - 1) * pageSize, page * pageSize)
 
   const treatmentSelectOptions = treatments.map((t: Treatment) => {
     const pName = t.patientName || `Bemor #${t.patient || ''}`
@@ -262,14 +272,14 @@ export function PrescriptionsList() {
                         Retseptlar yuklanmoqda...
                       </TableCell>
                     </TableRow>
-                  ) : filteredPrescriptions.length === 0 ? (
+                  ) : paginatedPrescriptions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className='text-center py-8 text-xs text-muted-foreground'>
-                        Hech qanday retsept topilmadi.
+                      <TableCell colSpan={6} className='text-center py-8 text-xs text-muted-foreground'>
+                        Retseptlar topilmadi.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredPrescriptions.map((p: any) => {
+                    paginatedPrescriptions.map((p: any) => {
                       const sentAt = p?.sentToTelegramAt || p?.sent_to_telegram_at || p?.sent_at || ''
                       const treatmentDisplay = p?.treatment && typeof p.treatment === 'object'
                         ? (p.treatment.patient_name || p.treatment.diagnosis || 'Davolash yozuvi')
@@ -332,6 +342,16 @@ export function PrescriptionsList() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Table Pagination */}
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              className='mt-2'
+            />
           </TabsContent>
 
           {/* Templates List */}

@@ -5,11 +5,15 @@ export async function getPaymentsApi(params?: {
   patient?: string
   treatment?: string
   method?: string
+  search?: string
   page?: number
+  page_size?: number
   cash_shift?: string
   refund_status?: string
 }): Promise<PaginatedResponse<Payment>> {
-  const response = await apiClient.get<PaginatedResponse<Payment>>('payments/', { params })
+  const response = await apiClient.get<PaginatedResponse<Payment>>('payments/', {
+    params: { page_size: 20, ...params },
+  })
   return response.data
 }
 

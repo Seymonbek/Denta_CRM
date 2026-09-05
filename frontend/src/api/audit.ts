@@ -23,8 +23,12 @@ export async function getAuditLogsApi(params?: {
   model_name?: string
   date_from?: string
   date_to?: string
+  search?: string
   page?: number
+  page_size?: number
 }): Promise<PaginatedResponse<AuditLog>> {
-  const response = await apiClient.get<PaginatedResponse<AuditLog>>('audit-logs/', { params })
+  const response = await apiClient.get<PaginatedResponse<AuditLog>>('audit-logs/', {
+    params: { page_size: 20, ...params },
+  })
   return response.data
 }

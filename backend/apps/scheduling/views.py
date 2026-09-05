@@ -51,7 +51,14 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
     serializer_class = AppointmentSerializer
     permission_classes = [AppointmentPermission]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    search_fields = [
+        "patient__first_name",
+        "patient__last_name",
+        "patient__phone_number",
+        "doctor__user__first_name",
+        "doctor__user__last_name",
+    ]
     ordering_fields = ["scheduled_start", "created_at"]
     ordering = ["-created_at"]
     lookup_field = "pk"
@@ -192,5 +199,38 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    # ------------------------------------------------------------------
+    # /appointments/cleanup-overdue/
+    # ------------------------------------------------------------------
+    @extend_schema(
+        summary="Clean up overdue past-day appointments (in_progress -> completed, scheduled -> no_show).",
+        responses={200: dict},
+    )
+    @action(detail=False, methods=["post"], url_path="cleanup-overdue")
+    def cleanup_overdue(self, request: Request) -> Response:
+        role = getattr(request.user, "role", None)
+        if role not in (ROLE_BOSH_SHIFOKOR, ROLE_ADMINISTRATOR):
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied(
+                "Faqat bosh shifokor yoki administrator eskirgan navbatlarni tartibga solishi mumkin."
+            )
+
+        from .services import settle_overdue_appointments
+
+        result = settle_overdue_appointments(hours_buffer=4)
+        total = result["total_settled"]
+        return Response(
+            {
+                "status": "success",
+                "completedCount": result["completed_count"],
+                "noShowCount": result["no_show_count"],
+                "totalSettled": total,
+                "message": f"{total} ta muddati o'tgan navbat muvaffaqiyatli tartibga keltirildi.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
 
 __all__ = ["AppointmentViewSet", "AppointmentStatus"]
+

@@ -136,6 +136,152 @@ class DoctorProfileViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     # ------------------------------------------------------------------
+    # /working-hours/ and /working-hours/{wid}/
+    # ------------------------------------------------------------------
+    @extend_schema(
+        methods=["GET"],
+        summary="List working hours for this doctor",
+        responses={200: WorkingHoursSerializer(many=True)},
+    )
+    @extend_schema(
+        methods=["POST"],
+        summary="Create working hours for this doctor",
+        request=WorkingHoursSerializer,
+        responses={201: WorkingHoursSerializer},
+    )
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="working-hours",
+        permission_classes=[WorkingHoursPermission],
+    )
+    def working_hours(self, request: Request, pk: str | None = None) -> Response:
+        doctor = self.get_object()
+        if request.method == "GET":
+            records = working_hours_for(doctor)
+            serializer = WorkingHoursSerializer(records, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # POST: only head doctor or the doctor themself
+        if request.user.role != ROLE_BOSH_SHIFOKOR and request.user != doctor.user:
+            return Response(
+                {"detail": "Faqat o'zingizning ish jadvalingizni o'zgartirishingiz mumkin."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from .services import create_working_hours
+        try:
+            record = create_working_hours(
+                doctor=doctor,
+                weekday=request.data.get("weekday"),
+                start_time=request.data.get("start_time") or request.data.get("startTime"),
+                end_time=request.data.get("end_time") or request.data.get("endTime"),
+            )
+            serializer = WorkingHoursSerializer(record)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as exc:
+            from rest_framework.exceptions import ValidationError as DRFValidationError
+            if isinstance(exc, DRFValidationError):
+                raise
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            if isinstance(exc, DjangoValidationError):
+                raise DRFValidationError(exc.message_dict if hasattr(exc, "message_dict") else exc.messages)
+            raise DRFValidationError({"detail": str(exc)})
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"working-hours/(?P<wid>[^/.]+)",
+        permission_classes=[WorkingHoursPermission],
+    )
+    def delete_working_hour(self, request: Request, pk: str | None = None, wid: str | None = None) -> Response:
+        doctor = self.get_object()
+        if request.user.role != ROLE_BOSH_SHIFOKOR and request.user != doctor.user:
+            return Response(
+                {"detail": "Faqat o'zingizning ish jadvalingizni o'chirishingiz mumkin."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            wh = WorkingHours.objects.get(pk=wid, user=doctor.user)
+        except WorkingHours.DoesNotExist:
+            raise NotFound("Ish vaqti topilmadi.")
+        delete_working_hours(wh)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # /time-off/ and /time-off/{tid}/
+    # ------------------------------------------------------------------
+    @extend_schema(
+        methods=["GET"],
+        summary="List time off entries for this doctor",
+        responses={200: TimeOffSerializer(many=True)},
+    )
+    @extend_schema(
+        methods=["POST"],
+        summary="Create time off for this doctor",
+        request=TimeOffSerializer,
+        responses={201: TimeOffSerializer},
+    )
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="time-off",
+        permission_classes=[TimeOffPermission],
+    )
+    def time_off(self, request: Request, pk: str | None = None) -> Response:
+        doctor = self.get_object()
+        if request.method == "GET":
+            records = time_off_for(doctor)
+            serializer = TimeOffSerializer(records, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # POST: only head doctor or the doctor themself
+        if request.user.role != ROLE_BOSH_SHIFOKOR and request.user != doctor.user:
+            return Response(
+                {"detail": "Faqat o'zingizning ta'tilingizni belgilashingiz mumkin."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from .services import create_time_off
+        try:
+            entry = create_time_off(
+                doctor=doctor,
+                date_start=request.data.get("date_start") or request.data.get("dateStart"),
+                date_end=request.data.get("date_end") or request.data.get("dateEnd"),
+                reason=request.data.get("reason", ""),
+            )
+            serializer = TimeOffSerializer(entry)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as exc:
+            from rest_framework.exceptions import ValidationError as DRFValidationError
+            if isinstance(exc, DRFValidationError):
+                raise
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            if isinstance(exc, DjangoValidationError):
+                raise DRFValidationError(exc.message_dict if hasattr(exc, "message_dict") else exc.messages)
+            raise DRFValidationError({"detail": str(exc)})
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"time-off/(?P<tid>[^/.]+)",
+        permission_classes=[TimeOffPermission],
+    )
+    def delete_time_off_entry(self, request: Request, pk: str | None = None, tid: str | None = None) -> Response:
+        doctor = self.get_object()
+        if request.user.role != ROLE_BOSH_SHIFOKOR and request.user != doctor.user:
+            return Response(
+                {"detail": "Faqat o'zingizning ta'tilingizni o'chirishingiz mumkin."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            to = TimeOff.objects.get(pk=tid, user=doctor.user)
+        except TimeOff.DoesNotExist:
+            raise NotFound("Ta'til topilmadi.")
+        delete_time_off(to)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
     # /available-slots/?date=YYYY-MM-DD
     # ------------------------------------------------------------------
     @extend_schema(

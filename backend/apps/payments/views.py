@@ -124,8 +124,9 @@ class PaymentViewSet(IdempotencyMixin, viewsets.ModelViewSet):
 
     serializer_class = PaymentSerializer
     permission_classes = [PaymentPermission]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ["method", "treatment", "patient", "cash_shift", "refund_status"]
+    search_fields = ["patient__first_name", "patient__last_name", "patient__phone_number", "id"]
     ordering_fields = ["created_at", "amount"]
     ordering = ["-created_at"]
     http_method_names = ["get", "post", "delete", "head", "options"]
@@ -413,12 +414,21 @@ class CashShiftViewSet(viewsets.ModelViewSet):
         shift.approved_by = request.user
         
         # Calculate real-time totals to match the frontend view exactly
+        # Calculate real-time totals to match all payment methods
+        from decimal import Decimal
         from django.db.models import Sum
-        cash = shift.payments.filter(method="cash").aggregate(total=Sum("amount"))["total"] or 0
-        card = shift.payments.filter(method="card").aggregate(total=Sum("amount"))["total"] or 0
+
+        cash = shift.payments.filter(method="cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        plain_card = shift.payments.filter(method="card").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        payme = shift.payments.filter(method="payme").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        click = shift.payments.filter(method="click").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        bank = shift.payments.filter(method="bank_transfer").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
         
-        cash_exp = shift.expenses.filter(payment_method="cash").aggregate(total=Sum("amount"))["total"] or 0
-        card_exp = shift.expenses.filter(payment_method="card").aggregate(total=Sum("amount"))["total"] or 0
+        # All non-cash collections combined into cashless/card total
+        card = plain_card + payme + click + bank
+        
+        cash_exp = shift.expenses.filter(payment_method="cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        card_exp = shift.expenses.exclude(payment_method="cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
         
         shift.cash_collected = cash
         shift.card_collected = card
@@ -437,10 +447,14 @@ class CashShiftViewSet(viewsets.ModelViewSet):
             f"🕒 Yopilgan vaqt: {shift.closed_at.strftime('%d.%m.%Y %H:%M')}\n\n"
             f"💰 <b>Boshlang'ich qoldiq:</b> <code>{shift.start_balance:,.0f} so'm</code>\n"
             f"💵 Naqd tushum: <code>{shift.cash_collected:,.0f} so'm</code>\n"
-            f"💳 Karta tushum: <code>{shift.card_collected:,.0f} so'm</code>\n"
+            f"💳 Naqdsiz jami tushum: <code>{shift.card_collected:,.0f} so'm</code>\n"
+            f"   • Karta/Terminal: <code>{plain_card:,.0f} so'm</code>\n"
+            f"   • Payme: <code>{payme:,.0f} so'm</code>\n"
+            f"   • Click: <code>{click:,.0f} so'm</code>\n"
+            f"   • Bank o'tkazmasi: <code>{bank:,.0f} so'm</code>\n\n"
             f"📉 Naqd xarajat: <code>{shift.cash_expenses:,.0f} so'm</code>\n"
-            f"📉 Karta xarajat: <code>{shift.card_expenses:,.0f} so'm</code>\n\n"
-            f"💶 <b>Kutilyotgan Yakuniy Naqd Pul:</b> <code>{expected_cash:,.0f} so'm</code>"
+            f"📉 Naqdsiz xarajat: <code>{shift.card_expenses:,.0f} so'm</code>\n\n"
+            f"💶 <b>Kutilayotgan Yakuniy Naqd Pul:</b> <code>{expected_cash:,.0f} so'm</code>"
         )
         notify_bosh_shifokor(text)
         
@@ -462,8 +476,11 @@ class ExpenseCategoryViewSet(viewsets.ModelViewSet):
 class ExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = __import__("apps.payments.serializers", fromlist=["ExpenseSerializer"]).ExpenseSerializer
     queryset = __import__("apps.payments.models", fromlist=["Expense"]).Expense.objects.select_related("category", "recorded_by").all()
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["category", "payment_method", "cash_shift"]
+    search_fields = ["description", "category__name", "recorded_by__first_name", "recorded_by__last_name"]
+    ordering_fields = ["date", "created_at", "amount"]
+    ordering = ["-created_at"]
     
     def get_permissions(self):
         from apps.core.permissions import IsBoshShifokor

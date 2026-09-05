@@ -1001,3 +1001,49 @@ def test_patient_history_now_includes_appointments(
     # envelope; iterate over ``.results``.
     types = {e["type"] for e in body["results"]}
     assert "appointment" in types
+
+
+def test_cleanup_overdue_settles_past_appointments(
+    api_client, administrator, patient, doctor, department
+):
+    from datetime import timedelta
+    from apps.scheduling.models import Appointment, AppointmentStatus
+
+    now = timezone.now()
+    past_start = now - timedelta(days=2, hours=2)
+    past_end = now - timedelta(days=2, hours=1)
+
+    # 1 in_progress
+    appt1 = Appointment.objects.create(
+        patient=patient,
+        doctor=doctor,
+        department=department,
+        scheduled_start=past_start,
+        scheduled_end=past_end,
+        status=AppointmentStatus.IN_PROGRESS,
+    )
+    # 1 scheduled
+    appt2 = Appointment.objects.create(
+        patient=patient,
+        doctor=doctor,
+        department=department,
+        scheduled_start=past_start - timedelta(hours=3),
+        scheduled_end=past_end - timedelta(hours=3),
+        status=AppointmentStatus.SCHEDULED,
+    )
+
+    _auth(api_client, administrator)
+    response = api_client.post("/api/v1/appointments/cleanup-overdue/")
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["completedCount"] >= 1
+    assert data["noShowCount"] >= 1
+
+    appt1.refresh_from_db()
+    appt2.refresh_from_db()
+    assert appt1.status == AppointmentStatus.COMPLETED
+    assert "[Tizim:" in appt1.notes
+    assert appt2.status == AppointmentStatus.NO_SHOW
+    assert "[Tizim:" in appt2.notes
+
