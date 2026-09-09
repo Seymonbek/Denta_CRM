@@ -6,6 +6,8 @@ import {
   getDoctorCommissionsApi,
   getDoctorCommissionSummaryApi,
   approveRefundApi,
+  getDebtorsApi,
+  getPaymentStatsApi,
 } from '../payments'
 
 export const PAYMENTS_QUERY_KEY = ['payments']
@@ -40,6 +42,8 @@ export function useCreatePayment() {
       queryClient.invalidateQueries({ queryKey: PAYMENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['treatments'] })
       queryClient.invalidateQueries({ queryKey: ['patients'] })
+      queryClient.invalidateQueries({ queryKey: ['debtors'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-stats'] })
     },
   })
 }
@@ -52,6 +56,8 @@ export function useVoidPayment() {
       queryClient.invalidateQueries({ queryKey: PAYMENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['treatments'] })
       queryClient.invalidateQueries({ queryKey: ['patients'] })
+      queryClient.invalidateQueries({ queryKey: ['debtors'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-stats'] })
     },
   })
 }
@@ -63,6 +69,8 @@ export function useApproveRefund() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PAYMENTS_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: ['treatments'] })
+      queryClient.invalidateQueries({ queryKey: ['debtors'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-stats'] })
     },
   })
 }
@@ -82,3 +90,18 @@ export function useDoctorCommissionSummary(doctorId: string, params?: { dateFrom
     enabled: Boolean(doctorId),
   })
 }
+
+export function useDebtors(search?: string) {
+  return useQuery({
+    queryKey: ['debtors', search],
+    queryFn: () => getDebtorsApi(search),
+  })
+}
+
+export function usePaymentStats() {
+  return useQuery({
+    queryKey: ['payment-stats'],
+    queryFn: () => getPaymentStatsApi(),
+  })
+}
+

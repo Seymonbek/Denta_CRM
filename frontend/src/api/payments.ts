@@ -62,3 +62,16 @@ export async function getDoctorCommissionSummaryApi(
   )
   return response.data
 }
+
+export async function getDebtorsApi(search?: string): Promise<import('@/types/api').DebtorsResponse> {
+  const response = await apiClient.get<import('@/types/api').DebtorsResponse>('payments/debtors/', {
+    params: search?.trim() ? { search: search.trim() } : undefined,
+  })
+  return response.data
+}
+
+export async function getPaymentStatsApi(): Promise<import('@/types/api').PaymentStats> {
+  const response = await apiClient.get<import('@/types/api').PaymentStats>('payments/stats/')
+  return response.data
+}
+

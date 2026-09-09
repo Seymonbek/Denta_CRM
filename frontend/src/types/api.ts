@@ -275,6 +275,51 @@ export interface PatientBalance {
   balanceDue: string
 }
 
+export interface DebtorUnpaidTreatment {
+  id: string
+  diagnosis: string
+  procedureName: string
+  doctorName: string
+  price: string | number
+  paidAmount: string | number
+  debtAmount: string | number
+  paymentStatus: PaymentStatus
+  stage: TreatmentStage
+  createdAt: string | null
+}
+
+export interface DebtorPatient {
+  patientId: string
+  firstName: string
+  lastName: string
+  fullName: string
+  phone: string
+  totalBilled: string | number
+  totalPaid: string | number
+  debtAmount: string | number
+  unpaidTreatmentsCount: number
+  unpaidTreatments: DebtorUnpaidTreatment[]
+  createdAt: string | null
+}
+
+export interface DebtorsResponse {
+  totalDebtorsCount: number
+  totalDebtAmount: string | number
+  debtors: DebtorPatient[]
+}
+
+export interface PaymentStats {
+  todayTotal: string | number
+  todayCash: string | number
+  todayCard: string | number
+  todayClick: string | number
+  todayPayme: string | number
+  todayBankTransfer: string | number
+  todayCount: number
+  allTimeTotal: string | number
+  allTimeCount: number
+}
+
 export interface LeaderboardEntry {
   doctor: DoctorProfile
   totalPoints: number

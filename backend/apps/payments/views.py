@@ -49,6 +49,8 @@ from .selectors import (
     patient_balance,
     payments_qs,
     doctor_balances,
+    debtors_data,
+    payment_stats,
 )
 from .serializers import (
     CommissionRecordSerializer,
@@ -582,6 +584,31 @@ class SalaryPaymentCreateView(APIView, IdempotencyMixin):
             return Response({"error": e.detail if hasattr(e, 'detail') else str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class DebtorsListView(APIView):
+    """
+    GET /api/v1/payments/debtors/
+    Returns all patients with outstanding debt (balance > 0) and their unpaid treatments.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        search = request.query_params.get("search")
+        data = debtors_data(search=search)
+        return Response(data)
+
+
+class PaymentStatsView(APIView):
+    """
+    GET /api/v1/payments/stats/
+    Returns today's and all-time collections by payment method.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        data = payment_stats()
+        return Response(data)
+
+
 __all__ = [
     "PaymentViewSet",
     "PatientBalanceView",
@@ -593,4 +620,6 @@ __all__ = [
     "ExpenseViewSet",
     "DoctorBalancesView",
     "SalaryPaymentCreateView",
+    "DebtorsListView",
+    "PaymentStatsView",
 ]

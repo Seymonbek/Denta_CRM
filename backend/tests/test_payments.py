@@ -579,3 +579,37 @@ class TestRecalculation:
         assert CommissionRecord.objects.filter(treatment=treatment).count() == 1
         second = CommissionRecord.objects.get(pk=first.pk)
         assert second.amount == Decimal("250000.00")
+
+
+# ===========================================================================
+# 8. Debtors & Payment Stats endpoints
+# ===========================================================================
+class TestDebtorsAndStats:
+    def test_debtors_endpoint_returns_debtors(
+        self, api_client, head_doctor, treatment, patient,
+    ):
+        _auth(api_client, head_doctor)
+        # Treatment price is 500000, 0 paid yet -> patient is a debtor
+        response = api_client.get("/api/v1/payments/debtors/")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["totalDebtorsCount"] >= 1
+        assert response.data["totalDebtAmount"] >= Decimal("500000.00")
+        debtor_ids = [d["patientId"] for d in response.data["debtors"]]
+        assert str(patient.pk) in debtor_ids
+
+    def test_payment_stats_endpoint(
+        self, api_client, head_doctor, treatment, administrator,
+    ):
+        record_payment(
+            treatment=treatment,
+            amount=Decimal("200000.00"),
+            method=PaymentMethod.CASH,
+            received_by=administrator,
+        )
+        _auth(api_client, head_doctor)
+        response = api_client.get("/api/v1/payments/stats/")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["todayTotal"] >= Decimal("200000.00")
+        assert response.data["todayCash"] >= Decimal("200000.00")
+        assert response.data["todayCount"] >= 1
+

@@ -164,6 +164,112 @@ def doctor_balances() -> list[dict[str, Any]]:
     return results
 
 
+def debtors_data(search: str | None = None) -> dict[str, Any]:
+    """Return all patients with outstanding balance (debt), along with unpaid treatments and aggregate metrics."""
+    from apps.patients.models import Patient
+    from apps.treatments.models import Treatment
+    from django.db.models import Q
+
+    patients_qs = Patient.objects.filter(is_active=True)
+    if search:
+        search = search.strip()
+        patients_qs = patients_qs.filter(
+            Q(first_name__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(phone_number__icontains=search)
+        )
+
+    debtors = []
+    total_debt_all = Decimal("0.00")
+
+    for patient in patients_qs:
+        bal_info = patient_balance(patient.pk)
+        balance = bal_info["balance"]
+        if balance > Decimal("0.00"):
+            total_debt_all += balance
+
+            unpaid_treatments_qs = (
+                Treatment.objects.filter(
+                    patient_id=patient.pk,
+                    is_active=True,
+                    payment_status__in=["unpaid", "partial"],
+                )
+                .select_related("doctor__user", "procedure_type")
+                .order_by("-created_at")
+            )
+
+            treatments_list = []
+            for tr in unpaid_treatments_qs:
+                tr_paid = total_paid_for_treatment(tr.pk)
+                tr_debt = tr.price - tr_paid
+                treatments_list.append({
+                    "id": str(tr.pk),
+                    "diagnosis": tr.diagnosis or "",
+                    "procedureName": tr.procedure_type.name if tr.procedure_type else "",
+                    "doctorName": tr.doctor.user.get_full_name() if tr.doctor and tr.doctor.user else "Shifokor",
+                    "price": tr.price,
+                    "paidAmount": tr_paid,
+                    "debtAmount": tr_debt if tr_debt > 0 else Decimal("0.00"),
+                    "paymentStatus": tr.payment_status,
+                    "stage": tr.stage,
+                    "createdAt": tr.created_at.isoformat() if tr.created_at else None,
+                })
+
+            debtors.append({
+                "patientId": str(patient.pk),
+                "firstName": patient.first_name,
+                "lastName": patient.last_name,
+                "fullName": f"{patient.first_name} {patient.last_name}".strip(),
+                "phone": patient.phone_number,
+                "totalBilled": bal_info["totalBilled"],
+                "totalPaid": bal_info["totalPaid"],
+                "debtAmount": balance,
+                "unpaidTreatmentsCount": len(treatments_list),
+                "unpaidTreatments": treatments_list,
+                "createdAt": patient.created_at.isoformat() if patient.created_at else None,
+            })
+
+    debtors.sort(key=lambda x: x["debtAmount"], reverse=True)
+
+    return {
+        "totalDebtorsCount": len(debtors),
+        "totalDebtAmount": total_debt_all,
+        "debtors": debtors,
+    }
+
+
+def payment_stats() -> dict[str, Any]:
+    """Return high-level payment summary metrics: today's collection, all-time, by payment method."""
+    from django.utils import timezone
+    from datetime import datetime, time
+
+    now = timezone.now()
+    today_start = datetime.combine(now.date(), time.min)
+    if timezone.is_naive(today_start):
+        today_start = timezone.make_aware(today_start, timezone.get_current_timezone())
+
+    today_qs = Payment.objects.filter(is_active=True, created_at__gte=today_start)
+    all_qs = Payment.objects.filter(is_active=True)
+
+    def _method_sum(qs, method):
+        return qs.filter(method=method).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+
+    today_total = today_qs.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    all_total = all_qs.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+
+    return {
+        "todayTotal": today_total,
+        "todayCash": _method_sum(today_qs, "cash"),
+        "todayCard": _method_sum(today_qs, "card"),
+        "todayClick": _method_sum(today_qs, "click"),
+        "todayPayme": _method_sum(today_qs, "payme"),
+        "todayBankTransfer": _method_sum(today_qs, "bank_transfer"),
+        "todayCount": today_qs.count(),
+        "allTimeTotal": all_total,
+        "allTimeCount": all_qs.count(),
+    }
+
+
 __all__ = [
     "payments_qs",
     "payments_for_patient",
@@ -174,4 +280,7 @@ __all__ = [
     "commissions_for_doctor",
     "commission_summary_for_doctor",
     "doctor_balances",
+    "debtors_data",
+    "payment_stats",
 ]
+

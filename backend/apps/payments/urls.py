@@ -22,6 +22,8 @@ from .views import (
     ExpenseViewSet,
     DoctorBalancesView,
     SalaryPaymentCreateView,
+    DebtorsListView,
+    PaymentStatsView,
 )
 
 app_name = "payments"
@@ -34,6 +36,16 @@ def _payment_router() -> DefaultRouter:
 
 
 payment_urlpatterns = [
+    path(
+        "debtors/",
+        DebtorsListView.as_view(),
+        name="payment-debtors",
+    ),
+    path(
+        "stats/",
+        PaymentStatsView.as_view(),
+        name="payment-stats",
+    ),
     path(
         "<uuid:pk>/receipt/",
         PaymentReceiptPDFView.as_view(),

@@ -1,5 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Ban, CreditCard, AlertCircle, Printer, Search, X } from 'lucide-react'
+import {
+  Plus,
+  Ban,
+  CreditCard,
+  AlertCircle,
+  Printer,
+  Search,
+  X,
+  Download,
+  Wallet,
+  TrendingUp,
+  Users,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { confirmSwal } from '@/lib/sweetalert'
 import { format } from 'date-fns'
@@ -10,6 +25,8 @@ import {
   useVoidPayment,
   useDoctorCommissions,
   useDoctorCommissionSummary,
+  useDebtors,
+  usePaymentStats,
 } from '@/api/hooks/use-payments'
 import { useShiftStore } from '@/stores/shift-store'
 import { useTreatments } from '@/api/hooks/use-treatments'
@@ -119,6 +136,61 @@ export function PaymentsList() {
   const commissions = Array.isArray(commissionsData) ? commissionsData : []
 
   const { data: summary } = useDoctorCommissionSummary(selectedDoctorId)
+
+  // Debtors & Kassa Stats State
+  const [debtorSearch, setDebtorSearch] = useState('')
+  const [expandedDebtorId, setExpandedDebtorId] = useState<string | null>(null)
+  const { data: debtorsData, isLoading: isDebtorsLoading } = useDebtors(debtorSearch)
+  const { data: statsData } = usePaymentStats()
+
+  const handleQuickPayDebtor = (debtor: any) => {
+    const firstUnpaid = debtor.unpaidTreatments && debtor.unpaidTreatments.length > 0 ? debtor.unpaidTreatments[0] : null
+    const tId = firstUnpaid ? firstUnpaid.id : ''
+    const amt = firstUnpaid ? String(firstUnpaid.debtAmount || firstUnpaid.price) : String(debtor.debtAmount || '')
+    openPaymentModal(tId, debtor.patientId, amt)
+  }
+
+  const exportPaymentsToCSV = () => {
+    if (payments.length === 0) {
+      toast.error("Eksport qilish uchun to'lovlar mavjud emas")
+      return
+    }
+
+    const headers = ["ID", "Bemor", "Telefon", "Shifokor", "Muolaja", "Summa (so'm)", "To'lov usuli", "Sana"]
+    const rows = payments.map((p: any) => {
+      const patientName = String(p?.patientName || (p?.patient && typeof p.patient === 'object' ? `${p.patient.firstName || ''} ${p.patient.lastName || ''}`.trim() : '') || 'Bemor')
+      const phone = String(p?.patient?.phoneNumber || p?.patientPhone || '-')
+      const doctorName = String(p?.doctorName || '-')
+      const procName = String(p?.procedureName || '-')
+      const amount = String(p?.amount || 0)
+      const pMethod = String(p?.method || 'cash')
+      const method = (METHOD_LABELS as Record<string, string>)[pMethod] || pMethod
+      const date = p?.createdAt ? format(new Date(p.createdAt), 'dd.MM.yyyy HH:mm') : '-'
+
+      return [
+        p.id,
+        `"${patientName}"`,
+        `"${phone}"`,
+        `"${doctorName}"`,
+        `"${procName}"`,
+        amount,
+        `"${method}"`,
+        `"${date}"`
+      ]
+    })
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `denta_tolovlar_${format(new Date(), 'yyyy_MM_dd')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success("To'lovlar CSV formatida yuklab olindi")
+  }
 
   const createPaymentMutation = useCreatePayment()
   const printRef = useRef<HTMLDivElement>(null)
@@ -301,61 +373,112 @@ export function PaymentsList() {
           </Button>
         </div>
 
-        {/* Pending Payments Section */}
-        {pendingTreatments.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-sm font-bold text-amber-600 dark:text-amber-500 mb-3 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" /> To'lov Kutilmoqda ({pendingTreatments.length})
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {pendingTreatments.map((pt: any) => {
-                const pName = String(pt.patientName || (pt.patient && typeof pt.patient === 'object' ? `${pt.patient.firstName || ''} ${pt.patient.lastName || ''}`.trim() : pt.patient) || 'Bemor')
-                const doctorName = String(pt.doctorName || (pt.doctor && typeof pt.doctor === 'object' ? pt.doctor.user?.firstName : '') || 'Shifokor')
-                const pId = String(pt.patient && typeof pt.patient === 'object' ? pt.patient.id : pt.patient || '')
-                
-                return (
-                  <div key={String(pt.id)} className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 shadow-sm flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <Link
-                            to='/patients/$id'
-                            params={{ id: pId }}
-                            className="font-bold text-sm text-primary hover:underline"
-                          >
-                            {pName}
-                        </Link>
-                        <Badge variant="outline" className="text-[10px] bg-white dark:bg-black/20 text-amber-600 border-amber-200">
-                          To'lanmagan
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground space-y-1 mb-3">
-                        <p>Shifokor: Dr. {doctorName}</p>
-                        <p>Muolaja: {pt.procedureTypeName || 'Umumiy'}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-amber-200/50 dark:border-amber-900/50 pt-3">
-                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                        {Number(pt.price || 0).toLocaleString()} so'm
-                      </span>
-                      <Button 
-                        size="sm" 
-                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                        onClick={() => openPaymentModal(String(pt.id), pId, String(pt.price || ''))}
-                        disabled={!isShiftOpen}
-                      >
-                        <CreditCard className="w-3.5 h-3.5 mr-1" /> To'lash
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
+        {/* Cash Shift Status Banner */}
+        {!isShiftOpen ? (
+          <div className='mb-4 p-3.5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs'>
+            <div className='flex items-center gap-2.5 text-amber-800 dark:text-amber-300'>
+              <AlertCircle className='h-4 w-4 shrink-0 text-amber-600' />
+              <span>
+                <strong>Diqqat!</strong> Kassa smenasi ochilmagan. Yangi to'lovlarni qabul qilish va kassa hisob-kitobini yuritish uchun avval smenani oching.
+              </span>
             </div>
+            <Button asChild size='sm' variant='outline' className='h-7 text-xs border-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 self-start sm:self-auto shrink-0'>
+              <Link to='/cash-shifts'>Kassani Ochish &rarr;</Link>
+            </Button>
+          </div>
+        ) : (
+          <div className='mb-4 p-2.5 px-4 rounded-xl border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/40 flex items-center justify-between text-xs'>
+            <div className='flex items-center gap-2 text-emerald-700 dark:text-emerald-300'>
+              <CheckCircle2 className='h-4 w-4 shrink-0 text-emerald-600' />
+              <span>Kassa Smenasi faol holatda. Yangi to'lovlar ushbu smenaga qayd etiladi.</span>
+            </div>
+            <Link to='/cash-shifts' className='text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline'>
+              Smenani boshqarish &rarr;
+            </Link>
           </div>
         )}
 
+        {/* Financial KPI Summary Cards */}
+        <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6'>
+          {/* Bugungi Jami Tushum */}
+          <div className='rounded-xl border bg-card p-4 shadow-xs flex flex-col justify-between'>
+            <div className='flex items-center justify-between text-muted-foreground mb-1'>
+              <span className='text-xs font-medium'>Bugungi Tushum</span>
+              <TrendingUp className='h-4 w-4 text-emerald-500' />
+            </div>
+            <div>
+              <div className='text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400'>
+                {Number(statsData?.todayTotal || 0).toLocaleString()} so'm
+              </div>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>
+                Bugungi tranzaksiyalar: {statsData?.todayCount || 0} ta
+              </p>
+            </div>
+          </div>
+
+          {/* Naqd Pul */}
+          <div className='rounded-xl border bg-card p-4 shadow-xs flex flex-col justify-between'>
+            <div className='flex items-center justify-between text-muted-foreground mb-1'>
+              <span className='text-xs font-medium'>Bugun Naqd</span>
+              <Wallet className='h-4 w-4 text-blue-500' />
+            </div>
+            <div>
+              <div className='text-xl font-bold font-mono'>
+                {Number(statsData?.todayCash || 0).toLocaleString()} so'm
+              </div>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>
+                Kassadagi naqd tushum
+              </p>
+            </div>
+          </div>
+
+          {/* Karta & Onlayn */}
+          <div className='rounded-xl border bg-card p-4 shadow-xs flex flex-col justify-between'>
+            <div className='flex items-center justify-between text-muted-foreground mb-1'>
+              <span className='text-xs font-medium'>Karta & Onlayn</span>
+              <CreditCard className='h-4 w-4 text-purple-500' />
+            </div>
+            <div>
+              <div className='text-xl font-bold font-mono'>
+                {(Number(statsData?.todayCard || 0) + Number(statsData?.todayClick || 0) + Number(statsData?.todayPayme || 0)).toLocaleString()} so'm
+              </div>
+              <p className='text-[10px] text-muted-foreground mt-0.5 truncate'>
+                Terminal: {Number(statsData?.todayCard || 0).toLocaleString()} | Onlayn: {(Number(statsData?.todayClick || 0) + Number(statsData?.todayPayme || 0)).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Umumiy Qarzdorlik */}
+          <div className='rounded-xl border bg-card p-4 shadow-xs flex flex-col justify-between bg-amber-50/30 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-900/40'>
+            <div className='flex items-center justify-between text-amber-700 dark:text-amber-400 mb-1'>
+              <span className='text-xs font-medium'>Klinika Qarzdorligi</span>
+              <Users className='h-4 w-4 text-amber-600' />
+            </div>
+            <div>
+              <div className='text-xl font-bold font-mono text-amber-600 dark:text-amber-500'>
+                {Number(debtorsData?.totalDebtAmount || 0).toLocaleString()} so'm
+              </div>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>
+                Qarzdor bemorlar: {debtorsData?.totalDebtorsCount || 0} nafar
+              </p>
+            </div>
+          </div>
+        </div>
+
         <Tabs defaultValue='payments' className='space-y-4'>
-          <TabsList>
-            <TabsTrigger value='payments'>Barcha To'lovlar</TabsTrigger>
+          <TabsList className='flex-wrap'>
+            <TabsTrigger value='payments'>Barcha To'lovlar ({totalCount})</TabsTrigger>
+            <TabsTrigger value='debtors' className='relative'>
+              Qarzdorlar
+              {debtorsData?.totalDebtorsCount ? (
+                <Badge variant='destructive' className='ml-1.5 px-1.5 py-0 text-[10px] h-4 leading-none'>
+                  {debtorsData.totalDebtorsCount}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value='pending'>
+              To'lov Kutilmoqda ({pendingTreatments.length})
+            </TabsTrigger>
             <TabsTrigger value='commissions'>Shifokorlar Komissiyasi</TabsTrigger>
           </TabsList>
 
@@ -413,6 +536,15 @@ export function PaymentsList() {
                     <X className='me-1 h-3.5 w-3.5' /> Tozalash
                   </Button>
                 )}
+
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-9 text-xs gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                  onClick={exportPaymentsToCSV}
+                >
+                  <Download className='h-3.5 w-3.5' /> Eksport (CSV)
+                </Button>
               </div>
             </div>
 
@@ -543,6 +675,254 @@ export function PaymentsList() {
               onPageSizeChange={setPageSize}
               className='mt-2'
             />
+          </TabsContent>
+
+          {/* Debtors Tab */}
+          <TabsContent value='debtors'>
+            <div className='space-y-4'>
+              {/* Search & Debtors Header */}
+              <div className='flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 flex-wrap'>
+                <div className='flex items-center gap-2.5 flex-1 min-w-[240px] max-w-md'>
+                  <div className='relative w-full'>
+                    <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+                    <Input
+                      type='text'
+                      placeholder='Qarzdor bemor ismi yoki telefoni...'
+                      className='pl-8 h-9 text-xs'
+                      value={debtorSearch}
+                      onChange={(e) => setDebtorSearch(e.target.value)}
+                    />
+                    {debtorSearch && (
+                      <button
+                        type='button'
+                        onClick={() => setDebtorSearch('')}
+                        className='absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground'
+                      >
+                        <X className='h-3.5 w-3.5' />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {debtorsData && (
+                  <div className='flex items-center gap-3 text-xs'>
+                    <span className='text-muted-foreground'>
+                      Jami qarzdorlar: <strong>{debtorsData.totalDebtorsCount}</strong> nafar
+                    </span>
+                    <Badge variant='outline' className='font-mono font-bold text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/20'>
+                      Umumiy qarz: {Number(debtorsData.totalDebtAmount || 0).toLocaleString()} so'm
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
+                <Table className='min-w-[750px] sm:min-w-full'>
+                  <TableHeader>
+                    <TableRow className='bg-muted/30'>
+                      <TableHead className='text-xs font-semibold'>Bemor</TableHead>
+                      <TableHead className='text-xs font-semibold'>Telefon</TableHead>
+                      <TableHead className='text-xs font-semibold'>Hisoblangan</TableHead>
+                      <TableHead className='text-xs font-semibold'>To'langan</TableHead>
+                      <TableHead className='text-xs font-semibold'>Qarzdorlik (Qarz)</TableHead>
+                      <TableHead className='text-xs font-semibold'>To'lanmagan Muolajalar</TableHead>
+                      <TableHead className='text-xs font-semibold text-end'>Amal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isDebtorsLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
+                          Qarzdorlar ro'yxati yuklanmoqda...
+                        </TableCell>
+                      </TableRow>
+                    ) : !debtorsData?.debtors || debtorsData.debtors.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className='text-center py-10 text-xs text-muted-foreground'>
+                          <div className='flex flex-col items-center justify-center gap-2'>
+                            <CheckCircle2 className='h-8 w-8 text-emerald-500/70' />
+                            <span className='font-medium text-emerald-700 dark:text-emerald-400'>
+                              Ajoyib! Hozirda klinika bo'yicha hech qanday qarzdorlik mavjud emas.
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      debtorsData.debtors.map((d: any) => {
+                        const pId = String(d.patientId)
+                        const isExpanded = expandedDebtorId === pId
+
+                        return (
+                          <div key={pId} style={{ display: 'contents' }}>
+                            <TableRow className='hover:bg-muted/20'>
+                              <TableCell className='font-medium text-xs'>
+                                <Link
+                                  to='/patients/$id'
+                                  params={{ id: pId }}
+                                  className='text-primary hover:underline font-bold'
+                                >
+                                  {d.fullName || `${d.firstName} ${d.lastName}`}
+                                </Link>
+                              </TableCell>
+                              <TableCell className='text-xs font-mono text-muted-foreground'>
+                                {d.phone || '-'}
+                              </TableCell>
+                              <TableCell className='text-xs font-mono'>
+                                {Number(d.totalBilled || 0).toLocaleString()} so'm
+                              </TableCell>
+                              <TableCell className='text-xs font-mono text-emerald-600 dark:text-emerald-400'>
+                                {Number(d.totalPaid || 0).toLocaleString()} so'm
+                              </TableCell>
+                              <TableCell className='text-xs font-bold font-mono text-rose-600 dark:text-rose-400'>
+                                <Badge variant='outline' className='bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900 font-mono'>
+                                  {Number(d.debtAmount || 0).toLocaleString()} so'm
+                                </Badge>
+                              </TableCell>
+                              <TableCell className='text-xs'>
+                                {d.unpaidTreatmentsCount > 0 ? (
+                                  <button
+                                    type='button'
+                                    onClick={() => setExpandedDebtorId(isExpanded ? null : pId)}
+                                    className='inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium'
+                                  >
+                                    <span>{d.unpaidTreatmentsCount} ta muolaja</span>
+                                    {isExpanded ? <ChevronUp className='h-3.5 w-3.5' /> : <ChevronDown className='h-3.5 w-3.5' />}
+                                  </button>
+                                ) : (
+                                  <span className='text-muted-foreground text-[11px]'>-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className='text-end'>
+                                <Button
+                                  size='sm'
+                                  className='h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs gap-1'
+                                  onClick={() => handleQuickPayDebtor(d)}
+                                  disabled={!isShiftOpen}
+                                >
+                                  <CreditCard className='h-3.5 w-3.5' /> Qarzni to'lash
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+
+                            {isExpanded && d.unpaidTreatments && d.unpaidTreatments.length > 0 && (
+                              <TableRow className='bg-muted/30 border-y'>
+                                <TableCell colSpan={7} className='p-3 ps-8'>
+                                  <div className='space-y-2'>
+                                    <div className='text-[11px] font-bold text-muted-foreground uppercase tracking-wide'>
+                                      To'lanmagan muolajalar ro'yxati:
+                                    </div>
+                                    <div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-3'>
+                                      {d.unpaidTreatments.map((tr: any) => (
+                                        <div key={tr.id} className='bg-background border rounded-lg p-2.5 shadow-2xs text-xs space-y-1'>
+                                          <div className='flex justify-between items-start font-medium'>
+                                            <span>{tr.procedureName || 'Muolaja'}</span>
+                                            <Badge variant='outline' className='text-[9px] uppercase'>
+                                              {tr.paymentStatus === 'partial' ? 'Qisman' : "To'lanmagan"}
+                                            </Badge>
+                                          </div>
+                                          {tr.diagnosis && (
+                                            <p className='text-[10px] text-muted-foreground truncate'>
+                                              Tashxis: {tr.diagnosis}
+                                            </p>
+                                          )}
+                                          <div className='flex justify-between items-baseline pt-1 border-t text-[11px] font-mono'>
+                                            <span className='text-muted-foreground'>Qarz:</span>
+                                            <span className='font-bold text-rose-600'>
+                                              {Number(tr.debtAmount || tr.price).toLocaleString()} so'm
+                                            </span>
+                                          </div>
+                                          <Button
+                                            size='sm'
+                                            variant='secondary'
+                                            className='w-full h-6 text-[10px] mt-1'
+                                            onClick={() => openPaymentModal(tr.id, pId, String(tr.debtAmount || tr.price))}
+                                            disabled={!isShiftOpen}
+                                          >
+                                            Ushbu muolajani to'lash
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </div>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Pending Treatments Tab */}
+          <TabsContent value='pending'>
+            <div className='space-y-4'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <h3 className='text-sm font-bold'>To'lov Kutilayotgan Muolajalar</h3>
+                  <p className='text-xs text-muted-foreground'>
+                    Muolajasi yakunlangan, lekin to'lovi qilinmagan davolashlar ro'yxati.
+                  </p>
+                </div>
+                <Badge variant='outline' className='font-mono font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/20'>
+                  {pendingTreatments.length} ta muolaja
+                </Badge>
+              </div>
+
+              {pendingTreatments.length === 0 ? (
+                <div className='rounded-xl border border-dashed p-8 text-center text-muted-foreground text-xs'>
+                  To'lov kutilayotgan muolajalar mavjud emas. Barcha yakunlangan muolajalar to'langan.
+                </div>
+              ) : (
+                <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+                  {pendingTreatments.map((pt: any) => {
+                    const pName = String(pt.patientName || (pt.patient && typeof pt.patient === 'object' ? `${pt.patient.firstName || ''} ${pt.patient.lastName || ''}`.trim() : pt.patient) || 'Bemor')
+                    const doctorName = String(pt.doctorName || (pt.doctor && typeof pt.doctor === 'object' ? pt.doctor.user?.firstName : '') || 'Shifokor')
+                    const pId = String(pt.patient && typeof pt.patient === 'object' ? pt.patient.id : pt.patient || '')
+                    
+                    return (
+                      <div key={String(pt.id)} className='bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 shadow-xs flex flex-col justify-between'>
+                        <div>
+                          <div className='flex justify-between items-start mb-2'>
+                            <Link
+                              to='/patients/$id'
+                              params={{ id: pId }}
+                              className='font-bold text-sm text-primary hover:underline'
+                            >
+                              {pName}
+                            </Link>
+                            <Badge variant='outline' className='text-[10px] bg-white dark:bg-black/20 text-amber-600 border-amber-200'>
+                              To'lanmagan
+                            </Badge>
+                          </div>
+                          <div className='text-xs text-muted-foreground space-y-1 mb-3'>
+                            <p>Shifokor: Dr. {doctorName}</p>
+                            <p>Muolaja: {pt.procedureTypeName || 'Umumiy'}</p>
+                            {pt.diagnosis && <p className='italic text-[11px]'>Tashxis: {pt.diagnosis}</p>}
+                          </div>
+                        </div>
+                        <div className='flex items-center justify-between border-t border-amber-200/50 dark:border-amber-900/50 pt-3'>
+                          <span className='font-mono font-bold text-emerald-600 dark:text-emerald-400'>
+                            {Number(pt.price || 0).toLocaleString()} so'm
+                          </span>
+                          <Button 
+                            size='sm' 
+                            className='h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs gap-1'
+                            onClick={() => openPaymentModal(String(pt.id), pId, String(pt.price || ''))}
+                            disabled={!isShiftOpen}
+                          >
+                            <CreditCard className='w-3.5 h-3.5' /> To'lash
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* Commissions Tab */}
