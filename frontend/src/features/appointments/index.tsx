@@ -1,13 +1,29 @@
-import { useState, useEffect } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { Plus, User, FileText, CalendarDays, Search, X } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Link } from '@tanstack/react-router'
+import {
+  Plus,
+  FileText,
+  CalendarDays,
+  Search,
+  X,
+  AlertCircle,
+} from 'lucide-react'
 import { confirmSwal } from '@/lib/sweetalert'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { format, subDays } from 'date-fns'
+import {
+  format,
+  subDays,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+} from 'date-fns'
 import { Input } from '@/components/ui/input'
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
   useAppointments,
+  useCalendarAppointments,
+  useAppointmentConflict,
   useCreateAppointment,
   useUpdateAppointment,
   useCancelAppointment,
@@ -18,7 +34,7 @@ import { useDoctors, useAvailableSlots } from '@/api/hooks/use-doctors'
 import { usePatients } from '@/api/hooks/use-patients'
 import { useDepartments } from '@/api/hooks/use-departments'
 import { useProcedureTypes } from '@/api/hooks/use-procedure-types'
-import { type AvailableSlot } from '@/types/api'
+import { type Appointment, type AvailableSlot } from '@/types/api'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -48,6 +64,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ScheduleCalendar } from '@/components/schedule-calendar/schedule-calendar'
+import {
+  AppointmentCalendarView,
+  type CalendarViewMode,
+} from '@/components/appointments/appointment-calendar-view'
+import { AppointmentDetailDialog } from '@/components/appointments/appointment-detail-dialog'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/lib/get-error-message'
 import { useAuthStore } from '@/stores/auth-store'
@@ -65,6 +86,15 @@ export function AppointmentsList() {
   const authUser = useAuthStore((state) => state.user)
   const isDoctor = authUser?.role === 'doctor'
   const canCreateAppointment = authUser?.role === 'administrator' || authUser?.role === 'bosh_shifokor'
+
+  // View Mode: 'calendar' vs 'table'
+  const [activeTab, setActiveTab] = useState<'calendar' | 'table'>('calendar')
+  const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>('week')
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date())
+
+  // Selected Appointment for Detail Modal
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [doctorFilter, setDoctorFilter] = useState<string>('')
@@ -128,6 +158,38 @@ export function AppointmentsList() {
     ? overdueAppointments.slice((page - 1) * pageSize, page * pageSize)
     : rawAppointments
 
+  // Calendar Date Range Calculation
+  const { calDateFrom, calDateTo } = useMemo(() => {
+    if (calendarViewMode === 'day') {
+      const d = format(calendarDate, 'yyyy-MM-dd')
+      return { calDateFrom: d, calDateTo: d }
+    }
+    if (calendarViewMode === 'week') {
+      const start = startOfWeek(calendarDate, { weekStartsOn: 1 })
+      const end = endOfWeek(calendarDate, { weekStartsOn: 1 })
+      return {
+        calDateFrom: format(start, 'yyyy-MM-dd'),
+        calDateTo: format(end, 'yyyy-MM-dd'),
+      }
+    }
+    // month
+    const startM = startOfWeek(startOfMonth(calendarDate), { weekStartsOn: 1 })
+    const endM = endOfWeek(endOfMonth(calendarDate), { weekStartsOn: 1 })
+    return {
+      calDateFrom: format(startM, 'yyyy-MM-dd'),
+      calDateTo: format(endM, 'yyyy-MM-dd'),
+    }
+  }, [calendarDate, calendarViewMode])
+
+  // Calendar query
+  const { data: calendarAppointments = [], isLoading: isCalLoading } = useCalendarAppointments(
+    {
+      dateFrom: calDateFrom,
+      dateTo: calDateTo,
+      doctor: doctorFilter && doctorFilter !== 'all' ? doctorFilter : undefined,
+    },
+    activeTab === 'calendar'
+  )
 
   const { data: patientsData } = usePatients({ page_size: 100 })
   const patients = Array.isArray(patientsData?.results)
@@ -208,6 +270,22 @@ export function AppointmentsList() {
     }
   }
 
+  // Real-time conflict checking
+  const conflictParams = useMemo(() => {
+    if (!selectedDoctorId || !selectedSlot?.start || !selectedSlot?.end) return null
+    return {
+      doctor: selectedDoctorId,
+      start: selectedSlot.start,
+      end: selectedSlot.end,
+      patient: selectedPatientId || undefined,
+    }
+  }, [selectedDoctorId, selectedSlot, selectedPatientId])
+
+  const { data: conflictData } = useAppointmentConflict(
+    conflictParams || { doctor: '', start: '', end: '' },
+    Boolean(conflictParams)
+  )
+
   const createAppointmentMutation = useCreateAppointment()
   const updateAppointmentMutation = useUpdateAppointment()
   const cancelAppointmentMutation = useCancelAppointment()
@@ -244,8 +322,6 @@ export function AppointmentsList() {
     }
   }
 
-  const navigate = useNavigate()
-
   const handleReschedule = (app: any) => {
     const pId = app?.patientId || app?.patient_id || (app?.patient && typeof app.patient === 'object' ? app.patient.id : app?.patient)
     const dId = app?.doctorId || app?.doctor_id || (app?.doctor && typeof app.doctor === 'object' ? app.doctor.id : app?.doctor)
@@ -260,19 +336,6 @@ export function AppointmentsList() {
     setSelectedSlot(null)
     setIsModalOpen(true)
     toast.info("Navbatni boshqa vaqtga ko'chirish uchun yangi vaqt slotini tanlang.")
-  }
-
-  const handleStartAppointment = async (patientId: string, isTodayOverdue: boolean) => {
-    if (isTodayOverdue) {
-      const isConfirmed = await confirmSwal({
-        title: "⚠️ Bemor kechikkan qabul!",
-        text: "Ushbu navbatning belgilangan vaqti o'tib ketgan. Bemor kechikib kelganligi sababli qabulni hozir boshlaysizmi?",
-        confirmButtonText: "Ha, qabulni boshlash",
-        cancelButtonText: "Bekor qilish",
-      })
-      if (!isConfirmed) return
-    }
-    navigate({ to: '/patients/$id', params: { id: String(patientId) } })
   }
 
   const handleCancel = async (id: string) => {
@@ -325,14 +388,36 @@ export function AppointmentsList() {
           <div>
             <h1 className='text-2xl font-bold tracking-tight'>Klinika Navbatlari</h1>
             <p className='text-xs text-muted-foreground'>
-              Bemorlarning qabul vaqtlari va shifokorlar bandligi.
+              Bemorlarning qabul vaqtlari, interaktiv kalendar va shifokorlar bandlik jadvali.
             </p>
           </div>
-          {canCreateAppointment && (
-            <Button onClick={() => setIsModalOpen(true)} className='shadow'>
-              <Plus className='me-2 h-4 w-4' /> Yangi Navbatga Yozish
-            </Button>
-          )}
+          <div className='flex items-center gap-3'>
+            {/* View Mode Toggle Buttons */}
+            <div className='flex items-center bg-muted/60 p-1 rounded-lg border shadow-xs'>
+              <Button
+                variant={activeTab === 'calendar' ? 'default' : 'ghost'}
+                size='sm'
+                onClick={() => setActiveTab('calendar')}
+                className='h-8 text-xs gap-1.5 px-3'
+              >
+                <CalendarDays className='h-4 w-4' /> Kalendar
+              </Button>
+              <Button
+                variant={activeTab === 'table' ? 'default' : 'ghost'}
+                size='sm'
+                onClick={() => setActiveTab('table')}
+                className='h-8 text-xs gap-1.5 px-3'
+              >
+                <FileText className='h-4 w-4' /> Jadval
+              </Button>
+            </div>
+
+            {canCreateAppointment && (
+              <Button onClick={() => setIsModalOpen(true)} className='shadow h-8 text-xs gap-1.5'>
+                <Plus className='h-4 w-4' /> Yangi Navbatga Yozish
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Overdue Alert Banner & Quick Settlement */}
@@ -363,320 +448,344 @@ export function AppointmentsList() {
           </div>
         )}
 
-        {/* Search & Filters */}
-        <div className='mb-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 flex-wrap'>
-          <div className='flex items-center gap-2.5 flex-1 min-w-[240px] max-w-md'>
-            <div className='relative w-full'>
-              <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
-              <Input
-                type='text'
-                placeholder='Bemor ismi, telefon yoki shifokor...'
-                className='pl-8 h-9 text-xs'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button
-                  type='button'
-                  onClick={() => setSearchTerm('')}
-                  className='absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground'
-                >
-                  <X className='h-3.5 w-3.5' />
-                </button>
-              )}
+        {/* ACTIVE TAB: CALENDAR */}
+        {activeTab === 'calendar' ? (
+          <div className='space-y-4'>
+            <AppointmentCalendarView
+              appointments={calendarAppointments}
+              currentDate={calendarDate}
+              onDateChange={setCalendarDate}
+              viewMode={calendarViewMode}
+              onViewModeChange={setCalendarViewMode}
+              onSelectAppointment={(app) => {
+                setSelectedAppointment(app)
+                setIsDetailOpen(true)
+              }}
+              onNewAppointmentAt={(date) => {
+                setBookingDate(date)
+                setIsModalOpen(true)
+              }}
+              doctors={doctors.map((d: any) => ({ id: d.id, user: d.user }))}
+              selectedDoctorId={doctorFilter}
+              onDoctorChange={setDoctorFilter}
+              isLoading={isCalLoading}
+            />
+          </div>
+        ) : (
+          /* ACTIVE TAB: TABLE */
+          <>
+            {/* Search & Filters */}
+            <div className='mb-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 flex-wrap'>
+              <div className='flex items-center gap-2.5 flex-1 min-w-[240px] max-w-md'>
+                <div className='relative w-full'>
+                  <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+                  <Input
+                    type='text'
+                    placeholder='Bemor ismi, telefon yoki shifokor...'
+                    className='pl-8 h-9 text-xs'
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  {searchTerm && (
+                    <button
+                      type='button'
+                      onClick={() => setSearchTerm('')}
+                      className='absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground'
+                    >
+                      <X className='h-3.5 w-3.5' />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className='flex items-center gap-2 flex-wrap'>
+                <Select value={dateFilter} onValueChange={setDateFilter}>
+                  <SelectTrigger className='w-[135px] h-9 text-xs'>
+                    <SelectValue placeholder='Barcha sanalar' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='all'>Barcha sanalar</SelectItem>
+                    <SelectItem value='today'>📅 Bugun</SelectItem>
+                    <SelectItem value='yesterday'>Kecha</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className='w-[170px] h-9 text-xs'>
+                    <SelectValue placeholder='Barcha holatlar' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='all'>Barcha holatlar</SelectItem>
+                    <SelectItem value='overdue'>⚠️ Muddati o'tganlar</SelectItem>
+                    <SelectItem value='scheduled'>Rejalashtirilgan</SelectItem>
+                    <SelectItem value='confirmed'>Tasdiqlangan</SelectItem>
+                    <SelectItem value='in_progress'>Jarayonda</SelectItem>
+                    <SelectItem value='completed'>Yakunlangan</SelectItem>
+                    <SelectItem value='no_show'>Kelmagan (No-show)</SelectItem>
+                    <SelectItem value='cancelled'>Bekor qilingan</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {!isDoctor && doctors.length > 0 && (
+                  <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+                    <SelectTrigger className='w-[170px] h-9 text-xs'>
+                      <SelectValue placeholder='Barcha shifokorlar' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='all'>Barcha shifokorlar</SelectItem>
+                      {doctors.map((doc: any) => (
+                        <SelectItem key={doc.id} value={String(doc.id)}>
+                          Dr. {doc.user?.firstName || ''} {doc.user?.lastName || ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {(searchTerm || (statusFilter && statusFilter !== 'all') || (doctorFilter && doctorFilter !== 'all') || dateFilter !== 'all') && (
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='h-9 px-2 text-xs text-muted-foreground hover:text-foreground'
+                    onClick={() => {
+                      setSearchTerm('')
+                      setStatusFilter('')
+                      setDoctorFilter('')
+                      setDateFilter('all')
+                    }}
+                  >
+                    <X className='me-1 h-3.5 w-3.5' /> Tozalash
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className='flex items-center gap-2 flex-wrap'>
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className='w-[135px] h-9 text-xs'>
-                <SelectValue placeholder='Barcha sanalar' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='all'>Barcha sanalar</SelectItem>
-                <SelectItem value='today'>📅 Bugun</SelectItem>
-                <SelectItem value='yesterday'>Kecha</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className='w-[170px] h-9 text-xs'>
-                <SelectValue placeholder='Barcha holatlar' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='all'>Barcha holatlar</SelectItem>
-                <SelectItem value='overdue'>⚠️ Muddati o'tganlar</SelectItem>
-                <SelectItem value='scheduled'>Rejalashtirilgan</SelectItem>
-                <SelectItem value='confirmed'>Tasdiqlangan</SelectItem>
-                <SelectItem value='in_progress'>Jarayonda</SelectItem>
-                <SelectItem value='completed'>Yakunlangan</SelectItem>
-                <SelectItem value='no_show'>Kelmagan (No-show)</SelectItem>
-                <SelectItem value='cancelled'>Bekor qilingan</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {!isDoctor && doctors.length > 0 && (
-              <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-                <SelectTrigger className='w-[170px] h-9 text-xs'>
-                  <SelectValue placeholder='Barcha shifokorlar' />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='all'>Barcha shifokorlar</SelectItem>
-                  {doctors.map((doc: any) => (
-                    <SelectItem key={doc.id} value={String(doc.id)}>
-                      Dr. {doc.user?.firstName || ''} {doc.user?.lastName || ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {(searchTerm || (statusFilter && statusFilter !== 'all') || (doctorFilter && doctorFilter !== 'all') || dateFilter !== 'all') && (
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-9 px-2 text-xs text-muted-foreground hover:text-foreground'
-                onClick={() => {
-                  setSearchTerm('')
-                  setStatusFilter('')
-                  setDoctorFilter('')
-                  setDateFilter('all')
-                }}
-              >
-                <X className='me-1 h-3.5 w-3.5' /> Tozalash
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Data Table with Mobile Horizontal Scroll */}
-        <div className='rounded-xl border bg-card shadow-sm overflow-x-auto w-full'>
-          <Table className='min-w-[650px] sm:min-w-full'>
-            <TableHeader>
-              <TableRow className='bg-muted/30'>
-                <TableHead className='text-xs font-semibold'>Bemor</TableHead>
-                <TableHead className='text-xs font-semibold'>Shifokor</TableHead>
-                <TableHead className='text-xs font-semibold'>Bo'lim</TableHead>
-                <TableHead className='text-xs font-semibold'>Boshlanish Vaqti</TableHead>
-                <TableHead className='text-xs font-semibold'>Holat</TableHead>
-                <TableHead className='text-xs font-semibold text-end'>Amallar</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
-                    Navbatlar yuklanmoqda...
-                  </TableCell>
-                </TableRow>
-              ) : appointments.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className='text-center py-8 text-xs text-muted-foreground'>
-                    Navbatlar topilmadi.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                appointments.map((app: any) => {
-                  const statusKey = app?.status || 'scheduled'
-                  const badge = (STATUS_BADGES as any)[statusKey] || { label: statusKey, variant: 'outline' }
-
-                  const patientId = app?.patientId || app?.patient_id || (app?.patient && typeof app.patient === 'object' ? app.patient.id : app?.patient)
-                  const patientName = app?.patientName || app?.patient_name || (app?.patient && typeof app.patient === 'object' ? `${app.patient.firstName || app.patient.first_name || ''} ${app.patient.lastName || app.patient.last_name || ''}`.trim() : app?.patient) || 'Bemor'
-                  const doctorName = app?.doctorName || app?.doctor_name || (app?.doctor && typeof app.doctor === 'object' ? `${app.doctor.user?.firstName || app.doctor.user?.first_name || ''} ${app.doctor.user?.lastName || app.doctor.user?.last_name || ''}`.trim() : app?.doctor) || 'Shifokor'
-                  const departmentName = app?.departmentName || app?.department_name || (app?.department && typeof app.department === 'object' ? app.department.name : app?.department) || 'Bo\'lim'
-                  const startDateStr = app?.scheduledStart || app?.scheduled_start || app?.start
-                  const endDateStr = app?.scheduledEnd || app?.scheduled_end || app?.end
-                  const endDt = endDateStr ? new Date(endDateStr) : startDateStr ? new Date(startDateStr) : null
-                  const now = new Date()
-
-                  const isPastDay = Boolean(
-                    app?.isPastDay ?? (
-                      endDt &&
-                      new Date(endDt.getFullYear(), endDt.getMonth(), endDt.getDate()).getTime() <
-                        new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() &&
-                      (statusKey === 'scheduled' || statusKey === 'confirmed' || statusKey === 'in_progress')
-                    )
-                  )
-
-                  const isTodayOverdue = Boolean(
-                    app?.isTodayOverdue ?? (
-                      endDt &&
-                      new Date(endDt.getFullYear(), endDt.getMonth(), endDt.getDate()).getTime() ===
-                        new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() &&
-                      endDt.getTime() < now.getTime() &&
-                      (statusKey === 'scheduled' || statusKey === 'confirmed')
-                    )
-                  )
-
-                  const isOverdue = Boolean(app?.isOverdue || isPastDay || isTodayOverdue)
-                  const isAutoSettled = Boolean(app?.isAutoSettled || (app?.notes && app.notes.includes('[Tizim:')))
-
-                  return (
-                    <TableRow key={String(app?.id)} className={`hover:bg-muted/20 ${isPastDay ? 'bg-red-500/5' : isTodayOverdue ? 'bg-amber-500/5' : ''}`}>
-                      <TableCell className='font-medium text-xs'>
-                        {patientId ? (
-                          <Link
-                            to='/patients/$id'
-                            params={{ id: String(patientId) }}
-                            className='hover:underline text-primary font-semibold flex items-center gap-1'
-                          >
-                            <User className='h-3.5 w-3.5 text-primary/70' />
-                            {patientName}
-                          </Link>
-                        ) : (
-                          patientName
-                        )}
-                      </TableCell>
-                      <TableCell className='text-xs font-medium'>
-                        {doctorName}
-                      </TableCell>
-                      <TableCell className='text-xs text-muted-foreground'>
-                        {departmentName}
-                      </TableCell>
-                      <TableCell className='text-xs font-mono'>
-                        {formatDateSafely(startDateStr)}
-                      </TableCell>
-                      <TableCell className='text-xs'>
-                        <div className="flex flex-col gap-1 items-start">
-                          <Badge variant={badge.variant as any} className='text-[10px]'>
-                            {badge.label}
-                          </Badge>
-                          {isPastDay && statusKey === 'in_progress' ? (
-                            <Badge variant='destructive' className='text-[9px] px-1.5 py-0 bg-rose-700 text-white border-none'>
-                              ⛔ Yopilmagan qabul
-                            </Badge>
-                          ) : isPastDay ? (
-                            <Badge variant='destructive' className='text-[9px] px-1.5 py-0 bg-rose-600 text-white border-none'>
-                              ⛔ O'tgan sana
-                            </Badge>
-                          ) : isTodayOverdue ? (
-                            <Badge variant='destructive' className='text-[9px] px-1.5 py-0 bg-amber-600 text-white border-none'>
-                              ⚠️ Kechikkan
-                            </Badge>
-                          ) : isAutoSettled ? (
-                            <Badge variant='secondary' className='text-[9px] px-1.5 py-0 bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800'>
-                              ⚡ Avto-yakunlangan
-                            </Badge>
-                          ) : null}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className='text-end'>
-                        <div className='flex items-center justify-end gap-1 flex-wrap'>
-                          {/* Qabulni olib borish: ONLY for active/today appointments, strictly blocked for past days */}
-                          {patientId && !isPastDay && (statusKey === 'in_progress' || statusKey === 'confirmed' || statusKey === 'scheduled') && (
-                            <Button
-                              size='sm'
-                              variant='secondary'
-                              className='h-7 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800'
-                              onClick={() => handleStartAppointment(String(patientId), isTodayOverdue)}
-                            >
-                              <FileText className='me-1 h-3.5 w-3.5' /> 🦷 Qabulni Olib Borish
-                            </Button>
-                          )}
-
-                          {/* Tasdiqlash */}
-                          {!isDoctor && !isPastDay && statusKey === 'scheduled' && (
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='h-7 text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50'
-                              onClick={() => handleStatusChange(String(app.id), 'confirmed', 'Tasdiqlandi ✅')}
-                            >
-                              ✅ Tasdiqlash
-                            </Button>
-                          )}
-
-                          {/* Boshlash (only for today) */}
-                          {!isPastDay && statusKey === 'confirmed' && (
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='h-7 text-xs text-blue-600 border-blue-300 hover:bg-blue-50'
-                              onClick={async () => {
-                                if (isTodayOverdue) {
-                                  const ok = await confirmSwal({
-                                    title: "⚠️ Bemor kechikkan qabul!",
-                                    text: "Ushbu navbatning belgilangan vaqti o'tib ketgan. Bemor kechikib kelganligi sababli qabulni hozir boshlaysizmi?",
-                                    confirmButtonText: "Ha, qabulni boshlash",
-                                    cancelButtonText: "Bekor qilish",
-                                  })
-                                  if (!ok) return
-                                }
-                                handleStatusChange(String(app.id), 'in_progress', 'Boshlandi 🔄')
-                              }}
-                            >
-                              🔄 Boshlash
-                            </Button>
-                          )}
-
-                          {/* Yakunlash */}
-                          {statusKey === 'in_progress' && (
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='h-7 text-xs text-green-600 border-green-300 hover:bg-green-50'
-                              onClick={() => handleStatusChange(String(app.id), 'completed', 'Yakunlandi 🎉')}
-                            >
-                              🎉 Yakunlash
-                            </Button>
-                          )}
-
-                          {/* Ko'chirish (Reschedule) for overdue/scheduled/confirmed */}
-                          {(isOverdue || statusKey === 'scheduled' || statusKey === 'confirmed') && (
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='h-7 text-xs text-primary border-primary/30 hover:bg-primary/5'
-                              onClick={() => handleReschedule(app)}
-                            >
-                              <CalendarDays className='me-1 h-3 w-3' /> Ko'chirish
-                            </Button>
-                          )}
-
-                          {/* Kelmagan (No-show) */}
-                          {isOverdue && statusKey !== 'no_show' && statusKey !== 'completed' && statusKey !== 'cancelled' && statusKey !== 'in_progress' && (
-
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='h-7 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300'
-                              onClick={() => handleStatusChange(String(app.id), 'no_show', 'Kelmagan (No-show) deb belgilandi')}
-                            >
-                              Kelmagan
-                            </Button>
-                          )}
-
-                          {/* Bekor qilish */}
-                          {statusKey !== 'cancelled' && statusKey !== 'completed' && (
-                            <Button
-                              size='sm'
-                              variant='ghost'
-                              className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
-                              onClick={() => handleCancel(String(app.id))}
-                            >
-                              Bekor qilish
-                            </Button>
-                          )}
-                        </div>
+            {/* Table View */}
+            <div className='rounded-md border bg-card'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Bemor</TableHead>
+                    <TableHead>Shifokor</TableHead>
+                    <TableHead>Bo'lim</TableHead>
+                    <TableHead>Muolaja</TableHead>
+                    <TableHead>Vaqti</TableHead>
+                    <TableHead>Holati</TableHead>
+                    <TableHead className='text-right'>Amallar</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className='h-24 text-center text-xs text-muted-foreground'>
+                        Yuklanmoqda...
                       </TableCell>
                     </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  ) : appointments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className='h-24 text-center text-xs text-muted-foreground'>
+                        Navbatlar topilmadi.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    appointments.map((app: any) => {
+                      const patientId = app?.patientId || app?.patient_id || (app?.patient && typeof app.patient === 'object' ? app.patient.id : app?.patient)
+                      const patientName = app?.patientName || app?.patient_name || (app?.patient && typeof app.patient === 'object' ? `${app.patient.firstName || app.patient.first_name || ''} ${app.patient.lastName || app.patient.last_name || ''}`.trim() : null) || 'Bemor'
+                      const patientPhone = app?.patientPhone || app?.patient_phone || (app?.patient && typeof app.patient === 'object' ? app.patient.phoneNumber || app.patient.phone_number : null) || ''
 
-        {/* Table Pagination */}
-        <TablePagination
-          page={page}
-          pageSize={pageSize}
-          totalCount={totalCount}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          className='mt-2'
-        />
+                      const doctorName = app?.doctorName || app?.doctor_name || (app?.doctor && typeof app.doctor === 'object' ? (app.doctor.user ? `${app.doctor.user.firstName || app.doctor.user.first_name || ''} ${app.doctor.user.lastName || app.doctor.user.last_name || ''}`.trim() : `${app.doctor.firstName || app.doctor.first_name || ''} ${app.doctor.lastName || app.doctor.last_name || ''}`.trim()) : null) || 'Shifokor'
+
+                      const departmentName = app?.departmentName || app?.department_name || (app?.department && typeof app.department === 'object' ? app.department.name : null) || '-'
+                      const procedureName = app?.procedureTypeName || app?.procedure_type_name || (app?.procedureType && typeof app.procedureType === 'object' ? app.procedureType.name : app?.procedure_type && typeof app.procedure_type === 'object' ? app.procedure_type.name : null) || '-'
+
+                      const start = app?.scheduledStart || app?.scheduled_start
+                      const end = app?.scheduledEnd || app?.scheduled_end
+                      const checkDate = end ? new Date(end) : start ? new Date(start) : null
+                      const isOverdue = Boolean(
+                        app?.isOverdue ||
+                        app?.isPastDay ||
+                        (checkDate && checkDate.getTime() < Date.now() && (app?.status === 'scheduled' || app?.status === 'confirmed' || app?.status === 'in_progress'))
+                      )
+
+                      const isTodayOverdue = Boolean(
+                        isOverdue &&
+                        checkDate &&
+                        format(checkDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+                      )
+
+                      const statusKey = String(app?.status || 'scheduled')
+                      const badgeInfo = STATUS_BADGES[statusKey] || { label: statusKey, variant: 'outline' }
+
+                      return (
+                        <TableRow
+                          key={String(app.id)}
+                          className={isOverdue ? 'bg-amber-500/5 hover:bg-amber-500/10' : ''}
+                        >
+                          <TableCell className='font-medium'>
+                            <div className='flex flex-col'>
+                              <div className='flex items-center gap-2'>
+                                {patientId ? (
+                                  <Link
+                                    to={`/patients/${patientId}` as any}
+                                    className='hover:underline font-semibold text-primary'
+                                  >
+                                    {patientName}
+                                  </Link>
+                                ) : (
+                                  <span className='font-semibold'>{patientName}</span>
+                                )}
+                                {isOverdue && (
+                                  <Badge
+                                    variant='outline'
+                                    className='text-[10px] px-1.5 py-0 border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300'
+                                  >
+                                    Muddati o'tgan
+                                  </Badge>
+                                )}
+                              </div>
+                              {patientPhone && (
+                                <span className='text-[11px] text-muted-foreground font-mono'>
+                                  {patientPhone}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className='text-xs'>Dr. {doctorName}</TableCell>
+                          <TableCell className='text-xs'>{departmentName}</TableCell>
+                          <TableCell className='text-xs'>{procedureName}</TableCell>
+                          <TableCell className='text-xs font-mono'>
+                            <div className='flex flex-col'>
+                              <span>{formatDateSafely(start)}</span>
+                              {end && (
+                                <span className='text-[10px] text-muted-foreground'>
+                                  gacha: {format(new Date(end), 'HH:mm')}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={badgeInfo.variant as any} className='text-xs'>
+                              {badgeInfo.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className='text-right'>
+                            <div className='flex items-center justify-end gap-1 flex-wrap'>
+                              {/* Tafsilot */}
+                              <Button
+                                size='sm'
+                                variant='ghost'
+                                className='h-7 text-xs text-primary'
+                                onClick={() => {
+                                  setSelectedAppointment(app)
+                                  setIsDetailOpen(true)
+                                }}
+                              >
+                                Tafsilot
+                              </Button>
+
+                              {/* Tasdiqlash (Keldi) */}
+                              {statusKey === 'scheduled' && (
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='h-7 text-xs text-amber-600 border-amber-300 hover:bg-amber-50'
+                                  onClick={() => handleStatusChange(String(app.id), 'confirmed', 'Tasdiqlandi (Keldi)')}
+                                >
+                                  Keldi
+                                </Button>
+                              )}
+
+                              {/* Boshlash (Qabulga kirish) */}
+                              {(statusKey === 'scheduled' || statusKey === 'confirmed') && (
+                                <Button
+                                  size='sm'
+                                  variant='default'
+                                  className='h-7 text-xs bg-blue-600 hover:bg-blue-700'
+                                  onClick={async () => {
+                                    if (isTodayOverdue) {
+                                      const ok = await confirmSwal({
+                                        title: "⚠️ Bemor kechikkan qabul!",
+                                        text: "Ushbu navbatning belgilangan vaqti o'tib ketgan. Bemor kechikib kelganligi sababli qabulni hozir boshlaysizmi?",
+                                        confirmButtonText: "Ha, qabulni boshlash",
+                                        cancelButtonText: "Bekor qilish",
+                                      })
+                                      if (!ok) return
+                                    }
+                                    handleStatusChange(String(app.id), 'in_progress', 'Boshlandi 🔄')
+                                  }}
+                                >
+                                  🔄 Boshlash
+                                </Button>
+                              )}
+
+                              {/* Yakunlash */}
+                              {statusKey === 'in_progress' && (
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='h-7 text-xs text-green-600 border-green-300 hover:bg-green-50'
+                                  onClick={() => handleStatusChange(String(app.id), 'completed', 'Yakunlandi 🎉')}
+                                >
+                                  🎉 Yakunlash
+                                </Button>
+                              )}
+
+                              {/* Ko'chirish (Reschedule) for overdue/scheduled/confirmed */}
+                              {(isOverdue || statusKey === 'scheduled' || statusKey === 'confirmed') && (
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='h-7 text-xs text-primary border-primary/30 hover:bg-primary/5'
+                                  onClick={() => handleReschedule(app)}
+                                >
+                                  <CalendarDays className='me-1 h-3 w-3' /> Ko'chirish
+                                </Button>
+                              )}
+
+                              {/* Kelmagan (No-show) */}
+                              {isOverdue && statusKey !== 'no_show' && statusKey !== 'completed' && statusKey !== 'cancelled' && statusKey !== 'in_progress' && (
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='h-7 text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300'
+                                  onClick={() => handleStatusChange(String(app.id), 'no_show', 'Kelmagan (No-show) deb belgilandi')}
+                                >
+                                  Kelmagan
+                                </Button>
+                              )}
+
+                              {/* Bekor qilish */}
+                              {statusKey !== 'cancelled' && statusKey !== 'completed' && (
+                                <Button
+                                  size='sm'
+                                  variant='ghost'
+                                  className='h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                                  onClick={() => handleCancel(String(app.id))}
+                                >
+                                  Bekor qilish
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Table Pagination */}
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              className='mt-2'
+            />
+          </>
+        )}
 
         {/* Booking Modal with ScheduleCalendar */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -766,6 +875,17 @@ export function AppointmentsList() {
                   Bo'sh vaqt oraliklarini ko'rish uchun avval shifokorni tanlang.
                 </div>
               )}
+
+              {/* Real-time Conflict Alert */}
+              {conflictData?.hasConflict && (
+                <div className='rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2.5'>
+                  <AlertCircle className='h-4 w-4 shrink-0 mt-0.5' />
+                  <div>
+                    <span className='font-bold block'>Vaqt to'qnashuvi aniqlandi:</span>
+                    <span>{conflictData.message || 'Shifokor yoki bemorda ayni shu vaqtda boshqa qabul bor.'}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <DialogFooter className='pt-2'>
@@ -774,13 +894,21 @@ export function AppointmentsList() {
               </Button>
               <Button
                 onClick={handleCreateAppointment}
-                disabled={createAppointmentMutation.isPending || !selectedSlot}
+                disabled={createAppointmentMutation.isPending || !selectedSlot || conflictData?.hasConflict}
               >
                 {createAppointmentMutation.isPending ? 'Band qilinmoqda...' : 'Navbatni Band Qilish'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Appointment Detail Dialog */}
+        <AppointmentDetailDialog
+          appointment={selectedAppointment}
+          open={isDetailOpen}
+          onOpenChange={setIsDetailOpen}
+          onReschedule={handleReschedule}
+        />
       </Main>
     </>
   )

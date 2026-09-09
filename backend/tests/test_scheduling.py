@@ -1047,3 +1047,54 @@ def test_cleanup_overdue_settles_past_appointments(
     assert appt2.status == AppointmentStatus.NO_SHOW
     assert "[Tizim:" in appt2.notes
 
+
+def test_calendar_endpoint(api_client, patient, doctor, department, administrator):
+    _auth(api_client, administrator)
+    start, end = _future_slot(hour=11)
+    create_appointment(
+        patient=patient,
+        doctor=doctor,
+        department=department,
+        scheduled_start=start,
+        scheduled_end=end,
+        created_by=administrator,
+    )
+    d_str = start.strftime("%Y-%m-%d")
+    response = api_client.get(f"/api/v1/appointments/calendar/?date_from={d_str}&date_to={d_str}")
+    assert response.status_code == status.HTTP_200_OK
+    results = response.json()
+    assert isinstance(results, list)
+    assert len(results) >= 1
+
+
+def test_check_conflict_endpoint(api_client, patient, doctor, department, administrator):
+    _auth(api_client, administrator)
+    start, end = _future_slot(hour=14)
+    create_appointment(
+        patient=patient,
+        doctor=doctor,
+        department=department,
+        scheduled_start=start,
+        scheduled_end=end,
+        created_by=administrator,
+    )
+    # Overlapping slot
+    overlap_start = (start + timedelta(minutes=10)).isoformat()
+    overlap_end = (end + timedelta(minutes=10)).isoformat()
+    resp = api_client.get(
+        f"/api/v1/appointments/check-conflict/?doctor={doctor.id}&start={overlap_start}&end={overlap_end}"
+    )
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.json()["hasConflict"] is True
+    assert resp.json()["conflictType"] == "doctor_overlap"
+
+    # Non-overlapping slot
+    free_start = (end + timedelta(hours=2)).isoformat()
+    free_end = (end + timedelta(hours=3)).isoformat()
+    resp_free = api_client.get(
+        f"/api/v1/appointments/check-conflict/?doctor={doctor.id}&start={free_start}&end={free_end}"
+    )
+    assert resp_free.status_code == status.HTTP_200_OK
+    assert resp_free.json()["hasConflict"] is False
+
+

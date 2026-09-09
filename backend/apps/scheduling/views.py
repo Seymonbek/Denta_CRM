@@ -99,8 +99,13 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status__in=status_param)
 
+        date_param = params.get("date")
         date_from = params.get("date_from")
         date_to = params.get("date_to")
+        if date_param and not date_from and not date_to:
+            date_from = date_param
+            date_to = date_param
+
         if date_from or date_to:
             from_d = _parse_date(date_from, field="date_from") if date_from else None
             to_d = _parse_date(date_to, field="date_to") if date_to else None
@@ -228,6 +233,134 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 "totalSettled": total,
                 "message": f"{total} ta muddati o'tgan navbat muvaffaqiyatli tartibga keltirildi.",
             },
+            status=status.HTTP_200_OK,
+        )
+
+    # ------------------------------------------------------------------
+    # /appointments/calendar/
+    # ------------------------------------------------------------------
+    @extend_schema(
+        summary="List appointments for calendar range without pagination.",
+        parameters=[
+            OpenApiParameter(name="date_from", required=False, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="date_to", required=False, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="date", required=False, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="doctor", required=False, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="department", required=False, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="status", required=False, type=str, location=OpenApiParameter.QUERY),
+        ],
+        responses={200: AppointmentSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"], url_path="calendar")
+    def calendar(self, request: Request) -> Response:
+        qs = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------
+    # /appointments/check-conflict/
+    # ------------------------------------------------------------------
+    @extend_schema(
+        summary="Check if a slot has overlap conflict for doctor or patient.",
+        parameters=[
+            OpenApiParameter(name="doctor", required=True, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="start", required=True, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="end", required=True, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="patient", required=False, type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="exclude_id", required=False, type=str, location=OpenApiParameter.QUERY),
+        ],
+        responses={200: dict},
+    )
+    @action(detail=False, methods=["get"], url_path="check-conflict")
+    def check_conflict(self, request: Request) -> Response:
+        from apps.doctors.models import DoctorProfile, TimeOff
+        from .selectors import has_overlap
+        from .services import _clean_datetime
+
+        params = request.query_params
+        doctor_id = params.get("doctor")
+        start_str = params.get("start")
+        end_str = params.get("end")
+        patient_id = params.get("patient")
+        exclude_id = params.get("exclude_id")
+
+        if not doctor_id or not start_str or not end_str:
+            return Response(
+                {"hasConflict": False, "reason": "Parametrlar to'liq emas."},
+                status=status.HTTP_200_OK,
+            )
+
+        if isinstance(start_str, str) and " " in start_str and "+" not in start_str:
+            start_str = start_str.replace(" ", "+")
+        if isinstance(end_str, str) and " " in end_str and "+" not in end_str:
+            end_str = end_str.replace(" ", "+")
+
+        try:
+            doctor = DoctorProfile.objects.select_related("user").get(pk=doctor_id)
+            start_dt = _clean_datetime(start_str, field="start")
+            end_dt = _clean_datetime(end_str, field="end")
+        except Exception as err:
+            return Response(
+                {"hasConflict": True, "conflictType": "invalid_params", "message": str(err)},
+                status=status.HTTP_200_OK,
+            )
+
+        # 1. Check TimeOff
+        is_off = TimeOff.objects.filter(
+            user=doctor.user,
+            date_start__lte=end_dt.date(),
+            date_end__gte=start_dt.date(),
+        ).exists()
+        if is_off:
+            return Response(
+                {
+                    "hasConflict": True,
+                    "conflictType": "time_off",
+                    "message": "Shifokor ushbu kunda ta'tilda / dam olishda.",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # 2. Check Doctor Overlap
+        doc_overlap = has_overlap(
+            doctor=doctor,
+            scheduled_start=start_dt,
+            scheduled_end=end_dt,
+            exclude_id=exclude_id,
+        )
+        if doc_overlap:
+            return Response(
+                {
+                    "hasConflict": True,
+                    "conflictType": "doctor_overlap",
+                    "message": "Shifokorda ushbu vaqt oralig'ida boshqa navbat mavjud.",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # 3. Check Patient Double Booking
+        if patient_id:
+            from .models import BLOCKING_STATUSES
+            p_qs = Appointment.objects.filter(
+                patient_id=patient_id,
+                status__in=BLOCKING_STATUSES,
+                scheduled_start__lt=end_dt,
+                scheduled_end__gt=start_dt,
+            )
+            if exclude_id:
+                p_qs = p_qs.exclude(pk=exclude_id)
+            if p_qs.exists():
+                return Response(
+                    {
+                        "hasConflict": True,
+                        "conflictType": "patient_overlap",
+                        "message": "Bemorda shu vaqt oralig'ida boshqa navbat mavjud.",
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        return Response(
+            {"hasConflict": False, "message": "Vaqt bo'sh va band qilish mumkin."},
             status=status.HTTP_200_OK,
         )
 

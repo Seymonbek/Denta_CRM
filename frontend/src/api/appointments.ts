@@ -60,3 +60,50 @@ export async function cleanupOverdueAppointmentsApi(): Promise<{
   return response.data
 }
 
+export interface AppointmentConflictResult {
+  hasConflict: boolean
+  conflictType?: 'time_off' | 'doctor_overlap' | 'patient_overlap' | 'invalid_params'
+  message?: string
+  reason?: string
+}
+
+export async function getCalendarAppointmentsApi(params: {
+  dateFrom?: string
+  dateTo?: string
+  date?: string
+  doctor?: string
+  department?: string
+  status?: string
+}): Promise<Appointment[]> {
+  const response = await apiClient.get<Appointment[]>('appointments/calendar/', {
+    params: {
+      date_from: params.dateFrom,
+      date_to: params.dateTo,
+      date: params.date,
+      doctor: params.doctor,
+      department: params.department,
+      status: params.status,
+    },
+  })
+  return response.data
+}
+
+export async function checkAppointmentConflictApi(params: {
+  doctor: string
+  start: string
+  end: string
+  patient?: string
+  excludeId?: string
+}): Promise<AppointmentConflictResult> {
+  const response = await apiClient.get<AppointmentConflictResult>('appointments/check-conflict/', {
+    params: {
+      doctor: params.doctor,
+      start: params.start,
+      end: params.end,
+      patient: params.patient,
+      exclude_id: params.excludeId,
+    },
+  })
+  return response.data
+}
+

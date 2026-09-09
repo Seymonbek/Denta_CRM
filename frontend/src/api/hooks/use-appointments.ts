@@ -6,6 +6,8 @@ import {
   updateAppointmentApi,
   cancelAppointmentApi,
   cleanupOverdueAppointmentsApi,
+  getCalendarAppointmentsApi,
+  checkAppointmentConflictApi,
 } from '../appointments'
 
 export const APPOINTMENTS_QUERY_KEY = ['appointments']
@@ -73,6 +75,35 @@ export function useCleanupOverdueAppointments() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: APPOINTMENTS_QUERY_KEY })
     },
+  })
+}
+
+export function useCalendarAppointments(params: {
+  dateFrom?: string
+  dateTo?: string
+  date?: string
+  doctor?: string
+  department?: string
+  status?: string
+}, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['appointments', 'calendar', params],
+    queryFn: () => getCalendarAppointmentsApi(params),
+    enabled: enabled && Boolean(params.dateFrom || params.dateTo || params.date),
+  })
+}
+
+export function useAppointmentConflict(params: {
+  doctor: string
+  start: string
+  end: string
+  patient?: string
+  excludeId?: string
+}, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['appointments', 'check-conflict', params],
+    queryFn: () => checkAppointmentConflictApi(params),
+    enabled: enabled && Boolean(params.doctor && params.start && params.end),
   })
 }
 

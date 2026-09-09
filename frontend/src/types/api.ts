@@ -116,7 +116,8 @@ export interface Appointment {
   scheduledStart: string
   scheduledEnd: string
   status: AppointmentStatus
-  createdBy: string
+  notes?: string | null
+  createdBy?: string
 }
 
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
