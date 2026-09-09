@@ -1,6 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Camera, FileText, CreditCard, Search, X } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
+import {
+  Plus,
+  Camera,
+  FileText,
+  CreditCard,
+  Search,
+  X,
+  Stethoscope,
+} from 'lucide-react'
+import { Link, useSearch } from '@tanstack/react-router'
 import { format } from 'date-fns'
 import { MobileImageUploader } from '@/components/ui/mobile-image-uploader'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -24,6 +32,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -46,12 +55,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ActiveTreatmentSession } from '@/components/treatment-session/active-treatment-session'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/lib/get-error-message'
 
+// Teeth FDI quadrants
+const UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11]
+const UPPER_LEFT = [21, 22, 23, 24, 25, 26, 27, 28]
+const LOWER_RIGHT = [48, 47, 46, 45, 44, 43, 42, 41]
+const LOWER_LEFT = [31, 32, 33, 34, 35, 36, 37, 38]
+
+const PRIMARY_UPPER_RIGHT = [55, 54, 53, 52, 51]
+const PRIMARY_UPPER_LEFT = [61, 62, 63, 64, 65]
+const PRIMARY_LOWER_RIGHT = [85, 84, 83, 82, 81]
+const PRIMARY_LOWER_LEFT = [71, 72, 73, 74, 75]
+
+const SURFACES_LIST = [
+  { code: 'O', label: 'Oklyuzal / Kesuvchi (O)' },
+  { code: 'M', label: 'Medial / Oldi (M)' },
+  { code: 'D', label: 'Distal / Orqa (D)' },
+  { code: 'V', label: 'Vestibulyar / Lab (V)' },
+  { code: 'L', label: 'Lingval / Tanglay (L)' },
+]
+
 export function TreatmentsList() {
+  const searchParams = useSearch({ strict: false }) as {
+    newPatientId?: string
+    newDoctorId?: string
+    newAppointmentId?: string
+    activeTreatmentId?: string
+  }
+
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTreatmentForPhoto, setSelectedTreatmentForPhoto] = useState<Treatment | null>(null)
+  const [selectedTreatmentForSession, setSelectedTreatmentForSession] = useState<Treatment | null>(null)
   const [photoType, setPhotoType] = useState<'before' | 'after' | 'xray'>('before')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
@@ -77,6 +114,11 @@ export function TreatmentsList() {
   const [price, setPrice] = useState('')
   const [defaultPrice, setDefaultPrice] = useState<number>(0)
   const [discountReason, setDiscountReason] = useState('')
+
+  // Multi-tooth & surfaces selection
+  const [selectedTeeth, setSelectedTeeth] = useState<number[]>([])
+  const [selectedSurfaces, setSelectedSurfaces] = useState<string[]>([])
+  const [showChildTeeth, setShowChildTeeth] = useState(false)
 
   const { data: treatmentsData, isLoading } = useTreatments({
     search: searchTerm.trim() || undefined,
@@ -120,35 +162,89 @@ export function TreatmentsList() {
 
   const isSubmittingRef = useRef(false)
 
+  // Handle URL deep-linking from Appointments or Patients
+  useEffect(() => {
+    if (searchParams?.newPatientId || searchParams?.newAppointmentId || searchParams?.newDoctorId) {
+      if (searchParams.newPatientId) setPatientId(searchParams.newPatientId)
+      if (searchParams.newDoctorId) setDoctorId(searchParams.newDoctorId)
+      if (searchParams.newAppointmentId) {
+        setAppointmentId(searchParams.newAppointmentId)
+        const app = appointments.find((a) => a.id === searchParams.newAppointmentId)
+        if (app) {
+          if (app.department) {
+            setDepartmentId(typeof app.department === 'object' ? (app.department as any).id : app.department)
+          }
+          if (app.procedureType) {
+            setProcedureTypeId(typeof app.procedureType === 'object' ? (app.procedureType as any).id : app.procedureType)
+          }
+        }
+      }
+      setIsModalOpen(true)
+    }
+  }, [searchParams, appointments])
+
+  // If activeTreatmentId is passed in URL, open active session
+  useEffect(() => {
+    if (searchParams?.activeTreatmentId && treatments.length > 0) {
+      const match = treatments.find((t: any) => t.id === searchParams.activeTreatmentId)
+      if (match) setSelectedTreatmentForSession(match)
+    }
+  }, [searchParams, treatments])
+
+  const toggleTooth = (tooth: number) => {
+    setSelectedTeeth((prev) =>
+      prev.includes(tooth) ? prev.filter((t) => t !== tooth) : [...prev, tooth]
+    )
+  }
+
+  const toggleSurface = (code: string) => {
+    setSelectedSurfaces((prev) =>
+      prev.includes(code) ? prev.filter((s) => s !== code) : [...prev, code]
+    )
+  }
+
   const handleCreateTreatment = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!appointmentId || !patientId || !doctorId || !departmentId || !procedureTypeId || !price) {
+    if (!patientId || !doctorId || !departmentId || !procedureTypeId || !price) {
       toast.error('Barcha majburiy maydonlarni to’ldiring.')
       return
     }
-    
+
     if (isSubmittingRef.current) return
     isSubmittingRef.current = true
 
     const discountPercent = defaultPrice > 0 ? ((defaultPrice - Number(price)) / defaultPrice) * 100 : 0
     try {
       await createTreatmentMutation.mutateAsync({
-        appointment: appointmentId,
+        appointment: appointmentId || undefined,
         patient: patientId,
         doctor: doctorId,
         department: departmentId,
         procedureType: procedureTypeId,
-        diagnosis,
-        description,
+        diagnosis: diagnosis.trim() || undefined,
+        description: description.trim() || undefined,
         price,
-        originalPrice: defaultPrice > 0 ? defaultPrice : undefined,
-        discountPercent: discountPercent > 0 ? discountPercent : 0,
-        discountReason: discountReason || undefined,
-      })
-      toast.success('Davolash yozuvi yaratildi!')
+        discountReason: discountPercent > 10 ? discountReason : undefined,
+        teeth: selectedTeeth.length > 0 ? selectedTeeth : undefined,
+        surfaces: selectedSurfaces.length > 0 ? selectedSurfaces : undefined,
+      } as any)
+      toast.success('Davolash yozuvi muvaffaqiyatli saqlandi!')
       setIsModalOpen(false)
+      // Reset form
+      setAppointmentId('')
+      setPatientId('')
+      setDoctorId('')
+      setDepartmentId('')
+      setProcedureTypeId('')
+      setDiagnosis('')
+      setDescription('')
+      setPrice('')
+      setDefaultPrice(0)
+      setDiscountReason('')
+      setSelectedTeeth([])
+      setSelectedSurfaces([])
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Yaratishda xatolik yuz berdi.'))
+      toast.error(getErrorMessage(err, 'Saqlashda xatolik yuz berdi.'))
     } finally {
       isSubmittingRef.current = false
     }
@@ -157,7 +253,7 @@ export function TreatmentsList() {
   const handleUploadPhoto = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedTreatmentForPhoto || !selectedFile) {
-      toast.error('Faylni tanlang.')
+      toast.error('Fayl tanlang.')
       return
     }
 
@@ -167,11 +263,11 @@ export function TreatmentsList() {
         file: selectedFile,
         photoType,
       })
-      toast.success('Fotosurat yuklandi!')
-      setSelectedTreatmentForPhoto(null)
+      toast.success('Rasm muvaffaqiyatli yuklandi!')
       setSelectedFile(null)
+      setSelectedTreatmentForPhoto(null)
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Rasm yuklashda xatolik.'))
+      toast.error(getErrorMessage(err, 'Rasm yuklashda xatolik yuz berdi.'))
     }
   }
 
@@ -179,7 +275,7 @@ export function TreatmentsList() {
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
-          <span>🦷 Davolash Yozuvlari</span>
+          <span>🦷 Muolajalar va Davolash Seanslari</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -188,13 +284,13 @@ export function TreatmentsList() {
       <Main>
         <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight'>Barcha Davolanish Ishlari</h1>
+            <h1 className='text-2xl font-bold tracking-tight'>Klinik Davolashlar (Treatments)</h1>
             <p className='text-xs text-muted-foreground'>
-              Tashxislar, muolajalar narxi, foto hujjatlashtirish va to'lov holatlari.
+              Bemorlarning davolash yozuvlari, tish kartalari, fotosuratlari va kassa dalolatnomalari.
             </p>
           </div>
-          <Button onClick={() => setIsModalOpen(true)} className='shadow'>
-            <Plus className='me-2 h-4 w-4' /> Yangi Davolash Yozuvi
+          <Button onClick={() => setIsModalOpen(true)} className='shadow h-8 text-xs gap-1.5'>
+            <Plus className='h-4 w-4' /> Yangi Davolash Yozish
           </Button>
         </div>
 
@@ -270,11 +366,11 @@ export function TreatmentsList() {
               <TableRow className='bg-muted/30'>
                 <TableHead className='text-xs font-semibold'>Bemor</TableHead>
                 <TableHead className='text-xs font-semibold'>Shifokor</TableHead>
-                <TableHead className='text-xs font-semibold'>Tashxis & Muolaja</TableHead>
+                <TableHead className='text-xs font-semibold'>Tashxis & Tishlar</TableHead>
                 <TableHead className='text-xs font-semibold'>Narx (so'm)</TableHead>
-                <TableHead className='text-xs font-semibold'>To'lov Holati</TableHead>
+                <TableHead className='text-xs font-semibold'>To'lov</TableHead>
                 <TableHead className='text-xs font-semibold'>Bosqich</TableHead>
-                <TableHead className='text-xs font-semibold text-end'>Foto Yuklash</TableHead>
+                <TableHead className='text-xs font-semibold text-end'>Harakatlar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -292,20 +388,21 @@ export function TreatmentsList() {
                 </TableRow>
               ) : (
                 treatments.map((t: any) => {
-                  const patientId = t.patientId || (typeof t.patient === 'object' ? (t.patient as any)?.id : t.patient)
+                  const patientIdVal = t.patientId || (typeof t.patient === 'object' ? (t.patient as any)?.id : t.patient)
                   const patientName = t.patientName || (typeof t.patient === 'object' ? `${(t.patient as any).firstName || ''} ${(t.patient as any).lastName || ''}`.trim() : '') || 'Bemor'
                   const doctorName = t.doctorName || (typeof t.doctor === 'object' && (t.doctor as any)?.user ? `Dr. ${(t.doctor as any).user.firstName || ''} ${(t.doctor as any).user.lastName || ''}`.trim() : '') || 'Shifokor'
                   const procedureTypeName = t.procedureTypeName || (typeof t.procedureType === 'object' ? (t.procedureType as any)?.name : '') || ''
                   const approvalStatus = t.approvalStatus || t.approval_status || 'approved'
                   const hasDiscount = Number(t.discountPercent || t.discount_percent || 0) > 0
+                  const toothRecordsList: any[] = t.toothRecords || []
 
                   return (
                     <TableRow key={t.id} className='hover:bg-muted/20'>
                       <TableCell className='font-medium text-xs'>
-                        {patientId ? (
+                        {patientIdVal ? (
                           <Link
                             to='/patients/$id'
-                            params={{ id: String(patientId) }}
+                            params={{ id: String(patientIdVal) }}
                             className='text-primary hover:underline font-bold flex items-center gap-1'
                           >
                             {patientName}
@@ -319,7 +416,18 @@ export function TreatmentsList() {
                       </TableCell>
                       <TableCell className='text-xs max-w-xs'>
                         <p className='font-semibold truncate'>{t.diagnosis || 'Tashxis kiritilmagan'}</p>
-                        {procedureTypeName && <p className='text-[10px] text-muted-foreground truncate'>{procedureTypeName}</p>}
+                        <div className='flex items-center gap-1.5 flex-wrap mt-0.5'>
+                          {procedureTypeName && <span className='text-[10px] text-muted-foreground'>{procedureTypeName}</span>}
+                          {toothRecordsList.length > 0 && (
+                            <div className='flex items-center gap-1'>
+                              {toothRecordsList.map((rec: any) => (
+                                <Badge key={rec.id || rec.toothNumber} variant='outline' className='text-[9px] px-1 py-0 h-4 bg-muted/40 font-mono'>
+                                  #{rec.toothNumber}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className='text-xs'>
                         <span className="font-mono font-bold block">{Number(t.price || 0).toLocaleString()} so'm</span>
@@ -331,7 +439,7 @@ export function TreatmentsList() {
                               </Badge>
                             ) : approvalStatus === 'rejected' ? (
                               <Badge variant='destructive' className='text-[9px] px-1 py-0'>
-                                ❌ Chegirma rad etilgan
+                                ❌ Rad etilgan
                               </Badge>
                             ) : (
                               <span className='text-[10px] text-emerald-600 font-medium'>
@@ -364,40 +472,56 @@ export function TreatmentsList() {
                           {t.stage === 'completed' ? 'Yakunlangan' : 'Jarayonda'}
                         </Badge>
                       </TableCell>
-                      <TableCell className='text-end flex items-center justify-end gap-1.5'>
-                        {t.paymentStatus !== 'paid' && (
+                      <TableCell className='text-end'>
+                        <div className='flex items-center justify-end gap-1.5 flex-wrap'>
+                          {/* Davolash seansini ochish */}
+                          <Button
+                            size='sm'
+                            variant='default'
+                            className='h-7 text-xs gap-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium'
+                            onClick={() => setSelectedTreatmentForSession(t)}
+                          >
+                            <Stethoscope className='h-3.5 w-3.5' /> Davolash
+                          </Button>
+
+                          {t.paymentStatus !== 'paid' && (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='h-7 text-xs gap-1 border-purple-500/30 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                              asChild
+                            >
+                              <Link to='/payments' search={{ treatmentId: t.id }}>
+                                <CreditCard className='h-3.5 w-3.5' /> Kassa
+                              </Link>
+                            </Button>
+                          )}
+
                           <Button
                             size='sm'
                             variant='outline'
-                            className='h-7 text-xs gap-1 border-purple-500/30 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                            asChild
+                            className='h-7 text-xs gap-1 border-blue-500/30 text-blue-600 hover:bg-blue-50'
+                            onClick={() => {
+                              const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1/'
+                              const url = `${baseUrl}treatments/${t.id}/pdf-act/`
+                              window.open(url, '_blank')
+                            }}
                           >
-                            <Link to='/payments' search={{ treatmentId: t.id }}>
-                              <CreditCard className='h-3.5 w-3.5' /> Kassa
-                            </Link>
+                            <FileText className='h-3.5 w-3.5' /> PDF
                           </Button>
-                        )}
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          className='h-7 text-xs gap-1 border-blue-500/30 text-blue-600 hover:bg-blue-50'
-                          onClick={() => {
-                            const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1/'
-                            const url = `${baseUrl}treatments/${t.id}/pdf-act/`
-                            window.open(url, '_blank')
-                          }}
-                        >
-                          <FileText className='h-3.5 w-3.5' /> Dalolatnoma (PDF)
-                        </Button>
 
-                        <Button
-                          size='sm'
-                          variant='ghost'
-                          className='h-7 text-xs'
-                          onClick={() => setSelectedTreatmentForPhoto(t)}
-                        >
-                          <Camera className='me-1.5 h-3.5 w-3.5' /> Foto
-                        </Button>
+                          <Button
+                            size='sm'
+                            variant='ghost'
+                            className='h-7 text-xs gap-1'
+                            onClick={() => setSelectedTreatmentForPhoto(t)}
+                          >
+                            <Camera className='h-3.5 w-3.5' />
+                            {Array.isArray(t.photos) && t.photos.length > 0 && (
+                              <span className='text-[10px] font-mono'>({t.photos.length})</span>
+                            )}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -417,16 +541,16 @@ export function TreatmentsList() {
           className='mt-2'
         />
 
-        {/* Create Treatment Modal */}
+        {/* Create Treatment Modal with Multi-Tooth Selector */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className='sm:max-w-lg'>
+          <DialogContent className='sm:max-w-2xl max-h-[90vh] overflow-y-auto'>
             <DialogHeader>
               <DialogTitle>Yangi Davolash Yozuvi Yaratish</DialogTitle>
             </DialogHeader>
 
-            <form onSubmit={handleCreateTreatment} className='space-y-3 py-2'>
+            <form onSubmit={handleCreateTreatment} className='space-y-4 py-2'>
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>Navbat (Appointment) *</label>
+                <label className='text-xs font-medium'>Navbat (Appointment) - Ixtiyoriy</label>
                 <Select
                   value={appointmentId}
                   onValueChange={(val) => {
@@ -442,8 +566,8 @@ export function TreatmentsList() {
                     }
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder='Navbatni tanlang' />
+                  <SelectTrigger className='text-xs h-9'>
+                    <SelectValue placeholder='Navbatni tanlang (agar bor bo’lsa)' />
                   </SelectTrigger>
                   <SelectContent>
                     {appointments.map((a) => (
@@ -491,7 +615,7 @@ export function TreatmentsList() {
                 <div className='space-y-1'>
                   <label className='text-xs font-medium'>Bo'lim *</label>
                   <Select value={departmentId} onValueChange={setDepartmentId}>
-                    <SelectTrigger>
+                    <SelectTrigger className='text-xs h-9'>
                       <SelectValue placeholder='Bo’lim' />
                     </SelectTrigger>
                     <SelectContent>
@@ -518,7 +642,7 @@ export function TreatmentsList() {
                       }
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className='text-xs h-9'>
                       <SelectValue placeholder='Muolaja' />
                     </SelectTrigger>
                     <SelectContent>
@@ -532,12 +656,195 @@ export function TreatmentsList() {
                 </div>
               </div>
 
+              {/* Teeth Multi-Selector Section */}
+              <div className='border rounded-xl p-3 bg-muted/20 space-y-2'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-1.5 text-xs font-bold text-foreground'>
+                    <span>🦷 Davolanayotgan Tishlar (Odontogram)</span>
+                    {selectedTeeth.length > 0 && (
+                      <Badge variant='secondary' className='text-[10px] font-mono'>
+                        {selectedTeeth.length} ta tish
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => setShowChildTeeth(!showChildTeeth)}
+                    className='h-6 text-[11px] text-muted-foreground hover:text-primary'
+                  >
+                    {showChildTeeth ? 'Doimiy tishlar' : 'Sut tishlari (Bolalar)'}
+                  </Button>
+                </div>
+
+                {/* Adult Teeth Grid */}
+                {!showChildTeeth ? (
+                  <div className='space-y-1.5'>
+                    {/* Upper */}
+                    <div className='flex justify-center gap-1'>
+                      {UPPER_RIGHT.map((n) => (
+                        <button
+                          key={n}
+                          type='button'
+                          onClick={() => toggleTooth(n)}
+                          className={`w-7 h-7 text-xs font-mono font-bold rounded border transition-colors ${
+                            selectedTeeth.includes(n)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                      <div className='w-2' />
+                      {UPPER_LEFT.map((n) => (
+                        <button
+                          key={n}
+                          type='button'
+                          onClick={() => toggleTooth(n)}
+                          className={`w-7 h-7 text-xs font-mono font-bold rounded border transition-colors ${
+                            selectedTeeth.includes(n)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Lower */}
+                    <div className='flex justify-center gap-1'>
+                      {LOWER_RIGHT.map((n) => (
+                        <button
+                          key={n}
+                          type='button'
+                          onClick={() => toggleTooth(n)}
+                          className={`w-7 h-7 text-xs font-mono font-bold rounded border transition-colors ${
+                            selectedTeeth.includes(n)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                      <div className='w-2' />
+                      {LOWER_LEFT.map((n) => (
+                        <button
+                          key={n}
+                          type='button'
+                          onClick={() => toggleTooth(n)}
+                          className={`w-7 h-7 text-xs font-mono font-bold rounded border transition-colors ${
+                            selectedTeeth.includes(n)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* Child Teeth Grid */
+                  <div className='space-y-1.5'>
+                    <div className='flex justify-center gap-1'>
+                      {PRIMARY_UPPER_RIGHT.map((n) => (
+                        <button
+                          key={n}
+                          type='button'
+                          onClick={() => toggleTooth(n)}
+                          className={`w-7 h-7 text-xs font-mono font-bold rounded border transition-colors ${
+                            selectedTeeth.includes(n)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                      <div className='w-2' />
+                      {PRIMARY_UPPER_LEFT.map((n) => (
+                        <button
+                          key={n}
+                          type='button'
+                          onClick={() => toggleTooth(n)}
+                          className={`w-7 h-7 text-xs font-mono font-bold rounded border transition-colors ${
+                            selectedTeeth.includes(n)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                    <div className='flex justify-center gap-1'>
+                      {PRIMARY_LOWER_RIGHT.map((n) => (
+                        <button
+                          key={n}
+                          type='button'
+                          onClick={() => toggleTooth(n)}
+                          className={`w-7 h-7 text-xs font-mono font-bold rounded border transition-colors ${
+                            selectedTeeth.includes(n)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                      <div className='w-2' />
+                      {PRIMARY_LOWER_LEFT.map((n) => (
+                        <button
+                          key={n}
+                          type='button'
+                          onClick={() => toggleTooth(n)}
+                          className={`w-7 h-7 text-xs font-mono font-bold rounded border transition-colors ${
+                            selectedTeeth.includes(n)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-card text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Surfaces Selector */}
+                <div className='pt-2 border-t mt-2'>
+                  <span className='text-[11px] font-semibold text-muted-foreground block mb-1'>
+                    Tish Sirtlari (Surfaces):
+                  </span>
+                  <div className='flex flex-wrap gap-1.5'>
+                    {SURFACES_LIST.map((s) => (
+                      <button
+                        key={s.code}
+                        type='button'
+                        onClick={() => toggleSurface(s.code)}
+                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                          selectedSurfaces.includes(s.code)
+                            ? 'bg-primary/20 border-primary text-primary font-bold'
+                            : 'bg-background hover:bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className='space-y-1'>
                 <label className='text-xs font-medium'>Tashxis (Diagnosis)</label>
                 <Input
-                  placeholder='Karies, Pulpit...'
+                  placeholder='Karies, Pulpit, Periodontit...'
                   value={diagnosis}
                   onChange={(e) => setDiagnosis(e.target.value)}
+                  className='text-xs h-9'
                 />
               </div>
 
@@ -548,6 +855,7 @@ export function TreatmentsList() {
                   placeholder='300000'
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
+                  className='text-xs h-9'
                   required
                 />
                 {defaultPrice > 0 && Number(price) < defaultPrice && (
@@ -570,6 +878,7 @@ export function TreatmentsList() {
                     placeholder='Chegirma berish sababini yozing...'
                     value={discountReason}
                     onChange={(e) => setDiscountReason(e.target.value)}
+                    className='text-xs h-9'
                     required
                   />
                 </div>
@@ -582,6 +891,7 @@ export function TreatmentsList() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
+                  className='text-xs'
                 />
               </div>
 
@@ -597,49 +907,166 @@ export function TreatmentsList() {
           </DialogContent>
         </Dialog>
 
-        {/* Upload Photo Modal */}
-        <Dialog open={selectedTreatmentForPhoto !== null} onOpenChange={(open) => !open && setSelectedTreatmentForPhoto(null)}>
-          <DialogContent className='sm:max-w-md'>
-            <DialogHeader>
-              <DialogTitle>Davolanish Fotosuratini Yuklash (Before/After/Xray)</DialogTitle>
+        {/* Active Treatment Session Modal (Treatment Workspace) */}
+        <Dialog open={selectedTreatmentForSession !== null} onOpenChange={(open) => !open && setSelectedTreatmentForSession(null)}>
+          <DialogContent className='sm:max-w-4xl max-h-[92vh] overflow-y-auto p-4 sm:p-6'>
+            <DialogHeader className='border-b pb-3'>
+              <DialogTitle className='text-lg font-bold flex items-center gap-2'>
+                <Stethoscope className='h-5 w-5 text-primary' />
+                Davolash Seansi va Tish Kartasi
+              </DialogTitle>
             </DialogHeader>
 
-            <form onSubmit={handleUploadPhoto} className='space-y-4 py-2'>
-              <div className='space-y-1'>
-                <label className='text-xs font-medium'>Rasm turi (Photo Type)</label>
-                <Select value={photoType} onValueChange={(val: 'before' | 'after' | 'xray') => setPhotoType(val)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='before'>Davolashdan Oldin (Before)</SelectItem>
-                    <SelectItem value='after'>Davolashdan Keyin (After)</SelectItem>
-                    <SelectItem value='xray'>Rentgen Rasm (X-Ray)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {selectedTreatmentForSession && (
+              <ActiveTreatmentSession
+                treatmentId={selectedTreatmentForSession.id}
+                appointmentId={
+                  selectedTreatmentForSession.appointmentId ||
+                  (typeof selectedTreatmentForSession.appointment === 'object'
+                    ? (selectedTreatmentForSession.appointment as any)?.id
+                    : selectedTreatmentForSession.appointment) ||
+                  ''
+                }
+                patientId={
+                  selectedTreatmentForSession.patientId ||
+                  (typeof selectedTreatmentForSession.patient === 'object'
+                    ? (selectedTreatmentForSession.patient as any)?.id
+                    : selectedTreatmentForSession.patient) ||
+                  ''
+                }
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
-              <div className='space-y-1'>
-                <label className='text-xs font-medium mb-1 block'>Foto Tayyorlash / Kamera</label>
-                <MobileImageUploader
-                  onFileSelect={(file) => setSelectedFile(file)}
-                />
-                {selectedFile && (
-                  <p className='text-xs text-emerald-500 font-medium mt-1'>
-                    Tanlangan: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-                  </p>
-                )}
-              </div>
+        {/* Photo Gallery & Comparison Modal */}
+        <Dialog open={selectedTreatmentForPhoto !== null} onOpenChange={(open) => !open && setSelectedTreatmentForPhoto(null)}>
+          <DialogContent className='sm:max-w-2xl max-h-[90vh] overflow-y-auto'>
+            <DialogHeader>
+              <DialogTitle className='flex items-center gap-2'>
+                <Camera className='h-5 w-5 text-primary' />
+                Davolash Fotosuratlari va Rentgen
+              </DialogTitle>
+            </DialogHeader>
 
-              <DialogFooter className='pt-2'>
-                <Button type='button' variant='outline' onClick={() => setSelectedTreatmentForPhoto(null)}>
-                  Bekor qilish
-                </Button>
-                <Button type='submit' disabled={uploadPhotoMutation.isPending || !selectedFile}>
-                  {uploadPhotoMutation.isPending ? 'Yuklanmoqda...' : 'Rasmni Yuklash'}
-                </Button>
-              </DialogFooter>
-            </form>
+            {selectedTreatmentForPhoto && (
+              <Tabs defaultValue='compare' className='w-full'>
+                <TabsList className='grid grid-cols-2 w-full'>
+                  <TabsTrigger value='compare'>Taqqoslash (Before & After)</TabsTrigger>
+                  <TabsTrigger value='upload'>Yangi Foto Yuklash</TabsTrigger>
+                </TabsList>
+
+                {/* TAB: COMPARE */}
+                <TabsContent value='compare' className='pt-3 space-y-4'>
+                  {Array.isArray(selectedTreatmentForPhoto.photos) && selectedTreatmentForPhoto.photos.length > 0 ? (
+                    <div className='space-y-4'>
+                      <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                        {/* Before photo */}
+                        <div className='border rounded-xl p-3 bg-muted/20 text-center space-y-2'>
+                          <Badge variant='outline' className='text-xs font-bold text-amber-600 border-amber-400'>
+                            Davolashdan Oldin (Before)
+                          </Badge>
+                          {selectedTreatmentForPhoto.photos.find((p: any) => p.photoType === 'before') ? (
+                            <img
+                              src={selectedTreatmentForPhoto.photos.find((p: any) => p.photoType === 'before')?.imageUrl || ''}
+                              alt='Before'
+                              className='w-full h-48 object-cover rounded-lg border shadow-xs'
+                            />
+                          ) : (
+                            <div className='h-48 border border-dashed rounded-lg flex items-center justify-center text-xs text-muted-foreground'>
+                              Oldingi rasm yuklanmagan
+                            </div>
+                          )}
+                        </div>
+
+                        {/* After photo */}
+                        <div className='border rounded-xl p-3 bg-muted/20 text-center space-y-2'>
+                          <Badge variant='outline' className='text-xs font-bold text-emerald-600 border-emerald-400'>
+                            Davolashdan Keyin (After)
+                          </Badge>
+                          {selectedTreatmentForPhoto.photos.find((p: any) => p.photoType === 'after') ? (
+                            <img
+                              src={selectedTreatmentForPhoto.photos.find((p: any) => p.photoType === 'after')?.imageUrl || ''}
+                              alt='After'
+                              className='w-full h-48 object-cover rounded-lg border shadow-xs'
+                            />
+                          ) : (
+                            <div className='h-48 border border-dashed rounded-lg flex items-center justify-center text-xs text-muted-foreground'>
+                              Keyingi rasm yuklanmagan
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* X-Ray Photos */}
+                      {selectedTreatmentForPhoto.photos.some((p: any) => p.photoType === 'xray') && (
+                        <div className='border rounded-xl p-3 bg-muted/10 space-y-2'>
+                          <Badge variant='secondary' className='text-xs font-bold'>
+                            Rentgen Tasvirlar (X-Ray)
+                          </Badge>
+                          <div className='grid grid-cols-2 sm:grid-cols-3 gap-2'>
+                            {selectedTreatmentForPhoto.photos
+                              .filter((p: any) => p.photoType === 'xray')
+                              .map((p: any) => (
+                                <img
+                                  key={p.id}
+                                  src={p.imageUrl || ''}
+                                  alt='X-Ray'
+                                  className='w-full h-32 object-cover rounded-md border'
+                                />
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className='py-8 text-center text-xs text-muted-foreground border rounded-xl border-dashed'>
+                      Ushbu davolash uchun hozircha fotosuratlar yuklanmagan. "Yangi Foto Yuklash" bo'limidan qo'shishingiz mumkin.
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* TAB: UPLOAD */}
+                <TabsContent value='upload' className='pt-3'>
+                  <form onSubmit={handleUploadPhoto} className='space-y-4'>
+                    <div className='space-y-1'>
+                      <label className='text-xs font-medium'>Rasm turi (Photo Type)</label>
+                      <Select value={photoType} onValueChange={(val: 'before' | 'after' | 'xray') => setPhotoType(val)}>
+                        <SelectTrigger className='text-xs h-9'>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='before'>Davolashdan Oldin (Before)</SelectItem>
+                          <SelectItem value='after'>Davolashdan Keyin (After)</SelectItem>
+                          <SelectItem value='xray'>Rentgen Rasm (X-Ray)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className='space-y-1'>
+                      <label className='text-xs font-medium mb-1 block'>Foto Fayl / Kamera</label>
+                      <MobileImageUploader
+                        onFileSelect={(file) => setSelectedFile(file)}
+                      />
+                      {selectedFile && (
+                        <p className='text-xs text-emerald-500 font-medium mt-1'>
+                          Tanlangan: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                        </p>
+                      )}
+                    </div>
+
+                    <DialogFooter className='pt-2'>
+                      <Button type='button' variant='outline' onClick={() => setSelectedTreatmentForPhoto(null)}>
+                        Yopish
+                      </Button>
+                      <Button type='submit' disabled={uploadPhotoMutation.isPending || !selectedFile}>
+                        {uploadPhotoMutation.isPending ? 'Yuklanmoqda...' : 'Rasmni Yuklash'}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            )}
           </DialogContent>
         </Dialog>
       </Main>

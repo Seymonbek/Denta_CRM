@@ -190,8 +190,9 @@ class PatientOdontogramView(APIView):
                     "toothNumber": tooth_number,
                     "procedure": record.procedure,
                     "status": record.status,
+                    "surfaces": record.surfaces or [],
                     "notes": record.notes or "",
-                    "treatmentId": str(record.treatment_id),
+                    "treatmentId": str(record.treatment_id) if record.treatment_id else None,
                     "updatedAt": record.updated_at.isoformat()
                     if record.updated_at
                     else None,

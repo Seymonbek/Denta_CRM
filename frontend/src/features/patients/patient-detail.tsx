@@ -1,6 +1,6 @@
-import { useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, Link } from '@tanstack/react-router'
-import { ArrowLeft, Phone, MapPin, Calendar, ShieldAlert, Clock, Play } from 'lucide-react'
+import { ArrowLeft, Phone, MapPin, Calendar, ShieldAlert, Clock, Play, Printer } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   usePatient,
@@ -14,6 +14,7 @@ import { useTreatments, useCreateTreatment } from '@/api/hooks/use-treatments'
 import { getTreatmentsApi } from '@/api/treatments'
 import { savePatientOdontogramApi } from '@/api/patients'
 import { ActiveTreatmentSession } from '@/components/treatment-session/active-treatment-session'
+import { DentalRecord025 } from '@/components/print/dental-record-025'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -21,6 +22,12 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Odontogram } from '@/components/odontogram/odontogram'
 import { PatientTimeline } from '@/components/patient-timeline/patient-timeline'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -66,6 +73,19 @@ export function PatientDetail() {
     : Array.isArray(activeTreatmentsData)
     ? activeTreatmentsData[0]
     : undefined
+
+  const { data: allTreatmentsData } = useTreatments({
+    patient: id,
+    page_size: 50,
+  })
+  const patientTreatments = Array.isArray(allTreatmentsData?.results)
+    ? allTreatmentsData.results
+    : Array.isArray(allTreatmentsData)
+    ? allTreatmentsData
+    : []
+
+  const [isPrint025Open, setIsPrint025Open] = useState(false)
+  const printComponentRef = useRef<HTMLDivElement>(null)
 
   const createTreatment = useCreateTreatment()
 
@@ -329,6 +349,16 @@ export function PatientDetail() {
               <span>Jami To'langan:</span>
               <span className='font-mono'>{totalPaid.toLocaleString()}</span>
             </div>
+            <div className='mt-3 pt-2 border-t'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setIsPrint025Open(true)}
+                className='h-7 text-xs gap-1.5 w-full bg-background hover:bg-muted font-medium'
+              >
+                <Printer className='h-3.5 w-3.5 text-primary' /> 025/h Kartani Chop Etish
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -436,6 +466,63 @@ export function PatientDetail() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* 025/h Dental Record Print Preview Dialog */}
+        <Dialog open={isPrint025Open} onOpenChange={setIsPrint025Open}>
+          <DialogContent className='max-w-4xl max-h-[92vh] overflow-y-auto p-4 sm:p-6'>
+            <DialogHeader className='flex flex-row items-center justify-between border-b pb-3'>
+              <DialogTitle className='text-sm font-bold flex items-center gap-2'>
+                <Printer className='h-4 w-4 text-primary' />
+                025/h Stomatologik Ambulatoriya Kartasi
+              </DialogTitle>
+              <Button
+                size='sm'
+                onClick={() => {
+                  const printContent = printComponentRef.current
+                  if (!printContent) return
+                  const win = window.open('', '', 'width=900,height=650')
+                  if (!win) return
+                  win.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                      <head>
+                        <title>025-h_${patient.lastName}_${patient.firstName}</title>
+                        <style>
+                          @page { size: A4; margin: 10mm; }
+                          body { font-family: system-ui, -apple-system, sans-serif; color: #000; background: #fff; margin: 0; padding: 0; }
+                          table { border-collapse: collapse; width: 100%; }
+                          th, td { border: 1px solid #000; padding: 3px; }
+                        </style>
+                      </head>
+                      <body>
+                        ${printContent.innerHTML}
+                      </body>
+                    </html>
+                  `)
+                  win.document.close()
+                  win.focus()
+                  setTimeout(() => {
+                    win.print()
+                    win.close()
+                  }, 350)
+                }}
+                className='h-8 text-xs gap-1.5 font-medium'
+              >
+                <Printer className='h-3.5 w-3.5' /> Chop Etish (Print)
+              </Button>
+            </DialogHeader>
+
+            <div className='py-2 overflow-x-auto'>
+              <div ref={printComponentRef} className='bg-white p-2 min-w-[700px] border shadow-xs'>
+                <DentalRecord025
+                  patient={patient}
+                  toothRecords={toothRecords}
+                  treatments={patientTreatments}
+                />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </Main>
     </>
   )

@@ -242,6 +242,7 @@ class TreatmentViewSet(viewsets.ModelViewSet):
                 treatment=treatment,
                 tooth_number=payload.get("toothNumber", payload.get("tooth_number")),
                 procedure=payload.get("procedure"),
+                surfaces=payload.get("surfaces"),
                 status_value=payload.get("status"),
                 notes=payload.get("notes", "") or "",
             )

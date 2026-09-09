@@ -630,3 +630,36 @@ class TestTreatmentSerializerIntegration:
         assert "toothRecords" in body
         assert len(body["toothRecords"]) == 1
         assert body["toothRecords"][0]["toothNumber"] == 15
+
+    def test_treatment_create_with_teeth_and_surfaces(
+        self, head_doctor, patient, doctor, department
+    ):
+        client = _auth_client(head_doctor)
+        res = client.post(
+            "/api/v1/treatments/",
+            {
+                "patient": str(patient.pk),
+                "doctor": str(doctor.pk),
+                "department": str(department.pk),
+                "diagnosis": "Karies 16, 17",
+                "price": "500000.00",
+                "teeth": [16, 17],
+                "surfaces": ["O", "M"],
+            },
+            format="json",
+        )
+        assert res.status_code == status.HTTP_201_CREATED
+        t_data = res.json()
+        assert len(t_data["toothRecords"]) == 2
+        t16 = next(tr for tr in t_data["toothRecords"] if tr["toothNumber"] == 16)
+        assert "O" in t16["surfaces"]
+        assert "M" in t16["surfaces"]
+
+        # Check patient odontogram snapshot has surfaces
+        snap_res = client.get(f"/api/v1/patients/{patient.pk}/odontogram/")
+        assert snap_res.status_code == status.HTTP_200_OK
+        snap_data = snap_res.json()
+        snap_16 = next(s for s in snap_data if s["toothNumber"] == 16)
+        assert "O" in snap_16["surfaces"]
+        assert "M" in snap_16["surfaces"]
+

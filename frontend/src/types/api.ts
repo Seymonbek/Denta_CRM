@@ -126,18 +126,25 @@ export type TreatmentStage = 'in_progress' | 'completed'
 export interface Treatment {
   id: string
   appointment: string
+  appointmentId?: string
   doctor: string
+  doctorId?: string
   doctorName?: string
   patient: string
+  patientId?: string
   patientName?: string
   department: string
+  departmentId?: string
   procedureType: string
+  procedureTypeId?: string
   procedureTypeName?: string
   diagnosis: string
   description: string
   price: string
   paymentStatus: PaymentStatus
   stage: TreatmentStage
+  photos?: TreatmentPhoto[]
+  toothRecords?: ToothRecord[]
   createdAt: string
 }
 
@@ -145,10 +152,14 @@ export type PhotoType = 'before' | 'after' | 'xray'
 
 export interface TreatmentPhoto {
   id: string
-  treatment: string
+  treatment?: string
+  treatmentId?: string
   photoType: PhotoType
-  image: string
-  uploadedAt: string
+  image?: string
+  imageUrl?: string
+  thumbnailPath?: string | null
+  caption?: string
+  uploadedAt?: string
 }
 
 export type ToothProcedure =

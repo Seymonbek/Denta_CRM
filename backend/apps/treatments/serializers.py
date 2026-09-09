@@ -80,6 +80,27 @@ def _camel_procedure(procedure: Any) -> dict[str, Any] | None:
     }
 
 
+def _map_procedure_to_tooth_procedure(proc_name: str | None) -> str:
+    if not proc_name:
+        return "other"
+    low = proc_name.lower()
+    if "plomb" in low or "fill" in low:
+        return "filling"
+    if "kanal" in low or "root" in low or "endodont" in low:
+        return "root_canal"
+    if "olish" in low or "extract" in low or "tortish" in low:
+        return "extraction"
+    if "koronk" in low or "crown" in low:
+        return "crown"
+    if "implant" in low:
+        return "implant"
+    if "tozal" in low or "clean" in low or "gigien" in low:
+        return "cleaning"
+    if "oqart" in low or "whiten" in low:
+        return "whitening"
+    return "other"
+
+
 # ---------------------------------------------------------------------------
 # TreatmentPhotoSerializer
 # ---------------------------------------------------------------------------
@@ -177,6 +198,12 @@ class TreatmentSerializer(serializers.ModelSerializer):
     discount_reason = serializers.CharField(
         max_length=500, allow_blank=True, required=False
     )
+    teeth = serializers.ListField(
+        child=serializers.IntegerField(), required=False, write_only=True
+    )
+    surfaces = serializers.ListField(
+        child=serializers.CharField(), required=False, write_only=True
+    )
 
     class Meta:
         model = Treatment
@@ -197,6 +224,8 @@ class TreatmentSerializer(serializers.ModelSerializer):
             "payment_status",
             "stage",
             "is_active",
+            "teeth",
+            "surfaces",
         )
         read_only_fields = ("id", "original_price", "discount_percent", "approval_status")
 
@@ -213,6 +242,9 @@ class TreatmentSerializer(serializers.ModelSerializer):
         "departmentId": "department",
         "appointmentId": "appointment",
         "procedureTypeId": "procedure_type",
+        "toothNumbers": "teeth",
+        "teeth": "teeth",
+        "surfaces": "surfaces",
     }
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
@@ -242,6 +274,7 @@ class TreatmentSerializer(serializers.ModelSerializer):
                             "toothNumber": rec.tooth_number,
                             "procedure": rec.procedure,
                             "status": rec.status,
+                            "surfaces": getattr(rec, "surfaces", []) or [],
                             "notes": rec.notes or "",
                         }
                     )
@@ -309,8 +342,10 @@ class TreatmentSerializer(serializers.ModelSerializer):
     def create(self, validated_data: dict[str, Any]) -> Treatment:
         request = self.context.get("request")
         actor = getattr(request, "user", None) if request is not None else None
+        teeth = validated_data.pop("teeth", None)
+        surfaces = validated_data.pop("surfaces", None)
         try:
-            return create_treatment(
+            treatment = create_treatment(
                 doctor=validated_data["doctor"],
                 patient=validated_data["patient"],
                 department=validated_data["department"],
@@ -325,6 +360,26 @@ class TreatmentSerializer(serializers.ModelSerializer):
                 stage=validated_data.get("stage", TreatmentStage.IN_PROGRESS),
                 created_by=actor,
             )
+            if teeth:
+                try:
+                    from apps.odontogram.services import create_tooth_record
+                    proc_name = getattr(treatment.procedure_type, "name", None) if treatment.procedure_type else None
+                    tooth_proc = _map_procedure_to_tooth_procedure(proc_name)
+                    for t_num in teeth:
+                        try:
+                            create_tooth_record(
+                                treatment=treatment,
+                                tooth_number=t_num,
+                                procedure=tooth_proc,
+                                surfaces=surfaces or [],
+                                status_value="treated" if treatment.stage == TreatmentStage.COMPLETED else "planned",
+                                notes=f"Muolaja: {treatment.diagnosis or ''}".strip(),
+                            )
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            return treatment
         except DjangoValidationError as exc:
             raise serializers.ValidationError(
                 exc.message_dict
