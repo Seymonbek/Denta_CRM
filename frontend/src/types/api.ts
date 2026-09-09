@@ -360,6 +360,33 @@ export interface DashboardReport {
     amount?: string | number
     count?: number
   }>
+  pnl?: {
+    grossRevenue?: string | number
+    totalExpenses?: string | number
+    netProfit?: string | number
+    profitMarginPercent?: number
+    collectionRatePercent?: number
+    billedTotal?: string | number
+    treatmentsCount?: number
+    distinctPatients?: number
+    averageRevenuePerPatient?: string | number
+  }
+  timeline?: Array<{
+    date: string
+    label: string
+    revenue: string | number
+    expense: string | number
+    netProfit: string | number
+  }>
+  topDoctors?: Array<{
+    doctorId: string
+    firstName: string
+    lastName: string
+    specialization?: string
+    treatments: number
+    revenue: string | number
+    averageTicket?: string | number
+  }>
 }
 
 export interface NotificationLog {

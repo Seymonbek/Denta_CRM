@@ -52,49 +52,95 @@ export interface ReceptionAnalyticsPayload {
   unpaidTreatmentsTotal: string
 }
 
-export async function getDashboardReportApi(period: string = 'month'): Promise<DashboardReport> {
+export interface ReportFilterOptions {
+  startDate?: string
+  endDate?: string
+}
+
+export async function getDashboardReportApi(
+  period: string = 'month',
+  options?: ReportFilterOptions
+): Promise<DashboardReport> {
   const response = await apiClient.get<DashboardReport>('reports/dashboard/', {
-    params: { period },
+    params: {
+      period,
+      start_date: options?.startDate,
+      end_date: options?.endDate,
+    },
   })
   return response.data
 }
 
-export async function getRevenueReportApi(period: string = 'month'): Promise<Record<string, unknown>> {
-  const response = await apiClient.get('reports/revenue/', {
-    params: { period },
+export async function getRevenueReportApi(
+  period: string = 'month',
+  options?: ReportFilterOptions
+): Promise<DashboardReport> {
+  const response = await apiClient.get<DashboardReport>('reports/revenue/', {
+    params: {
+      period,
+      start_date: options?.startDate,
+      end_date: options?.endDate,
+    },
   })
   return response.data
 }
 
-export async function getProceduresReportApi(period: string = 'month', limit: number = 10): Promise<Record<string, unknown>> {
+export async function getProceduresReportApi(
+  period: string = 'month',
+  limit: number = 10,
+  options?: ReportFilterOptions
+): Promise<Record<string, unknown>> {
   const response = await apiClient.get('reports/procedures/', {
-    params: { period, limit },
+    params: {
+      period,
+      limit,
+      start_date: options?.startDate,
+      end_date: options?.endDate,
+    },
   })
   return response.data
 }
 
-export async function getDepartmentsReportApi(period: string = 'month'): Promise<Record<string, unknown>> {
+export async function getDepartmentsReportApi(
+  period: string = 'month',
+  options?: ReportFilterOptions
+): Promise<Record<string, unknown>> {
   const response = await apiClient.get('reports/departments/', {
-    params: { period },
+    params: {
+      period,
+      start_date: options?.startDate,
+      end_date: options?.endDate,
+    },
   })
   return response.data
 }
 
 export async function getDoctorMyAnalyticsApi(
   period: string = 'month',
-  doctorId?: string
+  doctorId?: string,
+  options?: ReportFilterOptions
 ): Promise<DoctorAnalyticsPayload> {
   const response = await apiClient.get<DoctorAnalyticsPayload>('reports/doctor-my-analytics/', {
-    params: { period, doctor_id: doctorId },
+    params: {
+      period,
+      doctor_id: doctorId,
+      start_date: options?.startDate,
+      end_date: options?.endDate,
+    },
   })
   return response.data
 }
 
 export async function getReceptionAnalyticsApi(
-  period: string = 'month'
+  period: string = 'month',
+  options?: ReportFilterOptions
 ): Promise<ReceptionAnalyticsPayload> {
   const response = await apiClient.get<ReceptionAnalyticsPayload>('reports/reception-analytics/', {
-    params: { period },
+    params: {
+      period,
+      start_date: options?.startDate,
+      end_date: options?.endDate,
+    },
   })
   return response.data
 }

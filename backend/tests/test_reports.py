@@ -513,6 +513,18 @@ class TestReportsAPI:
         assert isinstance(response.data["results"], list)
 
 
+    def test_dashboard_with_custom_dates(self, api_client, head_doctor):
+        _auth(api_client, head_doctor)
+        response = api_client.get(
+            "/api/v1/reports/dashboard/?period=month&start_date=2026-01-01&end_date=2026-12-31"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert "pnl" in response.data
+        assert "timeline" in response.data
+        assert "grossRevenue" in response.data["pnl"]
+        assert "netProfit" in response.data["pnl"]
+
+
 # ===========================================================================
 # 6. Cache prime helper
 # ===========================================================================

@@ -68,11 +68,13 @@ class _BaseReportView(APIView):
     description="KPI + grafik ma'lumotlari (bosh sahifa uchun).",
 )
 class DashboardReportView(_BaseReportView):
-    """``GET /api/v1/reports/dashboard/?period=day|week|month``."""
+    """``GET /api/v1/reports/dashboard/?period=day|week|month&start_date=…&end_date=…``."""
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         period = _period_from(request)
-        payload = get_dashboard(period)
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+        payload = get_dashboard(period, start_date=start_date, end_date=end_date)
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -83,11 +85,13 @@ class DashboardReportView(_BaseReportView):
     description="Daromad hisoboti — jami, kunlik dinamika, to'lov turi bo'yicha.",
 )
 class RevenueReportView(_BaseReportView):
-    """``GET /api/v1/reports/revenue/?period=…``."""
+    """``GET /api/v1/reports/revenue/?period=…&start_date=…&end_date=…``."""
 
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         period = _period_from(request)
-        return Response(get_revenue(period), status=status.HTTP_200_OK)
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+        return Response(get_revenue(period, start_date=start_date, end_date=end_date), status=status.HTTP_200_OK)
 
 
 @extend_schema(
@@ -137,7 +141,7 @@ class DepartmentsReportView(_BaseReportView):
 
 
 class DoctorMyAnalyticsReportView(APIView):
-    """``GET /api/v1/reports/doctor-my-analytics/?period=day|week|month&doctor_id=…``."""
+    """``GET /api/v1/reports/doctor-my-analytics/?period=day|week|month&doctor_id=…&start_date=…&end_date=…``."""
 
     permission_classes = [IsDoctorOrHeadDoctor]
     http_method_names = ["get", "head", "options"]
@@ -189,12 +193,19 @@ class DoctorMyAnalyticsReportView(APIView):
             )
 
         period = _period_from(request)
-        payload = doctor_my_analytics_payload(doc_profile, period)
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+        payload = doctor_my_analytics_payload(
+            doc_profile,
+            period,
+            start_date=start_date,
+            end_date=end_date,
+        )
         return Response(payload, status=status.HTTP_200_OK)
 
 
 class ReceptionAnalyticsReportView(APIView):
-    """``GET /api/v1/reports/reception-analytics/?period=day|week|month``."""
+    """``GET /api/v1/reports/reception-analytics/?period=day|week|month&start_date=…&end_date=…``."""
 
     permission_classes = [IsAdminOrHeadDoctor]
     http_method_names = ["get", "head", "options"]
@@ -207,7 +218,13 @@ class ReceptionAnalyticsReportView(APIView):
     )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         period = _period_from(request)
-        payload = reception_analytics_payload(period)
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+        payload = reception_analytics_payload(
+            period,
+            start_date=start_date,
+            end_date=end_date,
+        )
         return Response(payload, status=status.HTTP_200_OK)
 
 

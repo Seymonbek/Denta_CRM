@@ -14,7 +14,7 @@ import {
   Cell,
   LabelList,
 } from 'recharts'
-import { Activity, PieChart as PieIcon, BarChart3, TrendingUp, Award } from 'lucide-react'
+import { Activity, PieChart as PieIcon, BarChart3, TrendingUp, Award, DollarSign, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
@@ -40,10 +40,30 @@ interface ExpenseCategory {
   count?: number
 }
 
+interface TimelinePoint {
+  date: string
+  label?: string
+  revenue?: string | number
+  expense?: string | number
+  netProfit?: string | number
+}
+
+interface TopDoctorItem {
+  doctorId?: string
+  firstName?: string
+  lastName?: string
+  specialization?: string
+  treatments?: number
+  revenue?: string | number
+  averageTicket?: string | number
+}
+
 interface StatsChartsProps {
   topProcedures?: TopProcedure[]
   departmentBreakdown?: DepartmentBreakdown[]
   expensesByCategory?: ExpenseCategory[]
+  timeline?: TimelinePoint[]
+  topDoctors?: TopDoctorItem[]
 }
 
 const COLOR_PALETTE = [
@@ -94,9 +114,36 @@ export function StatsCharts({
   topProcedures = [],
   departmentBreakdown = [],
   expensesByCategory = [],
+  timeline = [],
+  topDoctors = [],
 }: StatsChartsProps) {
   const [viewType, setViewType] = useState<'area' | 'pie'>('area')
   const [expenseViewType, setExpenseViewType] = useState<'pie' | 'bar'>('pie')
+  const [timelineView, setTimelineView] = useState<'area' | 'bar'>('area')
+
+  const timelineData = (timeline || []).map((t) => {
+    const rev = parseFloat(String(t.revenue || '0'))
+    const exp = parseFloat(String(t.expense || '0'))
+    const net = parseFloat(String(t.netProfit || '0'))
+    return {
+      date: t.date,
+      label: t.label || t.date,
+      revenue: rev,
+      expense: exp,
+      netProfit: net,
+    }
+  })
+
+  const doctorData = (topDoctors || []).map((doc) => {
+    const name = `Dr. ${doc.firstName || ''} ${doc.lastName || ''}`.trim()
+    return {
+      name,
+      specialization: doc.specialization || 'Stomatolog',
+      treatments: Number(doc.treatments || 0),
+      revenue: parseFloat(String(doc.revenue || '0')),
+      averageTicket: parseFloat(String(doc.averageTicket || '0')),
+    }
+  })
 
   const procData = (topProcedures || []).map((p: any) => {
     const fullName = String(p.name || p.procedureTypeName || p.procedure_type_name || 'Muolaja')
@@ -147,7 +194,137 @@ export function StatsCharts({
   })
 
   return (
-    <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+    <div className='space-y-6'>
+      {/* 0. Financial P&L Timeline Chart */}
+      {timelineData.length > 0 && (
+        <div className='flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow'>
+          <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3'>
+            <div className='flex items-center gap-2.5'>
+              <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'>
+                <DollarSign className='h-5 w-5' />
+              </div>
+              <div>
+                <h4 className='text-sm font-bold tracking-tight'>Moliya Dinamikasi: Tushum, Chiqim va Sof Foyda</h4>
+                <p className='text-[11px] text-muted-foreground'>Davrlar kesimida daromad va xarajatlarning o'zgarish tendensiyasi</p>
+              </div>
+            </div>
+
+            <div className='flex items-center gap-3'>
+              {/* Legend Badges */}
+              <div className='hidden md:flex items-center gap-2 text-xs'>
+                <span className='flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400'>
+                  <span className='h-2.5 w-2.5 rounded-full bg-emerald-500' /> Tushum
+                </span>
+                <span className='flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400'>
+                  <span className='h-2.5 w-2.5 rounded-full bg-rose-500' /> Chiqim
+                </span>
+                <span className='flex items-center gap-1 font-medium text-sky-600 dark:text-sky-400'>
+                  <span className='h-2.5 w-2.5 rounded-full bg-sky-500' /> Sof Foyda
+                </span>
+              </div>
+
+              <div className='flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border'>
+                <Button
+                  size='sm'
+                  variant={timelineView === 'area' ? 'secondary' : 'ghost'}
+                  className='h-6 px-2 text-[10px]'
+                  onClick={() => setTimelineView('area')}
+                >
+                  <TrendingUp className='h-3 w-3 me-1' /> Grafik
+                </Button>
+                <Button
+                  size='sm'
+                  variant={timelineView === 'bar' ? 'secondary' : 'ghost'}
+                  className='h-6 px-2 text-[10px]'
+                  onClick={() => setTimelineView('bar')}
+                >
+                  <BarChart3 className='h-3 w-3 me-1' /> Ustunli
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className='h-[300px] w-full pt-2'>
+            <ResponsiveContainer width='100%' height='100%'>
+              {timelineView === 'area' ? (
+                <AreaChart data={timelineData} margin={{ top: 20, right: 20, left: 10, bottom: 15 }}>
+                  <defs>
+                    <linearGradient id='revAreaGrad' x1='0' y1='0' x2='0' y2='1'>
+                      <stop offset='0%' stopColor='#10b981' stopOpacity={0.35} />
+                      <stop offset='100%' stopColor='#10b981' stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id='expAreaGrad' x1='0' y1='0' x2='0' y2='1'>
+                      <stop offset='0%' stopColor='#f43f5e' stopOpacity={0.35} />
+                      <stop offset='100%' stopColor='#f43f5e' stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id='profitAreaGrad' x1='0' y1='0' x2='0' y2='1'>
+                      <stop offset='0%' stopColor='#0284c7' stopOpacity={0.35} />
+                      <stop offset='100%' stopColor='#0284c7' stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray='3 3' vertical={false} className='stroke-muted/20' />
+                  <XAxis dataKey='label' className='text-[10px] font-medium' tickLine={false} dy={6} />
+                  <YAxis className='text-[10px] font-mono' tickLine={false} axisLine={false} tickFormatter={formatShortMoney} />
+                  <Tooltip content={<CustomTimelineTooltip />} />
+                  <Area type='monotone' dataKey='revenue' stroke='#10b981' strokeWidth={2.5} fill='url(#revAreaGrad)' />
+                  <Area type='monotone' dataKey='expense' stroke='#f43f5e' strokeWidth={2.5} fill='url(#expAreaGrad)' />
+                  <Area type='monotone' dataKey='netProfit' stroke='#0284c7' strokeWidth={3} fill='url(#profitAreaGrad)' />
+                </AreaChart>
+              ) : (
+                <BarChart data={timelineData} margin={{ top: 20, right: 20, left: 10, bottom: 15 }}>
+                  <CartesianGrid strokeDasharray='3 3' vertical={false} className='stroke-muted/20' />
+                  <XAxis dataKey='label' className='text-[10px] font-medium' tickLine={false} dy={6} />
+                  <YAxis className='text-[10px] font-mono' tickLine={false} axisLine={false} tickFormatter={formatShortMoney} />
+                  <Tooltip content={<CustomTimelineTooltip />} />
+                  <Bar dataKey='revenue' name='Tushum' fill='#10b981' radius={[6, 6, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey='expense' name='Chiqim' fill='#f43f5e' radius={[6, 6, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey='netProfit' name='Sof Foyda' fill='#0284c7' radius={[6, 6, 0, 0]} maxBarSize={32} />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Doctor Performance Comparison Chart */}
+      {doctorData.length > 0 && (
+        <div className='flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow'>
+          <div className='flex items-center justify-between border-b pb-3'>
+            <div className='flex items-center gap-2.5'>
+              <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400'>
+                <Users className='h-5 w-5' />
+              </div>
+              <div>
+                <h4 className='text-sm font-bold tracking-tight'>Shifokorlar Samaradorligi & Keltirgan Tushumi</h4>
+                <p className='text-[11px] text-muted-foreground'>Shifokorlar kesimida qabul qilingan bemorlar, muolajalar va umumiy tushum taqqoslashi</p>
+              </div>
+            </div>
+            <Badge variant='outline' className='text-xs font-mono py-1 px-3 border-purple-500/30 text-purple-600 dark:text-purple-400'>
+              {doctorData.length} nafar shifokor
+            </Badge>
+          </div>
+
+          <div className='h-[260px] w-full pt-2'>
+            <ResponsiveContainer width='100%' height='100%'>
+              <BarChart data={doctorData} layout='vertical' margin={{ top: 10, right: 30, left: 20, bottom: 10 }}>
+                <CartesianGrid strokeDasharray='3 3' horizontal={false} className='stroke-muted/20' />
+                <XAxis type='number' className='text-[10px] font-mono' tickLine={false} axisLine={false} tickFormatter={formatShortMoney} />
+                <YAxis dataKey='name' type='category' className='text-xs font-medium' tickLine={false} axisLine={false} width={130} />
+                <Tooltip content={<CustomDoctorTooltip />} />
+                <Bar dataKey='revenue' name='Tushum' fill='#8b5cf6' radius={[0, 8, 8, 0]} barSize={22}>
+                  {doctorData.map((_, idx) => (
+                    <Cell key={`doc-${idx}`} fill={COLOR_PALETTE[(idx + 4) % COLOR_PALETTE.length]} />
+                  ))}
+                  <LabelList dataKey='revenue' position='right' className='fill-foreground text-[10px] font-bold font-mono' formatter={(val: any) => formatShortMoney(Number(val))} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* 3-Column Breakdown Grid */}
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
       {/* 1. Top Procedures Chart */}
       <div className='flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow'>
         <div className='flex items-center justify-between border-b pb-3'>
@@ -482,6 +659,7 @@ export function StatsCharts({
         </div>
       </div>
     </div>
+  </div>
   )
 }
 
@@ -568,3 +746,85 @@ function CustomExpenseTooltip({ active, payload }: any) {
   }
   return null
 }
+
+function CustomTimelineTooltip({ active, payload }: any) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload
+    const margin = data.revenue > 0 ? ((data.netProfit / data.revenue) * 100).toFixed(1) : '0'
+    return (
+      <div className='rounded-xl border bg-slate-900/95 backdrop-blur-md p-3.5 shadow-2xl text-xs space-y-2 min-w-[240px] border-slate-700 text-slate-100 z-50'>
+        <div className='flex items-center justify-between font-bold text-white border-b border-slate-800 pb-1.5'>
+          <span className='text-sm'>{data.label}</span>
+          <span className='text-[10px] font-mono text-muted-foreground'>{data.date}</span>
+        </div>
+        <div className='space-y-1'>
+          <div className='flex justify-between items-center text-slate-300'>
+            <span className='flex items-center gap-1.5 text-emerald-400'>
+              <span className='h-2 w-2 rounded-full bg-emerald-400' /> Tushum:
+            </span>
+            <span className='font-bold font-mono text-emerald-400'>
+              {Number(data.revenue).toLocaleString()} so'm
+            </span>
+          </div>
+          <div className='flex justify-between items-center text-slate-300'>
+            <span className='flex items-center gap-1.5 text-rose-400'>
+              <span className='h-2 w-2 rounded-full bg-rose-400' /> Chiqim:
+            </span>
+            <span className='font-bold font-mono text-rose-400'>
+              {Number(data.expense).toLocaleString()} so'm
+            </span>
+          </div>
+          <div className='flex justify-between items-center text-slate-200 border-t border-slate-800 pt-1'>
+            <span className='flex items-center gap-1.5 text-sky-400 font-semibold'>
+              <span className='h-2 w-2 rounded-full bg-sky-400' /> Sof Foyda:
+            </span>
+            <span className='font-bold font-mono text-sky-400 text-sm'>
+              {Number(data.netProfit).toLocaleString()} so'm
+            </span>
+          </div>
+          <div className='flex justify-between items-center text-slate-400 text-[11px] pt-0.5'>
+            <span>Foyda marjasi:</span>
+            <span className='font-mono font-bold text-slate-200'>{margin}%</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  return null
+}
+
+function CustomDoctorTooltip({ active, payload }: any) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload
+    return (
+      <div className='rounded-xl border bg-slate-900/95 backdrop-blur-md p-3.5 shadow-2xl text-xs space-y-2 min-w-[230px] border-slate-700 text-slate-100 z-50'>
+        <div className='border-b border-slate-800 pb-1.5'>
+          <p className='font-bold text-white text-sm'>{data.name}</p>
+          <p className='text-[10px] text-muted-foreground'>{data.specialization}</p>
+        </div>
+        <div className='space-y-1 text-slate-300'>
+          <div className='flex justify-between items-center'>
+            <span>Keltirgan tushum:</span>
+            <span className='font-bold font-mono text-emerald-400'>
+              {Number(data.revenue).toLocaleString()} so'm
+            </span>
+          </div>
+          <div className='flex justify-between items-center'>
+            <span>Muolajalar soni:</span>
+            <span className='font-bold font-mono text-white'>{data.treatments} ta</span>
+          </div>
+          {data.averageTicket > 0 && (
+            <div className='flex justify-between items-center border-t border-slate-800 pt-1'>
+              <span>O'rtacha chek:</span>
+              <span className='font-bold font-mono text-sky-400'>
+                {Number(data.averageTicket).toLocaleString()} so'm
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+  return null
+}
+

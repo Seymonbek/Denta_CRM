@@ -49,39 +49,69 @@ def _iso(value: datetime | date | None) -> str | None:
     return value.isoformat()
 
 
-def period_range(period: Period, *, at: datetime | None = None) -> tuple[datetime, datetime]:
-    """Return the ``[start, end)`` bounds of a named period.
+def period_range(
+    period: Period = "month",
+    *,
+    at: datetime | None = None,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
+) -> tuple[datetime, datetime]:
+    """Return the ``[start, end)`` bounds of a named period or custom interval.
 
     * ``day``   — from ``at.date()`` 00:00 to next day 00:00.
     * ``week``  — from ISO Monday 00:00 to next Monday 00:00.
     * ``month`` — from the 1st 00:00 to the 1st of the next month 00:00.
 
+    If start_date and end_date are provided, returns the custom bounds.
     All bounds are timezone-aware in ``settings.TIME_ZONE``.
     """
-    if period not in VALID_PERIODS:
-        raise ValueError(f"period must be one of {VALID_PERIODS}, got {period!r}")
-
     tz = timezone.get_current_timezone()
     now = timezone.localtime(at or timezone.now())
     today = now.date()
 
+    if start_date and end_date:
+        try:
+            if isinstance(start_date, str):
+                s_date = datetime.strptime(start_date.strip(), "%Y-%m-%d").date()
+            elif isinstance(start_date, date):
+                s_date = start_date
+            else:
+                s_date = today
+
+            if isinstance(end_date, str):
+                e_date = datetime.strptime(end_date.strip(), "%Y-%m-%d").date() + timedelta(days=1)
+            elif isinstance(end_date, date):
+                e_date = end_date + timedelta(days=1)
+            else:
+                e_date = today + timedelta(days=1)
+
+            start = timezone.make_aware(datetime.combine(s_date, time.min), tz)
+            end = timezone.make_aware(datetime.combine(e_date, time.min), tz)
+            if start < end:
+                return start, end
+        except Exception:
+            pass
+
+    if period not in VALID_PERIODS:
+        raise ValueError(f"period must be one of {VALID_PERIODS}, got {period!r}")
+
     if period == "day":
-        start_date = today
-        end_date = today + timedelta(days=1)
+        start_date_val = today
+        end_date_val = today + timedelta(days=1)
     elif period == "week":
         # ISO week: Monday = 0
-        start_date = today - timedelta(days=today.weekday())
-        end_date = start_date + timedelta(days=7)
+        start_date_val = today - timedelta(days=today.weekday())
+        end_date_val = start_date_val + timedelta(days=7)
     else:  # month
-        start_date = today.replace(day=1)
+        start_date_val = today.replace(day=1)
         # Move to first of the next month
-        if start_date.month == 12:
-            end_date = start_date.replace(year=start_date.year + 1, month=1)
+        if start_date_val.month == 12:
+            end_date_val = start_date_val.replace(year=start_date_val.year + 1, month=1)
         else:
-            end_date = start_date.replace(month=start_date.month + 1)
+            end_date_val = start_date_val.replace(month=start_date_val.month + 1)
 
-    start = timezone.make_aware(datetime.combine(start_date, time.min), tz)
-    end = timezone.make_aware(datetime.combine(end_date, time.min), tz)
+    start = timezone.make_aware(datetime.combine(start_date_val, time.min), tz)
+    end = timezone.make_aware(datetime.combine(end_date_val, time.min), tz)
     return start, end
 
 
@@ -296,21 +326,149 @@ def doctor_productivity(start: datetime, end: datetime, *, limit: int = 20) -> l
             "doctor_id",
             "doctor__user__first_name",
             "doctor__user__last_name",
+            "doctor__specialization",
         )
         .annotate(treatments=Count("id"))
         .annotate(revenue=Coalesce(Sum("price"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
         .order_by("-revenue")[:limit]
     )
-    return [
-        {
+    result = []
+    for row in rows:
+        rev = row["revenue"] or _ZERO
+        tr_cnt = row["treatments"] or 0
+        avg_t = round(float(rev) / tr_cnt, 0) if tr_cnt > 0 else 0
+        result.append({
             "doctorId": str(row["doctor_id"]),
             "firstName": row["doctor__user__first_name"] or "",
             "lastName": row["doctor__user__last_name"] or "",
-            "treatments": row["treatments"],
-            "revenue": str(row["revenue"]),
-        }
-        for row in rows
-    ]
+            "specialization": row.get("doctor__specialization") or "Stomatolog",
+            "treatments": tr_cnt,
+            "revenue": str(rev),
+            "averageTicket": str(Decimal(str(avg_t))),
+        })
+    return result
+
+
+# ---------------------------------------------------------------------------
+# P&L and Timeline Financial Analytics
+# ---------------------------------------------------------------------------
+def pnl_financial_summary(start: datetime, end: datetime) -> dict[str, Any]:
+    """Calculate comprehensive P&L financial metrics."""
+    from apps.treatments.models import Treatment
+
+    gross_revenue = revenue_between(start, end)
+    total_expenses = expense_between(start, end)
+    net_profit = max(_ZERO, gross_revenue - total_expenses)
+
+    profit_margin_pct = (
+        round((float(net_profit) / float(gross_revenue)) * 100, 1)
+        if gross_revenue > _ZERO
+        else 0.0
+    )
+
+    treatments_agg = Treatment.objects.filter(
+        is_active=True, created_at__gte=start, created_at__lt=end
+    ).aggregate(
+        total=Coalesce(Sum("price"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))),
+        count=Count("id")
+    )
+    billed_total = treatments_agg["total"] or _ZERO
+    treatments_count = treatments_agg["count"] or 0
+
+    collection_rate_pct = (
+        min(100.0, round((float(gross_revenue) / float(billed_total)) * 100, 1))
+        if billed_total > _ZERO
+        else 100.0
+    )
+
+    distinct_patients = (
+        Treatment.objects.filter(is_active=True, created_at__gte=start, created_at__lt=end)
+        .values("patient")
+        .distinct()
+        .count()
+    )
+    arpu = (
+        round(float(gross_revenue) / distinct_patients, 0)
+        if distinct_patients > 0
+        else 0.0
+    )
+
+    return {
+        "grossRevenue": str(gross_revenue),
+        "totalExpenses": str(total_expenses),
+        "netProfit": str(net_profit),
+        "profitMarginPercent": profit_margin_pct,
+        "collectionRatePercent": collection_rate_pct,
+        "billedTotal": str(billed_total),
+        "treatmentsCount": treatments_count,
+        "distinctPatients": distinct_patients,
+        "averageRevenuePerPatient": str(Decimal(str(arpu))),
+    }
+
+
+def financial_timeline_series(
+    start: datetime, end: datetime, period: str
+) -> list[dict[str, Any]]:
+    """Group revenue and expenses by day or month for rich timeline charts."""
+    from apps.payments.models import Expense, Payment
+    from django.db.models.functions import TruncDate, TruncMonth
+
+    delta_days = (end.date() - start.date()).days
+    group_by_month = delta_days > 45
+
+    trunc_fn = TruncMonth if group_by_month else TruncDate
+
+    rev_rows = (
+        Payment.objects.filter(is_active=True, created_at__gte=start, created_at__lt=end)
+        .annotate(bucket=trunc_fn("created_at"))
+        .values("bucket")
+        .annotate(total=Coalesce(Sum("amount"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
+        .order_by("bucket")
+    )
+    rev_map = {
+        row["bucket"].date() if hasattr(row["bucket"], "date") else row["bucket"]: row["total"]
+        for row in rev_rows
+        if row["bucket"]
+    }
+
+    exp_rows = (
+        Expense.objects.filter(is_active=True, created_at__gte=start, created_at__lt=end)
+        .annotate(bucket=trunc_fn("created_at"))
+        .values("bucket")
+        .annotate(total=Coalesce(Sum("amount"), Value(_ZERO, output_field=DecimalField(max_digits=14, decimal_places=2))))
+        .order_by("bucket")
+    )
+    exp_map = {
+        row["bucket"].date() if hasattr(row["bucket"], "date") else row["bucket"]: row["total"]
+        for row in exp_rows
+        if row["bucket"]
+    }
+
+    all_buckets = sorted(set(rev_map.keys()) | set(exp_map.keys()))
+
+    UZ_MONTHS = {
+        1: "Yan", 2: "Fev", 3: "Mar", 4: "Apr", 5: "May", 6: "Iyun",
+        7: "Iyul", 8: "Avg", 9: "Sen", 10: "Okt", 11: "Noy", 12: "Dek"
+    }
+
+    result = []
+    for b in all_buckets:
+        r = rev_map.get(b, _ZERO)
+        e = exp_map.get(b, _ZERO)
+        p = max(_ZERO, r - e)
+        if group_by_month:
+            lbl = f"{UZ_MONTHS.get(b.month, '')} {b.year}"
+        else:
+            lbl = f"{b.day} {UZ_MONTHS.get(b.month, '')}"
+
+        result.append({
+            "date": b.isoformat(),
+            "label": lbl,
+            "revenue": str(r),
+            "expense": str(e),
+            "netProfit": str(p),
+        })
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -328,15 +486,22 @@ def low_stock_count() -> int:
 # ---------------------------------------------------------------------------
 # Composite dashboard payload
 # ---------------------------------------------------------------------------
-def dashboard_payload(period: Period) -> dict[str, Any]:
+def dashboard_payload(
+    period: Period,
+    *,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
+) -> dict[str, Any]:
     """Full KPI + chart payload for ``/reports/dashboard/?period=…``."""
-    start, end = period_range(period)
+    start, end = period_range(period, start_date=start_date, end_date=end_date)
     revenue = revenue_between(start, end)
     expenses = expense_between(start, end)
     counts = appointment_counts(start, end)
-    
+
     net_profit = max(_ZERO, revenue - expenses)
-    
+    pnl = pnl_financial_summary(start, end)
+    timeline = financial_timeline_series(start, end, period)
+
     return {
         "period": period,
         "range": {"start": _iso(start), "end": _iso(end)},
@@ -347,6 +512,8 @@ def dashboard_payload(period: Period) -> dict[str, Any]:
             "newPatients": new_patients_count(start, end),
             "lowStockCount": low_stock_count(),
         },
+        "pnl": pnl,
+        "timeline": timeline,
         "expenses": str(expenses),
         "netProfit": str(net_profit),
         "revenueByDay": revenue_by_day(start, end),
@@ -359,10 +526,15 @@ def dashboard_payload(period: Period) -> dict[str, Any]:
     }
 
 
-def revenue_payload(period: Period) -> dict[str, Any]:
-    start, end = period_range(period)
+def revenue_payload(
+    period: Period,
+    *,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
+) -> dict[str, Any]:
+    start, end = period_range(period, start_date=start_date, end_date=end_date)
     from apps.payments.models import Payment
-    
+
     deposits = Payment.objects.filter(
         is_active=True,
         treatment__isnull=True,
@@ -374,6 +546,8 @@ def revenue_payload(period: Period) -> dict[str, Any]:
     revenue = revenue_between(start, end)
     expenses = expense_between(start, end)
     net_profit = max(_ZERO, revenue - expenses)
+    pnl = pnl_financial_summary(start, end)
+    timeline = financial_timeline_series(start, end, period)
 
     return {
         "period": period,
@@ -381,6 +555,8 @@ def revenue_payload(period: Period) -> dict[str, Any]:
         "total": str(revenue),
         "expenses": str(expenses),
         "netProfit": str(net_profit),
+        "pnl": pnl,
+        "timeline": timeline,
         "depositTotal": str(deposit_total),
         "byDay": revenue_by_day(start, end),
         "byMethod": revenue_by_method(start, end),
@@ -409,13 +585,19 @@ def departments_payload(period: Period) -> dict[str, Any]:
     }
 
 
-def doctor_my_analytics_payload(doctor_profile: Any, period: Period) -> dict[str, Any]:
+def doctor_my_analytics_payload(
+    doctor_profile: Any,
+    period: Period,
+    *,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
+) -> dict[str, Any]:
     """Calculate rich personal analytics for a specific doctor."""
     from apps.scheduling.models import Appointment, AppointmentStatus
     from apps.treatments.models import Treatment
     from apps.payments.models import Payment
 
-    start, end = period_range(period)
+    start, end = period_range(period, start_date=start_date, end_date=end_date)
 
     # Doctor treatments in period
     treatments_qs = Treatment.objects.filter(
@@ -530,13 +712,18 @@ def doctor_my_analytics_payload(doctor_profile: Any, period: Period) -> dict[str
     }
 
 
-def reception_analytics_payload(period: Period) -> dict[str, Any]:
+def reception_analytics_payload(
+    period: Period,
+    *,
+    start_date: str | date | None = None,
+    end_date: str | date | None = None,
+) -> dict[str, Any]:
     """Calculate reception / cash register analytics."""
     from apps.scheduling.models import Appointment, AppointmentStatus
     from apps.payments.models import Payment
     from apps.treatments.models import Treatment, PaymentStatus
 
-    start, end = period_range(period)
+    start, end = period_range(period, start_date=start_date, end_date=end_date)
 
     # Payments collected in period
     payments_qs = Payment.objects.filter(

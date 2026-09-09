@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   useRevenueReport,
+  useDashboardReport,
   useProceduresReport,
   useDepartmentsReport,
   useDoctorMyAnalytics,
@@ -15,6 +16,7 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -47,10 +49,15 @@ import {
   Download,
   FileText,
   FileSpreadsheet,
+  Calendar,
+  ArrowUpRight,
+  ArrowDownRight,
 } from 'lucide-react'
 
 export function ReportsList() {
-  const [period, setPeriod] = useState<string>('month')
+  const [periodPreset, setPeriodPreset] = useState<string>('month')
+  const [customStartDate, setCustomStartDate] = useState<string>('')
+  const [customEndDate, setCustomEndDate] = useState<string>('')
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('')
   const { data: user } = useMe()
 
@@ -59,22 +66,81 @@ export function ReportsList() {
   const isDoctor = role === 'doctor'
   const isReception = role === 'administrator'
 
+  // Custom date / preset filter memo
+  const filterOptions = useMemo(() => {
+    if (periodPreset === 'year') {
+      const year = new Date().getFullYear()
+      return { startDate: `${year}-01-01`, endDate: `${year}-12-31` }
+    }
+    if (periodPreset === 'custom') {
+      return {
+        startDate: customStartDate || undefined,
+        endDate: customEndDate || undefined,
+      }
+    }
+    return undefined
+  }, [periodPreset, customStartDate, customEndDate])
+
+  const effectivePeriod = periodPreset === 'custom' || periodPreset === 'year' ? 'month' : periodPreset
+
   // Queries
-  const { data: revenueData, isLoading: isRevLoading } = useRevenueReport(period)
-  const { data: proceduresData } = useProceduresReport(period)
-  const { data: departmentsData } = useDepartmentsReport(period)
+  const { data: revenueData, isLoading: isRevLoading } = useRevenueReport(effectivePeriod, filterOptions)
+  const { data: dashboardData, isLoading: isDashLoading } = useDashboardReport(effectivePeriod, filterOptions)
+  const { data: proceduresData } = useProceduresReport(effectivePeriod, 10, filterOptions)
+  const { data: departmentsData } = useDepartmentsReport(effectivePeriod, filterOptions)
 
   const { data: doctorsData } = useDoctors()
   const doctorsList = Array.isArray(doctorsData) ? doctorsData : []
 
   const { data: doctorAnalytics, isLoading: isDocAnalyticsLoading } = useDoctorMyAnalytics(
-    period,
-    isBoshShifokor && selectedDoctorId ? selectedDoctorId : undefined
+    effectivePeriod,
+    isBoshShifokor && selectedDoctorId ? selectedDoctorId : undefined,
+    filterOptions
   )
 
-  const { data: receptionAnalytics, isLoading: isReceptionLoading } = useReceptionAnalytics(period)
+  const { data: receptionAnalytics, isLoading: isReceptionLoading } = useReceptionAnalytics(
+    effectivePeriod,
+    filterOptions
+  )
 
-  const totalRevenue = revenueData?.total ?? revenueData?.totalRevenue ?? revenueData?.total_revenue ?? 0
+  // Combined P&L and metrics extraction
+  const pnl = revenueData?.pnl || dashboardData?.pnl
+  const timeline = (Array.isArray(revenueData?.timeline)
+    ? revenueData.timeline
+    : Array.isArray(dashboardData?.timeline)
+    ? dashboardData.timeline
+    : []) as Array<{
+      date: string
+      label?: string
+      revenue?: string | number
+      expense?: string | number
+      netProfit?: string | number
+    }>
+
+  const topDoctors = (Array.isArray(revenueData?.topDoctors)
+    ? revenueData.topDoctors
+    : Array.isArray(dashboardData?.topDoctors)
+    ? dashboardData.topDoctors
+    : []) as Array<{
+      doctorId?: string
+      firstName?: string
+      lastName?: string
+      specialization?: string
+      treatments?: number
+      revenue?: string | number
+      averageTicket?: string | number
+    }>
+
+  const grossRevenue = pnl?.grossRevenue ?? revenueData?.totalRevenue ?? revenueData?.total_revenue ?? revenueData?.kpi?.revenue ?? 0
+  const totalExpenses = pnl?.totalExpenses ?? revenueData?.kpi?.expenses ?? 0
+  const netProfit = pnl?.netProfit ?? revenueData?.kpi?.netProfit ?? (Number(grossRevenue) - Number(totalExpenses))
+  const profitMargin = pnl?.profitMarginPercent ?? (Number(grossRevenue) > 0 ? Number(((Number(netProfit) / Number(grossRevenue)) * 100).toFixed(1)) : 0)
+  const collectionRate = pnl?.collectionRatePercent ?? 100
+  const billedTotal = pnl?.billedTotal ?? grossRevenue
+  const treatmentsCount = pnl?.treatmentsCount ?? 0
+  const distinctPatients = pnl?.distinctPatients ?? 0
+  const averageRevenuePerPatient = pnl?.averageRevenuePerPatient ?? 0
+
   const topProcedures = Array.isArray(proceduresData?.results)
     ? proceduresData.results
     : Array.isArray(proceduresData)
@@ -95,7 +161,7 @@ export function ReportsList() {
       { header: 'Jami Tushum', key: 'totalAmount', width: 20 },
     ]
     const data = doctorAnalytics.procedureBreakdown || []
-    const filename = `Shifokor_Analitikasi_${period}`
+    const filename = `Shifokor_Analitikasi_${periodPreset}`
 
     if (format === 'pdf') {
       exportToPDF(data, columns, "Shifokor Bo'yicha Bajarilgan Muolajalar", filename)
@@ -126,10 +192,35 @@ export function ReportsList() {
           : String(item.method || '')
       return { ...item, methodLabel }
     })
-    const filename = `Kassa_Tushumi_${period}`
+    const filename = `Kassa_Tushumi_${periodPreset}`
 
     if (format === 'pdf') {
       exportToPDF(data, columns, "Kassa Tushumi va To'lov Usullari", filename)
+    } else {
+      exportToExcel(data, columns, filename)
+    }
+  }
+
+  const handleExportDoctorProductivity = (format: 'pdf' | 'excel') => {
+    if (!topDoctors || topDoctors.length === 0) return
+    const columns = [
+      { header: 'Shifokor', key: 'doctorName', width: 25 },
+      { header: 'Mutaxassislik', key: 'specialization', width: 20 },
+      { header: 'Muolajalar Soni', key: 'treatments', width: 15 },
+      { header: 'Jami Tushum', key: 'revenueFormatted', width: 20 },
+      { header: "O'rtacha Chek", key: 'avgTicketFormatted', width: 20 },
+    ]
+    const data = topDoctors.map((doc) => ({
+      doctorName: `Dr. ${doc.firstName || ''} ${doc.lastName || ''}`.trim(),
+      specialization: doc.specialization || 'Stomatolog',
+      treatments: doc.treatments || 0,
+      revenueFormatted: `${Number(doc.revenue || 0).toLocaleString()} so'm`,
+      avgTicketFormatted: `${Number(doc.averageTicket || 0).toLocaleString()} so'm`,
+    }))
+    const filename = `Shifokorlar_Samaradorligi_${periodPreset}`
+
+    if (format === 'pdf') {
+      exportToPDF(data, columns, 'Shifokorlar Ish Samaradorligi va Daromad Tahlili', filename)
     } else {
       exportToExcel(data, columns, filename)
     }
@@ -142,7 +233,7 @@ export function ReportsList() {
       { header: 'Soni', key: 'count', width: 10 },
       { header: 'Tushum', key: 'revenue', width: 20 },
     ]
-    const filename = `Klinika_Muolajalari_${period}`
+    const filename = `Klinika_Muolajalari_${periodPreset}`
 
     if (format === 'pdf') {
       exportToPDF(topProcedures, columns, "Klinika Bo'yicha Top Muolajalar", filename)
@@ -151,12 +242,14 @@ export function ReportsList() {
     }
   }
 
+  const isAnyLoading = isRevLoading || isDashLoading
+
   return (
     <>
       <Header>
         <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
           <BarChart3 className='h-5 w-5 text-primary' />
-          <span>Hisobotlar va Analitika</span>
+          <span>Hisobotlar va Moliya Analitikasi</span>
         </div>
         <ThemeSwitch />
         <ProfileDropdown />
@@ -164,7 +257,7 @@ export function ReportsList() {
 
       <Main>
         {/* Header Controls */}
-        <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+        <div className='mb-6 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4'>
           <div>
             <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
               <BarChart3 className='h-6 w-6 text-primary' />
@@ -172,14 +265,15 @@ export function ReportsList() {
                 ? 'Shifokor Shaxsiy Analitika va Daromad Paneli'
                 : isReception
                 ? 'Kassa va Qabullar Analitikasi'
-                : 'Klinika Umumiy Analitika va Boshqaruv Paneli'}
+                : 'Klinika Umumiy Analitika va Moliyaviy Boshqaruv'}
             </h1>
             <p className='text-xs text-muted-foreground'>
-              Sana oralig’i va davrlar bo’yicha real-vaqt rejimida hisobotlar va tahlillar.
+              Sana oralig’i, davrlar va P&L ko'rsatkichlari bo'yicha real-vaqt hisobotlari va chuqur moliyaviy tahlil.
             </p>
           </div>
 
-          <div className='flex items-center gap-3'>
+          <div className='flex flex-wrap items-center gap-3'>
+            {/* Shifokor tanlash (Bosh shifokor uchun) */}
             {isBoshShifokor && doctorsList.length > 0 && (
               <div className='flex items-center gap-1.5'>
                 <span className='text-xs font-medium text-muted-foreground'>Shifokor:</span>
@@ -205,19 +299,44 @@ export function ReportsList() {
               </div>
             )}
 
+            {/* Davr tanlash */}
             <div className='flex items-center gap-1.5'>
               <span className='text-xs font-medium text-muted-foreground'>Davr:</span>
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className='w-36 text-xs h-9'>
+              <Select value={periodPreset} onValueChange={setPeriodPreset}>
+                <SelectTrigger className='w-40 text-xs h-9'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='day'>Bugun (Kunlik)</SelectItem>
                   <SelectItem value='week'>Shu Hafta</SelectItem>
                   <SelectItem value='month'>Shu Oy</SelectItem>
+                  <SelectItem value='year'>Shu Yil (12 oy)</SelectItem>
+                  <SelectItem value='custom'>Maxsus sana oralig'i</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Maxsus sana oralig'i kiritish */}
+            {periodPreset === 'custom' && (
+              <div className='flex items-center gap-1.5 bg-muted/40 p-1 rounded-md border border-border/60'>
+                <Calendar className='h-3.5 w-3.5 text-primary ml-1' />
+                <Input
+                  type='date'
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className='h-7 w-32 text-xs py-0 px-1 bg-background'
+                  placeholder='Boshlanish'
+                />
+                <span className='text-xs text-muted-foreground font-bold'>—</span>
+                <Input
+                  type='date'
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className='h-7 w-32 text-xs py-0 px-1 bg-background'
+                  placeholder='Tugash'
+                />
+              </div>
+            )}
 
             {/* Eksport Dropdown */}
             <DropdownMenu>
@@ -226,7 +345,23 @@ export function ReportsList() {
                   <Download className='h-4 w-4 text-primary' /> Eksport
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-48'>
+              <DropdownMenuContent align='end' className='w-56'>
+                {isBoshShifokor && !selectedDoctorId && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => handleExportDoctorProductivity('excel')}
+                      className='cursor-pointer text-xs font-medium'
+                    >
+                      <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-600' /> Shifokorlar (Excel)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleExportDoctorProductivity('pdf')}
+                      className='cursor-pointer text-xs font-medium'
+                    >
+                      <FileText className='h-4 w-4 mr-2 text-rose-600' /> Shifokorlar (PDF)
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuItem
                   onClick={() => {
                     if (isDoctor || (isBoshShifokor && selectedDoctorId)) handleExportDoctorAnalytics('excel')
@@ -235,7 +370,7 @@ export function ReportsList() {
                   }}
                   className='cursor-pointer text-xs font-medium'
                 >
-                  <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-600' /> Excel (.xlsx)
+                  <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-600' /> {isDoctor ? 'Shifokor' : isReception ? 'Kassa' : 'Muolajalar'} (Excel)
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
@@ -245,7 +380,7 @@ export function ReportsList() {
                   }}
                   className='cursor-pointer text-xs font-medium'
                 >
-                  <FileText className='h-4 w-4 mr-2 text-rose-600' /> PDF (.pdf)
+                  <FileText className='h-4 w-4 mr-2 text-rose-600' /> {isDoctor ? 'Shifokor' : isReception ? 'Kassa' : 'Muolajalar'} (PDF)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -489,7 +624,7 @@ export function ReportsList() {
                   <Card className='shadow-xs border-emerald-500/20 bg-emerald-500/5'>
                     <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0'>
                       <CardTitle className='text-xs font-semibold text-muted-foreground'>
-                        Kassaga Qabul Qilingan Pulla
+                        Kassaga Qabul Qilingan Pullar
                       </CardTitle>
                       <DollarSign className='h-4 w-4 text-emerald-600 dark:text-emerald-400' />
                     </CardHeader>
@@ -616,51 +751,126 @@ export function ReportsList() {
           </div>
         )}
 
-        {/* SECTION 3: BOSH SHIFOKOR EXECUTIVE DASHBOARD (For Bosh Shifokor overall view) */}
+        {/* SECTION 3: BOSH SHIFOKOR EXECUTIVE DASHBOARD (P&L Financial KPIs + Advanced Charts) */}
         {isBoshShifokor && !selectedDoctorId && (
           <div className='space-y-6'>
-            <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-              <Card className='shadow-sm border-emerald-500/20 bg-emerald-500/5'>
-                <CardHeader className='pb-2'>
-                  <CardTitle className='text-xs font-medium text-muted-foreground'>
-                    Jami Tushgan Klinika Daromadi
+            <div className='flex items-center justify-between border-b pb-3'>
+              <div className='flex items-center gap-2'>
+                <TrendingUp className='h-5 w-5 text-primary' />
+                <h2 className='text-lg font-bold text-foreground'>
+                  Klinika Moliyaviy Holati (P&L) va Strategik Ko'rsatkichlar
+                </h2>
+              </div>
+              <Badge variant='outline' className='text-xs font-medium px-3 py-1 bg-primary/5 text-primary border-primary/20'>
+                Real-vaqt hisoboti
+              </Badge>
+            </div>
+
+            {/* 5 Strategic P&L Cards */}
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3'>
+              {/* Card 1: Gross Revenue */}
+              <Card className='shadow-xs border-emerald-500/20 bg-emerald-500/5'>
+                <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
+                  <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                    Yalpi Tushum (Gross)
                   </CardTitle>
+                  <DollarSign className='h-4 w-4 text-emerald-600 dark:text-emerald-400' />
                 </CardHeader>
-                <CardContent>
-                  <div className='text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400'>
-                    {isRevLoading ? '...' : `${Number(totalRevenue).toLocaleString()} so'm`}
+                <CardContent className='p-3 pt-0'>
+                  <div className='text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400'>
+                    {isAnyLoading ? '...' : `${Number(grossRevenue).toLocaleString()} so'm`}
+                  </div>
+                  <div className='flex items-center justify-between mt-1 text-[10px] text-muted-foreground'>
+                    <span>Hisob: {Number(billedTotal).toLocaleString()}</span>
+                    <span className='font-mono font-semibold text-emerald-600'>{collectionRate}%</span>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className='shadow-sm'>
-                <CardHeader className='pb-2'>
-                  <CardTitle className='text-xs font-medium text-muted-foreground'>
-                    Top Muolajalar Turi Soni
+              {/* Card 2: Total Expenses */}
+              <Card className='shadow-xs border-rose-500/20 bg-rose-500/5'>
+                <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
+                  <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                    Umumiy Chiqimlar
                   </CardTitle>
+                  <ArrowDownRight className='h-4 w-4 text-rose-600 dark:text-rose-400' />
                 </CardHeader>
-                <CardContent>
-                  <div className='text-2xl font-bold font-mono'>
-                    {topProcedures.length} ta
+                <CardContent className='p-3 pt-0'>
+                  <div className='text-xl font-bold font-mono text-rose-600 dark:text-rose-400'>
+                    {isAnyLoading ? '...' : `${Number(totalExpenses).toLocaleString()} so'm`}
+                  </div>
+                  <p className='text-[10px] text-muted-foreground mt-1'>
+                    Materiallar & operatsion xarajatlar
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Card 3: Net Profit */}
+              <Card className={`shadow-xs ${Number(netProfit) >= 0 ? 'border-sky-500/20 bg-sky-500/5' : 'border-rose-500/30 bg-rose-500/10'}`}>
+                <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
+                  <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                    Sof Foyda (Net Profit)
+                  </CardTitle>
+                  {Number(netProfit) >= 0 ? (
+                    <ArrowUpRight className='h-4 w-4 text-sky-600 dark:text-sky-400' />
+                  ) : (
+                    <ArrowDownRight className='h-4 w-4 text-rose-600' />
+                  )}
+                </CardHeader>
+                <CardContent className='p-3 pt-0'>
+                  <div className={`text-xl font-bold font-mono ${Number(netProfit) >= 0 ? 'text-sky-600 dark:text-sky-400' : 'text-rose-600'}`}>
+                    {isAnyLoading ? '...' : `${Number(netProfit).toLocaleString()} so'm`}
+                  </div>
+                  <div className='flex items-center justify-between mt-1 text-[10px] text-muted-foreground'>
+                    <span>Rentabellik (Margin):</span>
+                    <span className={`font-mono font-semibold ${Number(profitMargin) >= 0 ? 'text-sky-600' : 'text-rose-600'}`}>
+                      {profitMargin}%
+                    </span>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className='shadow-sm'>
-                <CardHeader className='pb-2'>
-                  <CardTitle className='text-xs font-medium text-muted-foreground'>
-                    Qamrab Olingan Bo'limlar
+              {/* Card 4: Average Revenue Per Patient (ARPU) */}
+              <Card className='shadow-xs border-indigo-500/20 bg-indigo-500/5'>
+                <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
+                  <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                    O'rtacha Bemor Cheki
                   </CardTitle>
+                  <Users className='h-4 w-4 text-indigo-600 dark:text-indigo-400' />
                 </CardHeader>
-                <CardContent>
-                  <div className='text-2xl font-bold font-mono'>
-                    {departmentBreakdown.length} ta
+                <CardContent className='p-3 pt-0'>
+                  <div className='text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400'>
+                    {isAnyLoading ? '...' : `${Number(averageRevenuePerPatient).toLocaleString()} so'm`}
                   </div>
+                  <p className='text-[10px] text-muted-foreground mt-1'>
+                    Qatnashgan bemorlar: {distinctPatients} ta
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Card 5: Treatments & Departments */}
+              <Card className='shadow-xs border-amber-500/20 bg-amber-500/5'>
+                <CardHeader className='pb-2 flex flex-row items-center justify-between space-y-0 p-3'>
+                  <CardTitle className='text-xs font-semibold text-muted-foreground'>
+                    Bajarilgan Muolajalar
+                  </CardTitle>
+                  <Activity className='h-4 w-4 text-amber-600 dark:text-amber-400' />
+                </CardHeader>
+                <CardContent className='p-3 pt-0'>
+                  <div className='text-xl font-bold font-mono text-amber-600 dark:text-amber-400'>
+                    {treatmentsCount} ta
+                  </div>
+                  <p className='text-[10px] text-muted-foreground mt-1'>
+                    {departmentBreakdown.length} bo'lim / {topProcedures.length} xil muolaja
+                  </p>
                 </CardContent>
               </Card>
             </div>
 
+            {/* Rich Charts: P&L Timeline, Doctor Productivity, Procedures & Departments */}
             <StatsCharts
+              timeline={timeline}
+              topDoctors={topDoctors}
               topProcedures={topProcedures}
               departmentBreakdown={departmentBreakdown}
             />
@@ -670,3 +880,4 @@ export function ReportsList() {
     </>
   )
 }
+

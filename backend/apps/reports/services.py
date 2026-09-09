@@ -68,14 +68,46 @@ def _cached(key: str, compute: Callable[[], dict[str, Any]]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Public API — one function per endpoint.
 # ---------------------------------------------------------------------------
-def get_dashboard(period: str) -> dict[str, Any]:
+def get_dashboard(
+    period: str,
+    *,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict[str, Any]:
     p = _validate_period(period)
-    return _cached(_cache_key("dashboard", p), lambda: dashboard_payload(p))
+    parts = [p]
+    if start_date:
+        parts.append(f"sd-{start_date}")
+    if end_date:
+        parts.append(f"ed-{end_date}")
+
+    if start_date or end_date:
+        compute = lambda: dashboard_payload(p, start_date=start_date, end_date=end_date)
+    else:
+        compute = lambda: dashboard_payload(p)
+
+    return _cached(_cache_key("dashboard", *parts), compute)
 
 
-def get_revenue(period: str) -> dict[str, Any]:
+def get_revenue(
+    period: str,
+    *,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> dict[str, Any]:
     p = _validate_period(period)
-    return _cached(_cache_key("revenue", p), lambda: revenue_payload(p))
+    parts = [p]
+    if start_date:
+        parts.append(f"sd-{start_date}")
+    if end_date:
+        parts.append(f"ed-{end_date}")
+
+    if start_date or end_date:
+        compute = lambda: revenue_payload(p, start_date=start_date, end_date=end_date)
+    else:
+        compute = lambda: revenue_payload(p)
+
+    return _cached(_cache_key("revenue", *parts), compute)
 
 
 def get_procedures(period: str, *, limit: int = 10) -> dict[str, Any]:
