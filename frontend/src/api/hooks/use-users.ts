@@ -2,12 +2,25 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../client'
 import { type User } from '@/types/api'
 
-export const useUsers = () => {
+export interface UsersParams {
+  search?: string
+  role?: string
+  page?: number
+  page_size?: number
+}
+
+export const useUsers = (params?: UsersParams) => {
   return useQuery({
-    queryKey: ['users'],
+    queryKey: ['users', params],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ results: User[] }>('/auth/users/')
-      return data.results || []
+      const { data } = await apiClient.get<any>('/auth/users/', { params })
+      if (Array.isArray(data)) {
+        return { results: data, count: data.length }
+      }
+      return {
+        results: data.results || [],
+        count: data.count ?? (data.results?.length || 0),
+      }
     },
   })
 }

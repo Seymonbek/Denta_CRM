@@ -1,10 +1,12 @@
-import { Trophy } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Trophy, Search } from 'lucide-react'
 import { useLeaderboard } from '@/api/hooks/use-ratings'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -13,12 +15,33 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { TablePagination } from '@/components/ui/table-pagination'
 import { type LeaderboardEntry } from '@/types/api'
 
 export function RatingsList() {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
   const { data: leaderboardData = [], isLoading } = useLeaderboard()
 
   const leaderboard: LeaderboardEntry[] = Array.isArray(leaderboardData) ? leaderboardData : []
+
+  const filteredLeaderboard = useMemo(() => {
+    return leaderboard.filter((entry: LeaderboardEntry) => {
+      const name = `${entry.doctor?.user?.firstName || ''} ${entry.doctor?.user?.lastName || ''} ${entry.doctor?.specialization || ''}`
+      return name.toLowerCase().includes(searchTerm.toLowerCase())
+    })
+  }, [leaderboard, searchTerm])
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm])
+
+  const paginatedLeaderboard = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredLeaderboard.slice(start, start + pageSize)
+  }, [filteredLeaderboard, page, pageSize])
 
   return (
     <>
@@ -32,11 +55,23 @@ export function RatingsList() {
       </Header>
 
       <Main className='space-y-4'>
-        <div>
-          <h1 className='text-xl font-bold tracking-tight'>Gamifikatsiya & Shifokorlar Reytingi</h1>
-          <p className='text-xs text-muted-foreground'>
-            Bajarilgan muolajalar, o'z vaqtida qabul va bemorlar sharhlari asosida hisoblangan ballar
-          </p>
+        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+          <div>
+            <h1 className='text-xl font-bold tracking-tight'>Gamifikatsiya & Shifokorlar Reytingi</h1>
+            <p className='text-xs text-muted-foreground'>
+              Bajarilgan muolajalar, o'z vaqtida qabul va bemorlar sharhlari asosida hisoblangan ballar ({filteredLeaderboard.length} ta)
+            </p>
+          </div>
+
+          <div className='relative w-full sm:w-72'>
+            <Search className='absolute left-3 top-2.5 h-4 w-4 text-muted-foreground' />
+            <Input
+              placeholder='Shifokor yoki mutaxassislik...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='ps-9 text-xs h-9'
+            />
+          </div>
         </div>
 
         <div className='rounded-xl border bg-card shadow-xs overflow-hidden'>
@@ -57,16 +92,17 @@ export function RatingsList() {
                     Yuklanmoqda...
                   </TableCell>
                 </TableRow>
-              ) : leaderboard.length === 0 ? (
+              ) : filteredLeaderboard.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className='text-center py-8 text-xs text-muted-foreground'>
                     Reyting ma'lumotlari topilmadi.
                   </TableCell>
                 </TableRow>
               ) : (
-                leaderboard.map((entry: LeaderboardEntry, idx: number) => {
-                  const rank = entry.rank || idx + 1
-                  const doctorId = entry.doctor?.id || String(idx)
+                paginatedLeaderboard.map((entry: LeaderboardEntry, idx: number) => {
+                  const actualIdx = (page - 1) * pageSize + idx
+                  const rank = entry.rank || actualIdx + 1
+                  const doctorId = entry.doctor?.id || String(actualIdx)
                   const firstName = entry.doctor?.user?.firstName || 'Shifokor'
                   const lastName = entry.doctor?.user?.lastName || ''
                   const specialization = entry.doctor?.specialization || 'Stomatolog'
@@ -126,6 +162,17 @@ export function RatingsList() {
             </TableBody>
           </Table>
         </div>
+
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filteredLeaderboard.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize)
+            setPage(1)
+          }}
+        />
       </Main>
     </>
   )

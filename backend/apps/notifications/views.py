@@ -35,8 +35,9 @@ class NotificationViewSet(
 
     serializer_class = NotificationLogSerializer
     permission_classes = [NotificationPermission]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["status", "type", "channel"]
+    search_fields = ["message", "patient__first_name", "patient__last_name", "patient__phone_number"]
     ordering_fields = ["created_at", "sent_at"]
     ordering = ["-created_at"]
     lookup_field = "pk"

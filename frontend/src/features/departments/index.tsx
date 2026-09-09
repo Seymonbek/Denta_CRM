@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Building2, Trash2, Edit2, Search } from 'lucide-react'
 import { confirmSwal } from '@/lib/sweetalert'
 import {
@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,18 @@ export function DepartmentsList() {
     const text = String(d.name || '') + ' ' + String(d.description || '')
     return text.toLowerCase().includes(searchTerm.toLowerCase())
   })
+
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm])
+
+  const paginatedDepartments = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filteredDepartments.slice(start, start + pageSize)
+  }, [filteredDepartments, page, pageSize])
 
   const createDeptMutation = useCreateDepartment()
   const updateDeptMutation = useUpdateDepartment()
@@ -171,7 +184,7 @@ export function DepartmentsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredDepartments.map((dept: Department) => {
+                paginatedDepartments.map((dept: Department) => {
                   const isActive = dept.isActive ?? true
                   const createdAt = dept.createdAt || ''
 
@@ -219,6 +232,17 @@ export function DepartmentsList() {
             </TableBody>
           </Table>
         </div>
+
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={filteredDepartments.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize)
+            setPage(1)
+          }}
+        />
 
         {/* Modal */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

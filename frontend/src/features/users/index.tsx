@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Plus, Edit, CalendarDays, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Edit, CalendarDays, Trash2, Search as SearchIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   Table,
   TableBody,
@@ -39,7 +40,6 @@ import {
 } from '@/api/hooks/use-users'
 import { UserForm } from './user-form'
 import { type User, type WorkingHours, type TimeOff } from '@/types/api'
-import { Search } from '@/components/search'
 import { toast } from 'sonner'
 
 const WEEKDAYS = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba']
@@ -201,7 +201,25 @@ function ScheduleDialog({ user, open, onClose }: { user: User; open: boolean; on
 
 // ─── Main Feature ────────────────────────────────────────────────────────────
 export function UsersFeature() {
-  const { data: users, isLoading } = useUsers()
+  const [searchTerm, setSearchTerm] = useState('')
+  const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, roleFilter])
+
+  const { data, isLoading } = useUsers({
+    search: searchTerm || undefined,
+    role: roleFilter && roleFilter !== 'all' ? roleFilter : undefined,
+    page,
+    page_size: pageSize,
+  })
+
+  const users = data?.results || []
+  const totalCount = data?.count ?? users.length
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | undefined>()
   const [scheduleUser, setScheduleUser] = useState<User | undefined>()
@@ -222,54 +240,92 @@ export function UsersFeature() {
   return (
     <>
       <Header>
-        <Search />
+        <div className='flex items-center gap-2 me-auto font-bold text-lg tracking-tight'>
+          <span>👥 Xodimlar Boshqaruvi</span>
+        </div>
         <div className='ml-auto flex items-center space-x-4'>
           <ProfileDropdown />
         </div>
       </Header>
       <Main>
-        <div className='mb-4 flex items-center justify-between'>
+        <div className='mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div>
             <h1 className='text-2xl font-bold tracking-tight'>Xodimlar</h1>
-            <p className='text-muted-foreground'>
-              Tizimga kirish huquqiga ega barcha xodimlarni boshqarish
+            <p className='text-xs text-muted-foreground'>
+              Tizimga kirish huquqiga ega barcha xodimlarni boshqarish ({totalCount} ta xodim)
             </p>
           </div>
-          <Button onClick={openAddDialog}>
+          <Button onClick={openAddDialog} className='shadow h-9 text-xs'>
             <Plus className='mr-2 h-4 w-4' /> Yangi xodim
           </Button>
         </div>
 
-        <div className='rounded-md border bg-card text-card-foreground'>
-          <Table>
+        {/* Search & Filter Toolbar */}
+        <div className='mb-4 flex flex-col sm:flex-row items-center gap-3'>
+          <div className='relative flex-1 w-full'>
+            <SearchIcon className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+            <Input
+              placeholder="Ism, familiya yoki telefon bo'yicha qidiruv..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='ps-9 text-xs h-9'
+            />
+          </div>
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className='w-full sm:w-44 text-xs h-9'>
+              <SelectValue placeholder='Rol (Barchasi)' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='all'>Barcha Rollar</SelectItem>
+              <SelectItem value='bosh_shifokor'>Bosh Shifokor</SelectItem>
+              <SelectItem value='doctor'>Shifokor</SelectItem>
+              <SelectItem value='administrator'>Administrator</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className='rounded-xl border bg-card text-card-foreground shadow-sm overflow-x-auto w-full'>
+          <Table className='min-w-[600px] sm:min-w-full'>
             <TableHeader>
-              <TableRow>
-                <TableHead>Ism, Familiya</TableHead>
-                <TableHead>Telefon raqam</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead className='text-right'>Amallar</TableHead>
+              <TableRow className='bg-muted/30'>
+                <TableHead className='text-xs font-semibold'>Ism, Familiya</TableHead>
+                <TableHead className='text-xs font-semibold'>Telefon raqam</TableHead>
+                <TableHead className='text-xs font-semibold'>Rol</TableHead>
+                <TableHead className='text-xs font-semibold text-right'>Amallar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className='text-center py-4'>Yuklanmoqda...</TableCell>
+                  <TableCell colSpan={4} className='text-center py-8 text-xs text-muted-foreground animate-pulse'>
+                    Xodimlar yuklanmoqda...
+                  </TableCell>
                 </TableRow>
-              ) : users?.length === 0 ? (
+              ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className='text-center py-4'>Xodimlar topilmadi</TableCell>
+                  <TableCell colSpan={4} className='text-center py-8 text-xs text-muted-foreground'>
+                    Xodimlar topilmadi.
+                  </TableCell>
                 </TableRow>
               ) : (
-                users?.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className='font-medium'>{user.firstName} {user.lastName}</TableCell>
-                    <TableCell>{user.phoneNumber}</TableCell>
-                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                users.map((user: User) => (
+                  <TableRow key={user.id} className='hover:bg-muted/20'>
+                    <TableCell className='font-medium text-xs'>
+                      <div className='flex items-center gap-2'>
+                        <div className='flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs shrink-0'>
+                          {user.firstName?.[0] || 'X'}
+                        </div>
+                        <span className='font-semibold'>{user.firstName} {user.lastName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className='text-xs font-mono'>{user.phoneNumber}</TableCell>
+                    <TableCell className='text-xs'>{getRoleBadge(user.role)}</TableCell>
                     <TableCell className='text-right'>
                       <div className='flex items-center justify-end gap-1'>
                         <Button
                           variant='ghost' size='icon'
                           title='Smena jadvali'
+                          className='h-8 w-8'
                           onClick={() => setScheduleUser(user)}
                         >
                           <CalendarDays className='h-4 w-4' />
@@ -277,6 +333,7 @@ export function UsersFeature() {
                         <Button
                           variant='ghost' size='icon'
                           title='Tahrirlash'
+                          className='h-8 w-8'
                           onClick={() => openEditDialog(user)}
                         >
                           <Edit className='h-4 w-4' />
@@ -289,6 +346,17 @@ export function UsersFeature() {
             </TableBody>
           </Table>
         </div>
+
+        <TablePagination
+          totalCount={totalCount}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize)
+            setPage(1)
+          }}
+        />
 
         {/* Edit/Create User Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

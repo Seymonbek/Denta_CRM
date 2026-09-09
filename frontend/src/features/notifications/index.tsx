@@ -1,4 +1,5 @@
-import { Send, CheckCircle2, AlertCircle, Bell } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Send, CheckCircle2, AlertCircle, Bell, Search } from 'lucide-react'
 import { format } from 'date-fns'
 import { useNotifications } from '@/api/hooks/use-notifications'
 import { Header } from '@/components/layout/header'
@@ -6,6 +7,15 @@ import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   Table,
   TableBody,
@@ -16,12 +26,29 @@ import {
 } from '@/components/ui/table'
 
 export function NotificationsList() {
-  const { data: notificationsData, isLoading } = useNotifications()
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, statusFilter])
+
+  const { data: notificationsData, isLoading } = useNotifications({
+    search: searchTerm || undefined,
+    status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
+    page,
+    page_size: pageSize,
+  })
+
   const notifications = Array.isArray(notificationsData?.results)
     ? notificationsData.results
     : Array.isArray(notificationsData)
     ? notificationsData
     : []
+
+  const totalCount = notificationsData?.count ?? notifications.length
 
   return (
     <>
@@ -35,13 +62,38 @@ export function NotificationsList() {
       </Header>
 
       <Main>
-        <div className='mb-6'>
-          <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
-            <Bell className='h-6 w-6 text-primary' /> Tizim Bildirishnomalari Logi
-          </h1>
-          <p className='text-xs text-muted-foreground mt-1'>
-            Telegram bot orqali yuborilgan eslatmalar, retseptlar va low-stock xabarlari.
-          </p>
+        <div className='mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+          <div>
+            <h1 className='text-2xl font-bold tracking-tight flex items-center gap-2'>
+              <Bell className='h-6 w-6 text-primary' /> Tizim Bildirishnomalari Logi
+            </h1>
+            <p className='text-xs text-muted-foreground mt-1'>
+              Telegram bot orqali yuborilgan eslatmalar, retseptlar va xabarlar ({totalCount} ta bildirishnoma).
+            </p>
+          </div>
+
+          <div className='flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto'>
+            <div className='relative w-full sm:w-72'>
+              <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+              <Input
+                placeholder="Xabar matni yoki bemor ismi..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='ps-9 text-xs h-9'
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className='w-full sm:w-40 text-xs h-9'>
+                <SelectValue placeholder='Holati (Barchasi)' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='all'>Barcha Holatlar</SelectItem>
+                <SelectItem value='sent'>Yuborilgan</SelectItem>
+                <SelectItem value='failed'>Xatolik</SelectItem>
+                <SelectItem value='pending'>Kutilmoqda</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Notifications Table with Mobile Responsive Horizontal Scroll */}
@@ -116,6 +168,17 @@ export function NotificationsList() {
             </TableBody>
           </Table>
         </div>
+
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize)
+            setPage(1)
+          }}
+        />
       </Main>
     </>
   )

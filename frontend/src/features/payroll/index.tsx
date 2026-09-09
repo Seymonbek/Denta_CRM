@@ -16,8 +16,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { TablePagination } from '@/components/ui/table-pagination'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Banknote, TrendingUp, DollarSign, Wallet, User, Eye } from 'lucide-react'
+import { Banknote, TrendingUp, DollarSign, Wallet, User, Eye, Search } from 'lucide-react'
 import { useDoctorBalances, type DoctorBalance } from '@/api/hooks/use-payroll'
 import { useDoctorCommissions, useDoctorCommissionSummary } from '@/api/hooks/use-payments'
 import { useDoctors } from '@/api/hooks/use-doctors'
@@ -61,6 +63,18 @@ export function PayrollFeature() {
   const [selectedDoctorForPayout, setSelectedDoctorForPayout] = useState<DoctorBalance | null>(null)
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all')
 
+  const [docCommSearch, setDocCommSearch] = useState('')
+  const [docCommPage, setDocCommPage] = useState(1)
+  const [docCommPageSize, setDocCommPageSize] = useState(10)
+
+  const [balancesSearch, setBalancesSearch] = useState('')
+  const [balancesPage, setBalancesPage] = useState(1)
+  const [balancesPageSize, setBalancesPageSize] = useState(10)
+
+  const [statementSearch, setStatementSearch] = useState('')
+  const [statementPage, setStatementPage] = useState(1)
+  const [statementPageSize, setStatementPageSize] = useState(10)
+
   const effectiveDoctorId = isDoctor ? (myDoctorProfile?.id || selectedDoctorId) : selectedDoctorId
   const { data: commissionsData = [] } = useDoctorCommissions(effectiveDoctorId)
   const commissions: any[] = Array.isArray(commissionsData) ? commissionsData : []
@@ -80,6 +94,54 @@ export function PayrollFeature() {
       return true
     })
   }, [commissions, dateFilter])
+
+  // Doctor Personal Statement: Search + Pagination
+  const searchedDocCommissions = useMemo(() => {
+    if (!docCommSearch) return filteredCommissions
+    const q = docCommSearch.toLowerCase()
+    return filteredCommissions.filter((c: any) => {
+      const pName = (c?.patientName || (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}` : '')).toLowerCase()
+      const proc = (c?.procedureName || c?.procedureTypeName || '').toLowerCase()
+      return pName.includes(q) || proc.includes(q)
+    })
+  }, [filteredCommissions, docCommSearch])
+
+  const paginatedDocCommissions = useMemo(() => {
+    const start = (docCommPage - 1) * docCommPageSize
+    return searchedDocCommissions.slice(start, start + docCommPageSize)
+  }, [searchedDocCommissions, docCommPage, docCommPageSize])
+
+  // All Doctors Balances: Search + Pagination
+  const searchedBalances = useMemo(() => {
+    if (!balancesSearch) return balances
+    const q = balancesSearch.toLowerCase()
+    return balances.filter((b: DoctorBalance) => {
+      const name = `${b.firstName || ''} ${b.lastName || ''}`.toLowerCase()
+      const phone = (b.phone || '').toLowerCase()
+      return name.includes(q) || phone.includes(q)
+    })
+  }, [balances, balancesSearch])
+
+  const paginatedBalances = useMemo(() => {
+    const start = (balancesPage - 1) * balancesPageSize
+    return searchedBalances.slice(start, start + balancesPageSize)
+  }, [searchedBalances, balancesPage, balancesPageSize])
+
+  // Selected Doctor Statement: Search + Pagination
+  const searchedStatement = useMemo(() => {
+    if (!statementSearch) return commissions
+    const q = statementSearch.toLowerCase()
+    return commissions.filter((c: any) => {
+      const pName = (c?.patientName || (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}` : '')).toLowerCase()
+      const proc = (c?.procedureName || '').toLowerCase()
+      return pName.includes(q) || proc.includes(q)
+    })
+  }, [commissions, statementSearch])
+
+  const paginatedStatement = useMemo(() => {
+    const start = (statementPage - 1) * statementPageSize
+    return searchedStatement.slice(start, start + statementPageSize)
+  }, [searchedStatement, statementPage, statementPageSize])
 
   // Total summary calculations
   const totalClinicEarned = balances.reduce((acc, b) => acc + (b.totalEarned || 0), 0)
@@ -207,32 +269,50 @@ export function PayrollFeature() {
               <div>
                 <CardTitle className="text-base font-bold">Bajarilgan Muolajalar va Komissiyalarim</CardTitle>
                 <CardDescription className="text-xs">
-                  Har bir bemordan sizga hisoblangan komissiya foizlari va summalari yoyilmasi.
+                  Har bir bemordan sizga hisoblangan komissiya foizlari va summalari yoyilmasi ({searchedDocCommissions.length} ta yozuv).
                 </CardDescription>
               </div>
 
-              {/* Date Filter Buttons */}
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-                {[
-                  { label: 'Barchasi', value: 'all' },
-                  { label: 'Bugun', value: 'today' },
-                  { label: 'Shu Hafta', value: 'week' },
-                  { label: 'Shu Oy', value: 'month' }
-                ].map((item) => (
-                  <Button
-                    key={item.value}
-                    size="sm"
-                    variant={dateFilter === item.value ? 'default' : 'ghost'}
-                    className="h-7 text-xs px-2.5"
-                    onClick={() => setDateFilter(item.value as any)}
-                  >
-                    {item.label}
-                  </Button>
-                ))}
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <div className="relative w-full sm:w-56">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Bemor yoki muolaja..."
+                    value={docCommSearch}
+                    onChange={(e) => {
+                      setDocCommSearch(e.target.value)
+                      setDocCommPage(1)
+                    }}
+                    className="ps-8 text-xs h-8"
+                  />
+                </div>
+
+                {/* Date Filter Buttons */}
+                <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+                  {[
+                    { label: 'Barchasi', value: 'all' },
+                    { label: 'Bugun', value: 'today' },
+                    { label: 'Shu Hafta', value: 'week' },
+                    { label: 'Shu Oy', value: 'month' }
+                  ].map((item) => (
+                    <Button
+                      key={item.value}
+                      size="sm"
+                      variant={dateFilter === item.value ? 'default' : 'ghost'}
+                      className="h-7 text-xs px-2.5"
+                      onClick={() => {
+                        setDateFilter(item.value as any)
+                        setDocCommPage(1)
+                      }}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="space-y-3">
               <div className="overflow-x-auto w-full rounded-lg border">
                 <Table className="min-w-[650px]">
                   <TableHeader>
@@ -246,14 +326,14 @@ export function PayrollFeature() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredCommissions.length === 0 ? (
+                    {searchedDocCommissions.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-8 text-xs text-muted-foreground">
-                          Tanlangan davr bo'yicha hisoblangan komissiyalar mavjud emas.
+                          Tanlangan davr yoki qidiruv bo'yicha hisoblangan komissiyalar topilmadi.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredCommissions.map((c: any) => {
+                      paginatedDocCommissions.map((c: any) => {
                         const dateStr = c?.calculatedAt || c?.calculated_at || c?.createdAt || c?.created_at || ''
                         const patientName = c?.patientName || (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}`.trim() : '') || 'Bemor'
                         const procName = c?.procedureName || c?.procedureTypeName || 'Muolaja'
@@ -286,6 +366,17 @@ export function PayrollFeature() {
                   </TableBody>
                 </Table>
               </div>
+
+              <TablePagination
+                totalCount={searchedDocCommissions.length}
+                page={docCommPage}
+                pageSize={docCommPageSize}
+                onPageChange={setDocCommPage}
+                onPageSizeChange={(newSize) => {
+                  setDocCommPageSize(newSize)
+                  setDocCommPage(1)
+                }}
+              />
             </CardContent>
           </Card>
         ) : (
@@ -298,80 +389,106 @@ export function PayrollFeature() {
 
             <TabsContent value="doctors">
               <Card className="shadow-sm">
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3">
                   <div>
                     <CardTitle className="text-base font-bold">Shifokorlar Ish Haqi Balansi</CardTitle>
                     <CardDescription className="text-xs">
-                      Har bir shifokorning jami ishlagan summasi, to'langan oyligi va joriy qarzdorlik qoldig'i.
+                      Har bir shifokorning jami ishlagan summasi, to'langan oyligi va joriy qarzdorlik qoldig'i ({searchedBalances.length} ta shifokor).
                     </CardDescription>
                   </div>
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Shifokor ismi yoki telefon..."
+                      value={balancesSearch}
+                      onChange={(e) => {
+                        setBalancesSearch(e.target.value)
+                        setBalancesPage(1)
+                      }}
+                      className="ps-8 text-xs h-8"
+                    />
+                  </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   {isLoading ? (
                     <div className="text-center p-8 text-xs text-muted-foreground">Ma'lumotlar yuklanmoqda...</div>
                   ) : (
-                    <div className="overflow-x-auto w-full rounded-lg border">
-                      <Table className="min-w-[700px]">
-                        <TableHeader>
-                          <TableRow className="bg-muted/40">
-                            <TableHead className="text-xs font-semibold">Shifokor</TableHead>
-                            <TableHead className="text-xs font-semibold">Telefon</TableHead>
-                            <TableHead className="text-xs font-semibold text-center">Foiz Stavkasi</TableHead>
-                            <TableHead className="text-xs font-semibold text-right">Jami Ishlagan</TableHead>
-                            <TableHead className="text-xs font-semibold text-right">To'langan</TableHead>
-                            <TableHead className="text-xs font-semibold text-right">Olinmagan Qoldiq</TableHead>
-                            <TableHead className="text-xs font-semibold text-right">Amallar</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {balances.map((doc: DoctorBalance) => (
-                            <TableRow key={doc.id}>
-                              <TableCell className="font-semibold text-xs">
-                                {doc.firstName} {doc.lastName}
-                              </TableCell>
-                              <TableCell className="text-xs text-muted-foreground font-mono">{doc.phone}</TableCell>
-                              <TableCell className="text-xs text-center font-mono">
-                                <Badge variant="outline" className="text-[10px]">{doc.defaultRate || '30'}%</Badge>
-                              </TableCell>
-                              <TableCell className="text-right text-xs font-mono">{formatMoney(doc.totalEarned)}</TableCell>
-                              <TableCell className="text-right text-xs font-mono text-muted-foreground">{formatMoney(doc.totalPaid)}</TableCell>
-                              <TableCell className="text-right text-xs font-bold font-mono text-primary">
-                                {formatMoney(doc.balance)} so'm
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="h-8 text-xs"
-                                    onClick={() => setSelectedDoctorId(doc.id)}
-                                  >
-                                    <Eye className="w-3.5 h-3.5 mr-1" /> Ko'rish
-                                  </Button>
-                                  {(isHeadDoctor || isAdministrator) && (
+                    <>
+                      <div className="overflow-x-auto w-full rounded-lg border">
+                        <Table className="min-w-[700px]">
+                          <TableHeader>
+                            <TableRow className="bg-muted/40">
+                              <TableHead className="text-xs font-semibold">Shifokor</TableHead>
+                              <TableHead className="text-xs font-semibold">Telefon</TableHead>
+                              <TableHead className="text-xs font-semibold text-center">Foiz Stavkasi</TableHead>
+                              <TableHead className="text-xs font-semibold text-right">Jami Ishlagan</TableHead>
+                              <TableHead className="text-xs font-semibold text-right">To'langan</TableHead>
+                              <TableHead className="text-xs font-semibold text-right">Olinmagan Qoldiq</TableHead>
+                              <TableHead className="text-xs font-semibold text-right">Amallar</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {paginatedBalances.map((doc: DoctorBalance) => (
+                              <TableRow key={doc.id} className="hover:bg-muted/20">
+                                <TableCell className="font-semibold text-xs">
+                                  {doc.firstName} {doc.lastName}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground font-mono">{doc.phone}</TableCell>
+                                <TableCell className="text-xs text-center font-mono">
+                                  <Badge variant="outline" className="text-[10px]">{doc.defaultRate || '30'}%</Badge>
+                                </TableCell>
+                                <TableCell className="text-right text-xs font-mono">{formatMoney(doc.totalEarned)}</TableCell>
+                                <TableCell className="text-right text-xs font-mono text-muted-foreground">{formatMoney(doc.totalPaid)}</TableCell>
+                                <TableCell className="text-right text-xs font-bold font-mono text-primary">
+                                  {formatMoney(doc.balance)} so'm
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
                                     <Button 
-                                      variant="default" 
+                                      variant="outline" 
                                       size="sm" 
-                                      className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
-                                      onClick={() => setSelectedDoctorForPayout(doc)}
+                                      className="h-8 text-xs"
+                                      onClick={() => setSelectedDoctorId(doc.id)}
                                     >
-                                      <Banknote className="w-3.5 h-3.5 mr-1" /> To'lash
+                                      <Eye className="w-3.5 h-3.5 mr-1" /> Ko'rish
                                     </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                          {balances.length === 0 && (
-                            <TableRow>
-                              <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
-                                Shifokorlar ma'lumotlari topilmadi.
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
+                                    {(isHeadDoctor || isAdministrator) && (
+                                      <Button 
+                                        variant="default" 
+                                        size="sm" 
+                                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                                        onClick={() => setSelectedDoctorForPayout(doc)}
+                                      >
+                                        <Banknote className="w-3.5 h-3.5 mr-1" /> To'lash
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {searchedBalances.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
+                                  Shifokorlar ma'lumotlari topilmadi.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      <TablePagination
+                        totalCount={searchedBalances.length}
+                        page={balancesPage}
+                        pageSize={balancesPageSize}
+                        onPageChange={setBalancesPage}
+                        onPageSizeChange={(newSize) => {
+                          setBalancesPageSize(newSize)
+                          setBalancesPage(1)
+                        }}
+                      />
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -380,20 +497,35 @@ export function PayrollFeature() {
             {selectedDoctorId && (
               <TabsContent value="statement">
                 <Card className="shadow-sm">
-                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                  <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3">
                     <div>
                       <CardTitle className="text-base font-bold">
-                        Shifokor Komissiyalari Tarixi ({commissions.length} ta yozuv)
+                        Shifokor Komissiyalari Tarixi ({searchedStatement.length} ta yozuv)
                       </CardTitle>
                       <CardDescription className="text-xs">
                         Tanlangan shifokorning barcha muolajalari bo'yicha hisoblangan komissiyalar.
                       </CardDescription>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => setSelectedDoctorId('')}>
-                      Orqaga
-                    </Button>
+
+                    <div className="flex items-center gap-2">
+                      <div className="relative w-full sm:w-56">
+                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          placeholder="Bemor yoki muolaja..."
+                          value={statementSearch}
+                          onChange={(e) => {
+                            setStatementSearch(e.target.value)
+                            setStatementPage(1)
+                          }}
+                          className="ps-8 text-xs h-8"
+                        />
+                      </div>
+                      <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSelectedDoctorId('')}>
+                        Orqaga
+                      </Button>
+                    </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-3">
                     <div className="overflow-x-auto w-full rounded-lg border">
                       <Table className="min-w-[650px]">
                         <TableHeader>
@@ -407,14 +539,14 @@ export function PayrollFeature() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {commissions.length === 0 ? (
+                          {searchedStatement.length === 0 ? (
                             <TableRow>
                               <TableCell colSpan={6} className="text-center py-8 text-xs text-muted-foreground">
                                 Komissiyalar topilmadi.
                               </TableCell>
                             </TableRow>
                           ) : (
-                            commissions.map((c: any) => {
+                            paginatedStatement.map((c: any) => {
                               const dateStr = c?.calculatedAt || c?.calculated_at || c?.createdAt || ''
                               const patientName = c?.patientName || (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}`.trim() : '') || 'Bemor'
                               const procName = c?.procedureName || 'Muolaja'
@@ -443,6 +575,17 @@ export function PayrollFeature() {
                         </TableBody>
                       </Table>
                     </div>
+
+                    <TablePagination
+                      totalCount={searchedStatement.length}
+                      page={statementPage}
+                      pageSize={statementPageSize}
+                      onPageChange={setStatementPage}
+                      onPageSizeChange={(newSize) => {
+                        setStatementPageSize(newSize)
+                        setStatementPage(1)
+                      }}
+                    />
                   </CardContent>
                 </Card>
               </TabsContent>

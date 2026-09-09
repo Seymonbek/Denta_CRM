@@ -10,8 +10,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
-from rest_framework import status, viewsets
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -467,6 +468,10 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserManagementSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrBoshShifokor]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["first_name", "last_name", "phone_number"]
+    filterset_fields = ["role", "is_active"]
+    ordering_fields = ["date_joined", "first_name", "last_name"]
 
     def get_queryset(self):
         user = self.request.user

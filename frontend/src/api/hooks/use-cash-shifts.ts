@@ -27,7 +27,7 @@ export const useOpenCashShift = () => {
   })
 }
 
-export const useCashShifts = (params?: { status?: string; page?: number; admin_id?: string; dateFrom?: string; dateTo?: string }) => {
+export const useCashShifts = (params?: { search?: string; status?: string; page?: number; page_size?: number; admin_id?: string; dateFrom?: string; dateTo?: string }) => {
   return useQuery({
     queryKey: ['cash-shifts', params],
     queryFn: async () => {

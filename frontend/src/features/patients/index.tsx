@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Plus, Search, ArrowRight, Phone, Send, Calendar, Clock, Sparkles, RefreshCw } from 'lucide-react'
+import { TablePagination } from '@/components/ui/table-pagination'
 import { confirmSwal } from '@/lib/sweetalert'
 import { usePatients, useCreatePatient, usePatientRecall, useSendPatientRecall } from '@/api/hooks/use-patients'
 import { Header } from '@/components/layout/header'
@@ -47,16 +48,23 @@ export function PatientsList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [genderFilter, setGenderFilter] = useState<string>('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Recall states
   const [recallDays, setRecallDays] = useState<number>(90)
   const [recallSearch, setRecallSearch] = useState('')
+  const [recallPage, setRecallPage] = useState(1)
+  const [recallPageSize, setRecallPageSize] = useState(20)
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
   }, [searchTerm, genderFilter])
+
+  useEffect(() => {
+    setRecallPage(1)
+  }, [recallSearch, recallDays])
 
   // Form State
   const [firstName, setFirstName] = useState('')
@@ -73,6 +81,7 @@ export function PatientsList() {
     search: searchTerm || undefined,
     gender: genderFilter && genderFilter !== 'all' ? genderFilter : undefined,
     page,
+    page_size: pageSize,
   })
 
   const { data: recallData = [], isLoading: isRecallLoading, refetch: refetchRecall } = usePatientRecall(recallDays)
@@ -86,8 +95,6 @@ export function PatientsList() {
     : []
 
   const totalCount = data?.count ?? patients.length
-  const pageSize = 20
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   // Filtered recall list
   const filteredRecallList = recallData.filter((r: any) => {
@@ -100,6 +107,11 @@ export function PatientsList() {
       r.recallReason.toLowerCase().includes(term)
     )
   })
+
+  const paginatedRecallList = useMemo(() => {
+    const start = (recallPage - 1) * recallPageSize
+    return filteredRecallList.slice(start, start + recallPageSize)
+  }, [filteredRecallList, recallPage, recallPageSize])
 
   const handleCreatePatient = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -315,37 +327,17 @@ export function PatientsList() {
               </Table>
             </div>
 
-            {/* Pagination */}
-            <div className='mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground'>
-              <div>
-                Jami: <span className='font-bold text-foreground'>{totalCount}</span> ta bemor
-              </div>
-              {totalPages > 1 && (
-                <div className='flex items-center gap-1.5'>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    className='h-8 px-3 text-xs'
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    Oldingi
-                  </Button>
-                  <span className='px-2 font-mono font-medium text-foreground'>
-                    {page} / {totalPages}
-                  </span>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    className='h-8 px-3 text-xs'
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Keyingi
-                  </Button>
-                </div>
-              )}
-            </div>
+            {/* Universal Table Pagination */}
+            <TablePagination
+              totalCount={totalCount}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize)
+                setPage(1)
+              }}
+            />
           </TabsContent>
 
           {/* TAB 2: RECALL JURNALI (BEMORLARNI QAYTARISH VA SODIQLIK) */}
@@ -421,7 +413,7 @@ export function PatientsList() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredRecallList.map((r: any) => (
+                    paginatedRecallList.map((r: any) => (
                       <TableRow key={r.id} className='hover:bg-muted/20'>
                         <TableCell className='font-medium text-xs'>
                           <div className='flex flex-col'>
@@ -487,6 +479,18 @@ export function PatientsList() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Universal Table Pagination for Recall */}
+            <TablePagination
+              totalCount={filteredRecallList.length}
+              page={recallPage}
+              pageSize={recallPageSize}
+              onPageChange={setRecallPage}
+              onPageSizeChange={(newSize) => {
+                setRecallPageSize(newSize)
+                setRecallPage(1)
+              }}
+            />
           </TabsContent>
         </Tabs>
 

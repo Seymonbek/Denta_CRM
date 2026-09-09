@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
+import { Search } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -9,6 +10,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   Dialog,
   DialogContent,
@@ -75,8 +78,24 @@ function ShiftPaymentsModal({ shiftId, open, onOpenChange }: { shiftId: string |
 }
 
 export function CashShiftsFeature() {
+  const [searchTerm, setSearchTerm] = useState('')
   const [status, setStatus] = useState<string>('')
-  const { data, isLoading } = useCashShifts({ status: status || undefined })
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, status])
+
+  const { data, isLoading } = useCashShifts({
+    search: searchTerm || undefined,
+    status: status || undefined,
+    page,
+    page_size: pageSize,
+  })
+
+  const shifts = data?.results || []
+  const totalCount = data?.count ?? shifts.length
   const [selectedShift, setSelectedShift] = useState<string | null>(null)
   
   const isBoshShifokor = useAuthStore(s => s.isBoshShifokor())
@@ -88,26 +107,45 @@ export function CashShiftsFeature() {
       <Header>
         <div className='flex items-center justify-between w-full'>
           <h2 className='text-2xl font-bold tracking-tight'>Kassa Smenalari</h2>
-          <div className='flex items-center space-x-4'>
+          <ProfileDropdown />
+        </div>
+      </Header>
+      <Main>
+        <div className='mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
+          <div>
+            <h1 className='text-xl font-bold tracking-tight'>Klinika Kassa Smenalari</h1>
+            <p className='text-xs text-muted-foreground'>
+              Kunlik ochilgan va yopilgan kassa smenalari nazorati ({totalCount} ta smena)
+            </p>
+          </div>
+
+          <div className='flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto'>
+            <div className='relative w-full sm:w-64'>
+              <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground' />
+              <Input
+                placeholder="Administrator ismi bo'yicha..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='ps-9 text-xs h-9'
+              />
+            </div>
             <select
-              className="flex h-9 w-[180px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-9 w-full sm:w-[160px] rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
             >
               <option value="">Barcha smenalar</option>
-              <option value="open">Ochiq</option>
-              <option value="closed">Yopiq</option>
+              <option value="open">Ochiq smenalar</option>
+              <option value="closed">Yopiq smenalar</option>
             </select>
-            <ProfileDropdown />
           </div>
         </div>
-      </Header>
-      <Main>
-        <div className='rounded-md border bg-card text-card-foreground overflow-x-auto w-full'>
+
+        <div className='rounded-xl border bg-card text-card-foreground shadow-sm overflow-x-auto w-full'>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
+              <TableRow className='bg-muted/30'>
+                <TableHead className='text-xs font-semibold'>ID</TableHead>
                 <TableHead>Administrator</TableHead>
                 <TableHead>Ochilgan</TableHead>
                 <TableHead>Yopilgan</TableHead>
@@ -180,6 +218,17 @@ export function CashShiftsFeature() {
             </TableBody>
           </Table>
         </div>
+
+        <TablePagination
+          totalCount={totalCount}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize)
+            setPage(1)
+          }}
+        />
 
         <ShiftPaymentsModal 
           shiftId={selectedShift} 

@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   Dialog,
   DialogContent,
@@ -71,6 +72,18 @@ export function DoctorsList() {
   const displayDoctors = isDoctor
     ? doctorsList.filter((doc: DoctorProfile) => doc.user?.id === authUser?.id)
     : filteredDoctors
+
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm])
+
+  const paginatedDoctors = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return displayDoctors.slice(start, start + pageSize)
+  }, [displayDoctors, page, pageSize])
 
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorProfile | null>(null)
   const [hasAutoOpened, setHasAutoOpened] = useState(false)
@@ -254,7 +267,7 @@ export function DoctorsList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                displayDoctors.map((doc: DoctorProfile) => {
+                paginatedDoctors.map((doc: DoctorProfile) => {
                   const firstName = doc.user?.firstName || 'Shifokor'
                   const lastName = doc.user?.lastName || ''
                   const phoneNumber = doc.user?.phoneNumber || ''
@@ -327,6 +340,17 @@ export function DoctorsList() {
             </TableBody>
           </Table>
         </div>
+
+        <TablePagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={displayDoctors.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize)
+            setPage(1)
+          }}
+        />
 
         {/* Schedule & TimeOff Management Modal */}
         <Dialog open={selectedDoctor !== null} onOpenChange={(open) => !open && setSelectedDoctor(null)}>

@@ -356,6 +356,11 @@ class CashShiftViewSet(viewsets.ModelViewSet):
     queryset = __import__("apps.payments.models", fromlist=["CashShift"]).CashShift.objects.select_related("administrator", "approved_by").all()
     serializer_class = __import__("apps.payments.serializers", fromlist=["CashShiftSerializer"]).CashShiftSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["administrator__first_name", "administrator__last_name", "administrator__phone_number"]
+    filterset_fields = ["status"]
+    ordering_fields = ["opened_at", "closed_at", "created_at"]
+    ordering = ["-opened_at"]
 
     def get_queryset(self):
         qs = super().get_queryset()

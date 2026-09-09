@@ -15,7 +15,8 @@ import {
 
 interface TablePaginationProps {
   page: number
-  totalCount: number
+  totalCount?: number
+  totalItems?: number
   pageSize: number
   onPageChange: (newPage: number) => void
   onPageSizeChange?: (newPageSize: number) => void
@@ -26,15 +27,17 @@ interface TablePaginationProps {
 export function TablePagination({
   page,
   totalCount,
+  totalItems,
   pageSize,
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = [10, 20, 50, 100],
   className = '',
 }: TablePaginationProps) {
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
-  const fromIndex = totalCount === 0 ? 0 : (page - 1) * pageSize + 1
-  const toIndex = Math.min(page * pageSize, totalCount)
+  const effectiveTotal = totalCount ?? totalItems ?? 0
+  const totalPages = Math.max(1, Math.ceil(effectiveTotal / pageSize))
+  const fromIndex = effectiveTotal === 0 ? 0 : (page - 1) * pageSize + 1
+  const toIndex = Math.min(page * pageSize, effectiveTotal)
 
   return (
     <div
@@ -45,11 +48,11 @@ export function TablePagination({
         <span>
           Jami:{' '}
           <strong className='font-semibold text-foreground'>
-            {totalCount.toLocaleString()}
+            {effectiveTotal.toLocaleString()}
           </strong>{' '}
           ta yozuv
         </span>
-        {totalCount > 0 && (
+        {effectiveTotal > 0 && (
           <span className='text-[11px] text-muted-foreground/80'>
             ({fromIndex} - {toIndex} ko'rsatilmoqda)
           </span>
