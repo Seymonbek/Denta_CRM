@@ -17,6 +17,40 @@ export interface CashShift {
   approved_by: string | null
 }
 
+export interface CashShiftStats {
+  openShiftsCount: number
+  totalShiftsCount: number
+  currentCashInHand: number | string
+  todayCashCollected: number | string
+  todayCardCollected: number | string
+  todayCashExpenses: number | string
+}
+
+export interface ShiftPaymentItem {
+  id: string
+  created_at: string
+  patient_name: string
+  doctor_name: string
+  procedure_name: string
+  method: string
+  amount: string | number
+}
+
+export interface ShiftExpenseItem {
+  id: string
+  date: string
+  category_name: string
+  payment_method: string
+  amount: string | number
+  description: string
+}
+
+export interface CashShiftDetails {
+  shift: CashShift
+  payments: ShiftPaymentItem[]
+  expenses: ShiftExpenseItem[]
+}
+
 export const useOpenCashShift = () => {
   return useQuery({
     queryKey: ['cash-shifts', 'open'],
@@ -24,6 +58,28 @@ export const useOpenCashShift = () => {
       const res = await apiClient.get<CashShift | null>('/cash-shifts/my-open/')
       return res.data
     },
+  })
+}
+
+export const useCashShiftStats = () => {
+  return useQuery({
+    queryKey: ['cash-shifts', 'stats'],
+    queryFn: async () => {
+      const res = await apiClient.get<CashShiftStats>('/cash-shifts/stats/')
+      return res.data
+    },
+  })
+}
+
+export const useCashShiftDetails = (shiftId: string | null) => {
+  return useQuery({
+    queryKey: ['cash-shifts', shiftId, 'details'],
+    queryFn: async () => {
+      if (!shiftId) return null
+      const res = await apiClient.get<CashShiftDetails>(`/cash-shifts/${shiftId}/details/`)
+      return res.data
+    },
+    enabled: !!shiftId,
   })
 }
 
@@ -49,5 +105,6 @@ export const useCloseCashShift = () => {
     },
   })
 }
+
 
 

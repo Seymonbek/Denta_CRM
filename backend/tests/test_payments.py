@@ -653,3 +653,33 @@ class TestExpenseStatsAndFiltering:
         assert res_admin.status_code == status.HTTP_200_OK
 
 
+class TestCashShiftStatsAndDetails:
+    def test_cash_shift_stats_details_and_close(self, api_client, administrator, head_doctor):
+        from apps.payments.models import CashShift
+        shift = CashShift.objects.create(
+            administrator=administrator,
+            start_balance=Decimal("500000.00"),
+            status="open",
+        )
+
+        _auth(api_client, administrator)
+        # 1. Stats endpoint
+        res_stats = api_client.get("/api/v1/cash-shifts/stats/")
+        assert res_stats.status_code == status.HTTP_200_OK
+        assert res_stats.data["openShiftsCount"] >= 1
+        assert Decimal(str(res_stats.data["currentCashInHand"])) >= Decimal("500000.00")
+
+        # 2. Details endpoint
+        res_details = api_client.get(f"/api/v1/cash-shifts/{shift.id}/details/")
+        assert res_details.status_code == status.HTTP_200_OK
+        assert "shift" in res_details.data
+        assert "payments" in res_details.data
+        assert "expenses" in res_details.data
+
+        # 3. Administrator can close their own shift
+        res_close = api_client.post(f"/api/v1/cash-shifts/{shift.id}/approve/")
+        assert res_close.status_code == status.HTTP_200_OK
+        assert res_close.data["status"] == "closed"
+
+
+

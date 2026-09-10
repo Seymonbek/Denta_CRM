@@ -407,12 +407,14 @@ class CashShiftViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["post"], url_path="approve")
     def approve_shift(self, request, pk=None):
-        if getattr(request.user, "role", None) != "bosh_shifokor":
+        shift = self.get_object()
+        user_role = getattr(request.user, "role", None)
+        is_owner = shift.administrator_id == request.user.id
+        if user_role != "bosh_shifokor" and not is_owner:
             return Response(
-                {"detail": "Faqat bosh shifokor smenani tasdiqlashi mumkin."},
+                {"detail": "Faqat bosh shifokor yoki smena ochgan administrator smenani yopishi mumkin."},
                 status=status.HTTP_403_FORBIDDEN
             )
-        shift = self.get_object()
         from django.utils import timezone
         from apps.payments.notifications import notify_bosh_shifokor
         
@@ -466,6 +468,82 @@ class CashShiftViewSet(viewsets.ModelViewSet):
         notify_bosh_shifokor(text)
         
         return Response(self.get_serializer(shift).data)
+
+    @action(detail=False, methods=["get"], url_path="stats")
+    def stats(self, request):
+        """GET /api/v1/cash-shifts/stats/ - Summary KPIs for cash shifts."""
+        from apps.payments.models import CashShift
+        from decimal import Decimal
+        from django.db.models import Sum
+        from django.utils import timezone
+        from datetime import datetime, time
+
+        now = timezone.now()
+        today_start = datetime.combine(now.date(), time.min)
+        if timezone.is_naive(today_start):
+            today_start = timezone.make_aware(today_start, timezone.get_current_timezone())
+
+        open_shifts = CashShift.objects.filter(status="open")
+        today_shifts = CashShift.objects.filter(opened_at__gte=today_start)
+
+        # In-hand cash for currently open shifts
+        current_cash_in_hand = Decimal("0.00")
+        for s in open_shifts:
+            current_cash_in_hand += (s.start_balance + s.cash_collected - s.cash_expenses)
+
+        today_cash_collected = today_shifts.aggregate(t=Sum("cash_collected"))["t"] or Decimal("0.00")
+        today_card_collected = today_shifts.aggregate(t=Sum("card_collected"))["t"] or Decimal("0.00")
+        today_cash_expenses = today_shifts.aggregate(t=Sum("cash_expenses"))["t"] or Decimal("0.00")
+
+        return Response({
+            "openShiftsCount": open_shifts.count(),
+            "totalShiftsCount": CashShift.objects.count(),
+            "currentCashInHand": current_cash_in_hand,
+            "todayCashCollected": today_cash_collected,
+            "todayCardCollected": today_card_collected,
+            "todayCashExpenses": today_cash_expenses,
+        })
+
+    @action(detail=True, methods=["get"], url_path="details")
+    def details(self, request, pk=None):
+        """GET /api/v1/cash-shifts/{id}/details/ - Return shift info, payments, and expenses for Z-Report."""
+        shift = self.get_object()
+        serializer = self.get_serializer(shift)
+        
+        # Payments in this shift
+        payments_data = []
+        for p in shift.payments.select_related("patient", "treatment__procedure_type", "treatment__doctor__user").all():
+            patient_name = p.patient.get_full_name() if p.patient else ""
+            doctor_name = p.treatment.doctor.user.get_full_name() if p.treatment and p.treatment.doctor else ""
+            proc_name = p.treatment.procedure_type.name if p.treatment and p.treatment.procedure_type else ""
+            payments_data.append({
+                "id": str(p.id),
+                "created_at": p.created_at.isoformat(),
+                "patient_name": patient_name,
+                "doctor_name": doctor_name,
+                "procedure_name": proc_name,
+                "method": p.method,
+                "amount": str(p.amount),
+            })
+
+        # Expenses in this shift
+        expenses_data = []
+        for e in shift.expenses.select_related("category").all():
+            expenses_data.append({
+                "id": str(e.id),
+                "date": e.date.isoformat(),
+                "category_name": e.category.name if e.category else "Boshqa",
+                "payment_method": e.payment_method,
+                "amount": str(e.amount),
+                "description": e.description,
+            })
+
+        return Response({
+            "shift": serializer.data,
+            "payments": payments_data,
+            "expenses": expenses_data,
+        })
+
 
 
 import django_filters
