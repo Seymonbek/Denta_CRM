@@ -39,10 +39,30 @@ export async function deleteExpenseCategoryApi(id: string): Promise<void> {
   await apiClient.delete(`expense-categories/${id}/`)
 }
 
+export interface ExpenseStats {
+  totalAmount: number | string
+  totalCount: number
+  monthTotal: number | string
+  monthCount: number
+  todayTotal: number | string
+  todayCount: number
+  cashTotal: number | string
+  cardTotal: number | string
+  topCategoryName: string
+  topCategoryTotal: number | string
+}
+
+export async function getExpenseStatsApi(): Promise<ExpenseStats> {
+  const response = await apiClient.get<ExpenseStats>('expenses/stats/')
+  return response.data
+}
+
 export async function getExpensesApi(params?: {
   category?: string
   payment_method?: string
   cash_shift?: string
+  start_date?: string
+  end_date?: string
   search?: string
   page?: number
   page_size?: number

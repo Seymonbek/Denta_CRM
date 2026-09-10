@@ -5,6 +5,7 @@ import {
  updateExpenseCategoryApi,
  deleteExpenseCategoryApi,
  getExpensesApi,
+ getExpenseStatsApi,
  createExpenseApi,
  updateExpenseApi,
  deleteExpenseApi,
@@ -17,6 +18,13 @@ export function useExpenseCategories() {
   queryKey: ['expense-categories'],
   queryFn: getExpenseCategoriesApi,
  })
+}
+
+export function useExpenseStats() {
+  return useQuery({
+    queryKey: ['expense-stats'],
+    queryFn: getExpenseStatsApi,
+  })
 }
 
 export function useCreateExpenseCategory() {
@@ -63,6 +71,8 @@ export function useExpenses(params?: {
   category?: string
   payment_method?: string
   cash_shift?: string
+  start_date?: string
+  end_date?: string
   search?: string
   page?: number
   page_size?: number
@@ -79,6 +89,7 @@ export function useCreateExpense() {
   mutationFn: createExpenseApi,
   onSuccess: () => {
    queryClient.invalidateQueries({ queryKey: ['expenses'] })
+   queryClient.invalidateQueries({ queryKey: ['expense-stats'] })
    queryClient.invalidateQueries({ queryKey: ['cash-shifts'] })
   },
   onError: (error: any) => {
@@ -93,6 +104,7 @@ export function useUpdateExpense() {
   mutationFn: ({ id, data }: { id: string; data: Partial<Expense> }) => updateExpenseApi(id, data),
   onSuccess: () => {
    queryClient.invalidateQueries({ queryKey: ['expenses'] })
+   queryClient.invalidateQueries({ queryKey: ['expense-stats'] })
    queryClient.invalidateQueries({ queryKey: ['cash-shifts'] })
   },
   onError: (error: any) => {
@@ -107,6 +119,7 @@ export function useDeleteExpense() {
   mutationFn: deleteExpenseApi,
   onSuccess: () => {
    queryClient.invalidateQueries({ queryKey: ['expenses'] })
+   queryClient.invalidateQueries({ queryKey: ['expense-stats'] })
    queryClient.invalidateQueries({ queryKey: ['cash-shifts'] })
   },
   onError: (error: any) => {

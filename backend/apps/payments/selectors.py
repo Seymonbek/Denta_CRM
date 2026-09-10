@@ -270,6 +270,58 @@ def payment_stats() -> dict[str, Any]:
     }
 
 
+def expense_stats() -> dict[str, Any]:
+    """Return summary metrics for clinic expenses: total, this month, cash vs card, and top category."""
+    from django.utils import timezone
+    from datetime import datetime, time
+    from django.db.models import Count
+    from apps.payments.models import Expense
+
+    now = timezone.now()
+    month_start = datetime(now.year, now.month, 1, 0, 0, 0)
+    if timezone.is_naive(month_start):
+        month_start = timezone.make_aware(month_start, timezone.get_current_timezone())
+
+    today_start = datetime.combine(now.date(), time.min)
+    if timezone.is_naive(today_start):
+        today_start = timezone.make_aware(today_start, timezone.get_current_timezone())
+
+    all_expenses = Expense.objects.all()
+    month_expenses = all_expenses.filter(date__gte=month_start)
+    today_expenses = all_expenses.filter(date__gte=today_start)
+
+    total_amount = all_expenses.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    month_total = month_expenses.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    today_total = today_expenses.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+
+    cash_total = all_expenses.filter(payment_method="cash").aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    card_total = all_expenses.filter(payment_method__in=["card", "click", "payme", "bank_transfer"]).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+
+    # Top category
+    top_cat = (
+        all_expenses.values("category__name")
+        .annotate(total=Sum("amount"), count=Count("id"))
+        .order_by("-total")
+        .first()
+    )
+
+    top_category_name = top_cat["category__name"] if top_cat else "Mavjud emas"
+    top_category_total = top_cat["total"] if top_cat else Decimal("0.00")
+
+    return {
+        "totalAmount": total_amount,
+        "totalCount": all_expenses.count(),
+        "monthTotal": month_total,
+        "monthCount": month_expenses.count(),
+        "todayTotal": today_total,
+        "todayCount": today_expenses.count(),
+        "cashTotal": cash_total,
+        "cardTotal": card_total,
+        "topCategoryName": top_category_name,
+        "topCategoryTotal": top_category_total,
+    }
+
+
 __all__ = [
     "payments_qs",
     "payments_for_patient",
@@ -282,5 +334,7 @@ __all__ = [
     "doctor_balances",
     "debtors_data",
     "payment_stats",
+    "expense_stats",
 ]
+
 

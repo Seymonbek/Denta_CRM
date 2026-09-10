@@ -468,15 +468,30 @@ class CashShiftViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(shift).data)
 
 
+import django_filters
+
+
+class ExpenseFilterSet(django_filters.FilterSet):
+    start_date = django_filters.DateTimeFilter(field_name="date", lookup_expr="gte")
+    end_date = django_filters.DateTimeFilter(field_name="date", lookup_expr="lte")
+
+    class Meta:
+        from apps.payments.models import Expense
+        model = Expense
+        fields = ["category", "payment_method", "cash_shift", "start_date", "end_date"]
+
+
 class ExpenseCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = __import__("apps.payments.serializers", fromlist=["ExpenseCategorySerializer"]).ExpenseCategorySerializer
     queryset = __import__("apps.payments.models", fromlist=["ExpenseCategory"]).ExpenseCategory.objects.all()
     filter_backends = [filters.SearchFilter]
     search_fields = ["name"]
     pagination_class = None
-    # Only bosh_shifokor can manage
+
     def get_permissions(self):
-        from apps.core.permissions import IsBoshShifokor
+        from apps.core.permissions import IsBoshShifokor, IsBoshShifokorOrAdministrator
+        if self.action in ["list", "retrieve"]:
+            return [IsBoshShifokorOrAdministrator()]
         return [IsBoshShifokor()]
 
 
@@ -484,14 +499,22 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = __import__("apps.payments.serializers", fromlist=["ExpenseSerializer"]).ExpenseSerializer
     queryset = __import__("apps.payments.models", fromlist=["Expense"]).Expense.objects.select_related("category", "recorded_by").all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ["category", "payment_method", "cash_shift"]
+    filterset_class = ExpenseFilterSet
     search_fields = ["description", "category__name", "recorded_by__first_name", "recorded_by__last_name"]
     ordering_fields = ["date", "created_at", "amount"]
     ordering = ["-created_at"]
     
     def get_permissions(self):
-        from apps.core.permissions import IsBoshShifokor
-        return [IsBoshShifokor()]
+        from apps.core.permissions import IsBoshShifokor, IsBoshShifokorOrAdministrator
+        if self.action in ["destroy"]:
+            return [IsBoshShifokor()]
+        return [IsBoshShifokorOrAdministrator()]
+
+    @action(detail=False, methods=["get"])
+    def stats(self, request: Request) -> Response:
+        """GET /api/v1/expenses/stats/"""
+        from apps.payments.selectors import expense_stats
+        return Response(expense_stats())
 
     def perform_create(self, serializer):
         from apps.payments.models import CashShift
@@ -509,6 +532,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             f"📝 <b>Izoh:</b> <i>{expense.description or 'Izohsiz'}</i>"
         )
         notify_bosh_shifokor(text)
+
 
 
 class DoctorBalancesView(APIView):

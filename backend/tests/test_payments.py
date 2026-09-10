@@ -613,3 +613,43 @@ class TestDebtorsAndStats:
         assert response.data["todayCash"] >= Decimal("200000.00")
         assert response.data["todayCount"] >= 1
 
+
+class TestExpenseStatsAndFiltering:
+    def test_expense_stats_and_filtering(self, api_client, head_doctor, administrator):
+        from apps.payments.models import Expense, ExpenseCategory
+        cat = ExpenseCategory.objects.create(name="Kommunal xizmatlar", is_active=True)
+        Expense.objects.create(
+            category=cat,
+            amount=Decimal("150000.00"),
+            description="Elektr energiyasi uchun to'lov",
+            recorded_by=head_doctor,
+            payment_method=PaymentMethod.CASH,
+            date=timezone.now(),
+        )
+        Expense.objects.create(
+            category=cat,
+            amount=Decimal("80000.00"),
+            description="Internet to'lovi",
+            recorded_by=head_doctor,
+            payment_method=PaymentMethod.CARD,
+            date=timezone.now(),
+        )
+
+        _auth(api_client, head_doctor)
+        res = api_client.get("/api/v1/expenses/stats/")
+        assert res.status_code == status.HTTP_200_OK
+        assert Decimal(str(res.data["totalAmount"])) >= Decimal("230000.00")
+        assert Decimal(str(res.data["cashTotal"])) >= Decimal("150000.00")
+        assert Decimal(str(res.data["cardTotal"])) >= Decimal("80000.00")
+        assert res.data["topCategoryName"] == "Kommunal xizmatlar"
+
+        # Filter by payment method
+        res_cash = api_client.get("/api/v1/expenses/?payment_method=cash")
+        assert res_cash.status_code == status.HTTP_200_OK
+
+        # Administrator can list expenses
+        _auth(api_client, administrator)
+        res_admin = api_client.get("/api/v1/expenses/")
+        assert res_admin.status_code == status.HTTP_200_OK
+
+
