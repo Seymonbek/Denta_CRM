@@ -221,6 +221,40 @@ export interface Material {
   quantityInStock: string
   minimumThreshold: string
   unitCost: string | null
+  notes?: string
+}
+
+export type StockChangeReason = 'usage' | 'restock' | 'adjustment'
+
+export interface MaterialStockLogItem {
+  id: string
+  materialId: string
+  materialName?: string
+  materialUnit?: string
+  changeAmount: string
+  reason: StockChangeReason
+  resultingQuantity: string
+  relatedTreatmentId: string | null
+  relatedTreatment?: {
+    id: string
+    patientName?: string | null
+  } | null
+  relatedUsageId: string | null
+  performedBy: {
+    id: string
+    firstName: string
+    lastName: string
+  } | null
+  note: string
+  createdAt: string
+}
+
+export interface InventoryStats {
+  totalMaterials: number
+  lowStockCount: number
+  totalStockValue: string
+  recentRestocksCount: number
+  recentUsagesCount: number
 }
 
 export interface MaterialUsage {

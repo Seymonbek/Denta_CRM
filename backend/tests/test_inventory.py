@@ -577,3 +577,38 @@ class TestLowStockAlert:
         assert not NotificationLog.objects.filter(
             type=NotificationType.LOW_STOCK
         ).exists()
+
+
+class TestMaterialAllLogsAndStats:
+    """Tests for /materials/all-logs/ and /materials/stats/ endpoints."""
+
+    def test_all_logs_endpoint(self, head_doctor, composite):
+        client = APIClient()
+        client.force_authenticate(user=head_doctor)
+
+        restock(composite, amount=Decimal("10.000"), performed_by=head_doctor)
+        adjust_stock(composite, delta=Decimal("5.000"), performed_by=head_doctor, note="Qayta sanash")
+
+        response = client.get(f"{MATERIALS_URL}all-logs/")
+        assert response.status_code == status.HTTP_200_OK
+        results = response.json().get("results", response.json())
+        assert len(results) >= 2
+
+        # Filter by reason=restock
+        restock_resp = client.get(f"{MATERIALS_URL}all-logs/?reason=restock")
+        restock_data = restock_resp.json().get("results", restock_resp.json())
+        assert all(log["reason"] == "restock" for log in restock_data)
+
+    def test_stats_endpoint(self, head_doctor, composite):
+        client = APIClient()
+        client.force_authenticate(user=head_doctor)
+
+        response = client.get(f"{MATERIALS_URL}stats/")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "totalMaterials" in data
+        assert "lowStockCount" in data
+        assert "totalStockValue" in data
+        assert "recentRestocksCount" in data
+        assert "recentUsagesCount" in data
+        assert data["totalMaterials"] >= 1

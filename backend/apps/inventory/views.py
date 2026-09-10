@@ -25,11 +25,14 @@ from .permissions import MaterialPermission, MaterialUsagePermission
 from .selectors import (
     active_materials,
     all_materials,
+    all_stock_logs_qs,
+    inventory_stats,
     material_logs,
     usages_for_treatment,
 )
 from .serializers import (
     AdjustStockSerializer,
+    InventoryStatsSerializer,
     MaterialSerializer,
     MaterialStockLogSerializer,
     MaterialUsageSerializer,
@@ -206,6 +209,64 @@ class MaterialViewSet(viewsets.ModelViewSet):
         if page is not None:
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="reason",
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Harakat turi (usage, restock, adjustment).",
+            ),
+            OpenApiParameter(
+                name="material",
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Material ID bo'yicha filter.",
+            ),
+            OpenApiParameter(
+                name="search",
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Material nomi, bemor ismi yoki izoh bo'yicha qidirish.",
+            ),
+        ],
+        responses=MaterialStockLogSerializer(many=True),
+    )
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="all-logs",
+        url_name="all-logs",
+    )
+    def all_logs(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """Global paginated audit log of all material stock movements."""
+        reason = request.query_params.get("reason")
+        material_id = request.query_params.get("material")
+        search = request.query_params.get("search")
+
+        qs = all_stock_logs_qs(reason=reason, material_id=material_id, search=search)
+        page = self.paginate_queryset(qs)
+        serializer = MaterialStockLogSerializer(page or qs, many=True)
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+    @extend_schema(responses=InventoryStatsSerializer)
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="stats",
+        url_name="stats",
+    )
+    def stats(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """Summary metrics for the inventory dashboard."""
+        data = inventory_stats()
+        serializer = InventoryStatsSerializer(data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 # ---------------------------------------------------------------------------

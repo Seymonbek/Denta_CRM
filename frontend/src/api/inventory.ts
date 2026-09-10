@@ -1,5 +1,12 @@
 import { apiClient } from './client'
-import { type Material, type MaterialUsage, type ProcedureBOM, type PaginatedResponse } from '@/types/api'
+import {
+  type Material,
+  type MaterialUsage,
+  type ProcedureBOM,
+  type PaginatedResponse,
+  type MaterialStockLogItem,
+  type InventoryStats,
+} from '@/types/api'
 
 export async function getMaterialsApi(): Promise<Material[]> {
   const response = await apiClient.get<Material[] | PaginatedResponse<Material>>('materials/')
@@ -15,8 +22,23 @@ export async function createMaterialApi(data: {
   quantityInStock: string
   minimumThreshold: string
   unitCost?: string
+  notes?: string
 }): Promise<Material> {
   const response = await apiClient.post<Material>('materials/', data)
+  return response.data
+}
+
+export async function updateMaterialApi(
+  id: string,
+  data: {
+    name?: string
+    unit?: string
+    minimumThreshold?: string
+    unitCost?: string | null
+    notes?: string
+  }
+): Promise<Material> {
+  const response = await apiClient.patch<Material>(`materials/${id}/`, data)
   return response.data
 }
 
@@ -25,17 +47,39 @@ export async function restockMaterialApi(id: string, amount: string): Promise<Ma
   return response.data
 }
 
-export async function adjustMaterialApi(id: string, newQuantity: string, reason?: string): Promise<Material> {
-  const response = await apiClient.patch<Material>(`materials/${id}/adjust/`, {
-    quantityInStock: newQuantity,
-    reason,
+export async function adjustMaterialApi(id: string, delta: string, note?: string): Promise<Material> {
+  const response = await apiClient.post<Material>(`materials/${id}/adjust/`, {
+    delta,
+    note: note || '',
   })
   return response.data
 }
 
-export async function getMaterialLogsApi(id: string): Promise<Record<string, unknown>[]> {
-  const response = await apiClient.get<Record<string, unknown>[]>(`materials/${id}/logs/`)
+export async function getInventoryStatsApi(): Promise<InventoryStats> {
+  const response = await apiClient.get<InventoryStats>('materials/stats/')
   return response.data
+}
+
+export async function getAllStockLogsApi(params?: {
+  reason?: string
+  search?: string
+  material?: string
+  page?: number
+  page_size?: number
+}): Promise<PaginatedResponse<MaterialStockLogItem> | MaterialStockLogItem[]> {
+  const response = await apiClient.get<PaginatedResponse<MaterialStockLogItem> | MaterialStockLogItem[]>(
+    'materials/all-logs/',
+    { params }
+  )
+  return response.data
+}
+
+export async function getMaterialLogsApi(id: string): Promise<MaterialStockLogItem[]> {
+  const response = await apiClient.get<MaterialStockLogItem[] | PaginatedResponse<MaterialStockLogItem>>(`materials/${id}/logs/`)
+  if (Array.isArray(response.data)) {
+    return response.data
+  }
+  return response.data.results || []
 }
 
 export async function getMaterialUsagesApi(params?: { treatment?: string }): Promise<MaterialUsage[]> {

@@ -71,6 +71,67 @@ def total_used_of(material_id: Any) -> Decimal:
     return result["total"] or Decimal("0.000")
 
 
+def all_stock_logs_qs(
+    *,
+    reason: str | None = None,
+    material_id: Any = None,
+    search: str | None = None,
+) -> QuerySet[MaterialStockLog]:
+    """Return global audit log for materials, ordered newest first."""
+    from django.db.models import Q
+
+    qs = MaterialStockLog.objects.select_related(
+        "material",
+        "related_treatment",
+        "related_treatment__patient",
+        "related_usage",
+        "performed_by",
+    ).order_by("-created_at")
+
+    if reason:
+        qs = qs.filter(reason=reason)
+    if material_id:
+        qs = qs.filter(material_id=material_id)
+    if search:
+        search_stripped = search.strip()
+        qs = qs.filter(
+            Q(material__name__icontains=search_stripped)
+            | Q(note__icontains=search_stripped)
+            | Q(related_treatment__patient__first_name__icontains=search_stripped)
+            | Q(related_treatment__patient__last_name__icontains=search_stripped)
+        )
+    return qs
+
+
+def inventory_stats() -> dict[str, Any]:
+    """Calculate summary metrics for inventory dashboard."""
+    from django.db.models import DecimalField, Sum
+    from django.db.models.functions import Coalesce
+
+    active_qs = Material.objects.filter(is_active=True)
+    total_materials = active_qs.count()
+    low_stock_count = active_qs.filter(quantity_in_stock__lte=F("minimum_threshold")).count()
+
+    total_value_agg = active_qs.filter(unit_cost__isnull=False).aggregate(
+        val=Coalesce(
+            Sum(F("quantity_in_stock") * F("unit_cost"), output_field=DecimalField()),
+            Decimal("0.00"),
+        )
+    )
+    total_stock_value = total_value_agg["val"] or Decimal("0.00")
+
+    recent_restocks_count = MaterialStockLog.objects.filter(reason="restock").count()
+    recent_usages_count = MaterialStockLog.objects.filter(reason="usage").count()
+
+    return {
+        "total_materials": total_materials,
+        "low_stock_count": low_stock_count,
+        "total_stock_value": str(total_stock_value.quantize(Decimal("0.01"))),
+        "recent_restocks_count": recent_restocks_count,
+        "recent_usages_count": recent_usages_count,
+    }
+
+
 __all__ = [
     "active_materials",
     "all_materials",
@@ -79,4 +140,6 @@ __all__ = [
     "material_logs",
     "usages_for_treatment",
     "total_used_of",
+    "all_stock_logs_qs",
+    "inventory_stats",
 ]

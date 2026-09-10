@@ -248,15 +248,29 @@ class MaterialStockLogSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def to_representation(self, instance: MaterialStockLog) -> dict[str, Any]:
+        material = getattr(instance, "material", None)
+        treatment = getattr(instance, "related_treatment", None)
+        patient = getattr(treatment, "patient", None) if treatment else None
+
         return {
             "id": str(instance.id),
             "materialId": str(instance.material_id),
+            "materialName": material.name if material else "",
+            "materialUnit": material.unit if material else "",
             "changeAmount": _decimal_str(instance.change_amount),
             "reason": instance.reason,
             "resultingQuantity": _decimal_str(instance.resulting_quantity),
             "relatedTreatmentId": (
                 str(instance.related_treatment_id)
                 if instance.related_treatment_id
+                else None
+            ),
+            "relatedTreatment": (
+                {
+                    "id": str(treatment.id),
+                    "patientName": getattr(patient, "full_name", None),
+                }
+                if treatment
                 else None
             ),
             "relatedUsageId": (
@@ -274,6 +288,19 @@ class MaterialStockLogSerializer(serializers.ModelSerializer):
             "note": instance.note or "",
             "createdAt": instance.created_at.isoformat() if instance.created_at else None,
         }
+
+
+# ---------------------------------------------------------------------------
+# InventoryStatsSerializer
+# ---------------------------------------------------------------------------
+class InventoryStatsSerializer(serializers.Serializer):
+    """Serializer for GET /materials/stats/ response."""
+
+    totalMaterials = serializers.IntegerField(source="total_materials")
+    lowStockCount = serializers.IntegerField(source="low_stock_count")
+    totalStockValue = serializers.CharField(source="total_stock_value")
+    recentRestocksCount = serializers.IntegerField(source="recent_restocks_count")
+    recentUsagesCount = serializers.IntegerField(source="recent_usages_count")
 
 
 # ---------------------------------------------------------------------------
@@ -427,4 +454,5 @@ __all__ = [
     "AdjustStockSerializer",
     "MaterialStockLogSerializer",
     "MaterialUsageSerializer",
+    "InventoryStatsSerializer",
 ]
