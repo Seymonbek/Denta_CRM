@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
   Card,
   CardContent,
@@ -19,7 +19,18 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Banknote, TrendingUp, DollarSign, Wallet, User, Eye, Search } from 'lucide-react'
+import {
+  Banknote,
+  TrendingUp,
+  DollarSign,
+  Wallet,
+  User,
+  Eye,
+  Search,
+  Download,
+  Printer,
+  FileSpreadsheet,
+} from 'lucide-react'
 import { useDoctorBalances, type DoctorBalance } from '@/api/hooks/use-payroll'
 import { useDoctorCommissions, useDoctorCommissionSummary } from '@/api/hooks/use-payments'
 import { useDoctors } from '@/api/hooks/use-doctors'
@@ -31,6 +42,9 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { formatMoney } from '@/utils/format'
 import { useAuthStore } from '@/stores/auth-store'
 import { format, isToday, isThisWeek, isThisMonth } from 'date-fns'
+import { useReactToPrint } from 'react-to-print'
+import { SalarySlipPrint } from '@/components/print/salary-slip-print'
+import { toast } from 'sonner'
 
 export function PayrollFeature() {
   const authUser = useAuthStore((state) => state.user)
@@ -45,11 +59,16 @@ export function PayrollFeature() {
   // Resolve matching doctor profile for logged in doctor
   const myDoctorProfile = useMemo(() => {
     if (!isDoctor) return null
-    return doctors.find((d: any) => 
-      (d.user && d.user.id === authUser?.id) || 
-      (d.user && (d.user.phone_number === (authUser as any)?.phone_number || d.user.phone_number === authUser?.phoneNumber)) ||
-      d.id === (authUser as any)?.doctorId
-    ) || null
+    return (
+      doctors.find(
+        (d: any) =>
+          (d.user && d.user.id === authUser?.id) ||
+          (d.user &&
+            (d.user.phone_number === (authUser as any)?.phone_number ||
+              d.user.phone_number === authUser?.phoneNumber)) ||
+          d.id === (authUser as any)?.doctorId
+      ) || null
+    )
   }, [doctors, authUser, isDoctor])
 
   const myDoctorBalance = useMemo(() => {
@@ -75,10 +94,21 @@ export function PayrollFeature() {
   const [statementPage, setStatementPage] = useState(1)
   const [statementPageSize, setStatementPageSize] = useState(10)
 
-  const effectiveDoctorId = isDoctor ? (myDoctorProfile?.id || selectedDoctorId) : selectedDoctorId
+  const effectiveDoctorId = isDoctor ? myDoctorProfile?.id || selectedDoctorId : selectedDoctorId
   const { data: commissionsData = [] } = useDoctorCommissions(effectiveDoctorId)
   const commissions: any[] = Array.isArray(commissionsData) ? commissionsData : []
   const { data: summary } = useDoctorCommissionSummary(effectiveDoctorId)
+
+  // Find active selected doctor object for statements/printing
+  const currentSelectedDoc = useMemo(() => {
+    if (isDoctor) return myDoctorProfile
+    return doctors.find((d: any) => d.id === selectedDoctorId) || null
+  }, [isDoctor, myDoctorProfile, doctors, selectedDoctorId])
+
+  const currentSelectedDocBalance = useMemo(() => {
+    if (isDoctor) return myDoctorBalance
+    return balances.find((b: DoctorBalance) => b.id === selectedDoctorId) || null
+  }, [isDoctor, myDoctorBalance, balances, selectedDoctorId])
 
   // Filtered commissions based on period
   const filteredCommissions = useMemo(() => {
@@ -100,7 +130,10 @@ export function PayrollFeature() {
     if (!docCommSearch) return filteredCommissions
     const q = docCommSearch.toLowerCase()
     return filteredCommissions.filter((c: any) => {
-      const pName = (c?.patientName || (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}` : '')).toLowerCase()
+      const pName = (
+        c?.patientName ||
+        (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}` : '')
+      ).toLowerCase()
       const proc = (c?.procedureName || c?.procedureTypeName || '').toLowerCase()
       return pName.includes(q) || proc.includes(q)
     })
@@ -132,7 +165,10 @@ export function PayrollFeature() {
     if (!statementSearch) return commissions
     const q = statementSearch.toLowerCase()
     return commissions.filter((c: any) => {
-      const pName = (c?.patientName || (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}` : '')).toLowerCase()
+      const pName = (
+        c?.patientName ||
+        (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}` : '')
+      ).toLowerCase()
       const proc = (c?.procedureName || '').toLowerCase()
       return pName.includes(q) || proc.includes(q)
     })
@@ -147,6 +183,170 @@ export function PayrollFeature() {
   const totalClinicEarned = balances.reduce((acc, b) => acc + (b.totalEarned || 0), 0)
   const totalClinicPaid = balances.reduce((acc, b) => acc + (b.totalPaid || 0), 0)
   const totalClinicBalance = balances.reduce((acc, b) => acc + (b.balance || 0), 0)
+
+  // Print slip reference
+  const printRef = useRef<HTMLDivElement>(null)
+  const handlePrintSlip = useReactToPrint({
+    // @ts-expect-error react-to-print issue with react 18 refs
+    content: () => printRef.current,
+  })
+
+  // Format data for printing
+  const slipDoctorInfo = useMemo(() => {
+    if (isDoctor && myDoctorProfile) {
+      return {
+        name: `Dr. ${myDoctorProfile.user?.firstName || ''} ${myDoctorProfile.user?.lastName || ''}`.trim(),
+        specialization: myDoctorProfile.specialization || 'Stomatolog',
+        phone: myDoctorProfile.user?.phoneNumber || '',
+        rate: Number(myDoctorProfile.defaultCommissionRate || 30),
+        basis: myDoctorProfile.commissionBasis,
+      }
+    }
+    if (currentSelectedDoc) {
+      return {
+        name: `Dr. ${currentSelectedDoc.user?.firstName || ''} ${currentSelectedDoc.user?.lastName || ''}`.trim(),
+        specialization: currentSelectedDoc.specialization || 'Stomatolog',
+        phone: currentSelectedDoc.user?.phoneNumber || '',
+        rate: Number(currentSelectedDoc.defaultCommissionRate || 30),
+        basis: currentSelectedDoc.commissionBasis,
+      }
+    }
+    return {
+      name: 'Shifokor',
+    }
+  }, [isDoctor, myDoctorProfile, currentSelectedDoc])
+
+  const slipSummaryInfo = useMemo(() => {
+    if (isDoctor) {
+      return {
+        totalEarned: myDoctorBalance?.totalEarned || Number((summary as any)?.totalEarned || 0),
+        totalPaid: myDoctorBalance?.totalPaid || 0,
+        balance: myDoctorBalance?.balance || 0,
+      }
+    }
+    return {
+      totalEarned: currentSelectedDocBalance?.totalEarned || Number((summary as any)?.totalEarned || 0),
+      totalPaid: currentSelectedDocBalance?.totalPaid || 0,
+      balance: currentSelectedDocBalance?.balance || 0,
+    }
+  }, [isDoctor, myDoctorBalance, currentSelectedDocBalance, summary])
+
+  const slipItems = useMemo(() => {
+    const list = isDoctor ? searchedDocCommissions : searchedStatement
+    return list.map((c: any) => {
+      const dateStr = c?.calculatedAt || c?.calculated_at || c?.createdAt || ''
+      const formattedDate = dateStr ? format(new Date(dateStr), 'dd.MM.yyyy') : '—'
+      const pName =
+        c?.patientName ||
+        (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}`.trim() : '') ||
+        'Bemor'
+      const proc = c?.procedureName || c?.procedureTypeName || 'Muolaja'
+      const price = Number(c?.treatmentPrice || c?.treatment_price || c?.amount || 0)
+      const rate = Number(c?.rate || 30)
+      const amt = Number(c?.amount || 0)
+      return {
+        date: formattedDate,
+        patientName: pName,
+        procedureName: proc,
+        price,
+        rate,
+        amount: amt,
+      }
+    })
+  }, [isDoctor, searchedDocCommissions, searchedStatement])
+
+  const triggerPrint = () => {
+    if (!effectiveDoctorId) {
+      toast.error('Iltimos, avval shifokorni tanlang.')
+      return
+    }
+    setTimeout(() => {
+      if (handlePrintSlip) handlePrintSlip()
+    }, 100)
+  }
+
+  // Export CSV for Balances
+  const handleExportBalancesCSV = () => {
+    if (balances.length === 0) {
+      toast.error('Eksport uchun ma’lumotlar yo‘q.')
+      return
+    }
+
+    const headers = [
+      'Shifokor F.I.Sh',
+      'Telefon Raqami',
+      'Standart Foiz %',
+      'Jami Ishlangan Komissiya (so\'m)',
+      'To\'langan Maosh (so\'m)',
+      'Olinmagan Qoldiq (so\'m)',
+    ]
+
+    const rows = searchedBalances.map((b) => [
+      `"${b.firstName || ''} ${b.lastName || ''}"`,
+      `"${b.phone || ''}"`,
+      `${b.defaultRate || 30}%`,
+      b.totalEarned || 0,
+      b.totalPaid || 0,
+      b.balance || 0,
+    ])
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Shifokorlar_Oylik_Balansi_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success('Shifokorlar oylik balansi CSV formatda yuklab olindi!')
+  }
+
+  // Export CSV for Commissions Breakdown
+  const handleExportCommissionsCSV = () => {
+    const list = isDoctor ? searchedDocCommissions : searchedStatement
+    if (list.length === 0) {
+      toast.error('Eksport uchun komissiya yozuvlari topilmadi.')
+      return
+    }
+
+    const headers = [
+      'Sana & Vaqt',
+      'Bemor F.I.Sh',
+      'Muolaja Turi',
+      'Muolaja Narxi (so\'m)',
+      'Komissiya %',
+      'Hisoblangan Komissiya (so\'m)',
+    ]
+
+    const rows = list.map((c: any) => {
+      const dateStr = c?.calculatedAt || c?.calculated_at || c?.createdAt || ''
+      const formattedDate = dateStr ? format(new Date(dateStr), 'dd.MM.yyyy HH:mm') : '—'
+      const pName =
+        c?.patientName ||
+        (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}`.trim() : '') ||
+        'Bemor'
+      const proc = c?.procedureName || c?.procedureTypeName || 'Muolaja'
+      const price = Number(c?.treatmentPrice || c?.treatment_price || c?.amount || 0)
+      const rate = Number(c?.rate || 30)
+      const amt = Number(c?.amount || 0)
+
+      return [`"${formattedDate}"`, `"${pName}"`, `"${proc}"`, price, `${rate}%`, amt]
+    })
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Shifokor_Komissiyalari_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success('Komissiyalar ro‘yxati CSV formatda yuklab olindi!')
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -169,12 +369,18 @@ export function PayrollFeature() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-primary/20 bg-primary/5">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground">Jami Hisoblangan Komissiya</CardTitle>
+                <CardTitle className="text-xs font-semibold text-muted-foreground">
+                  Jami Hisoblangan Komissiya
+                </CardTitle>
                 <TrendingUp className="w-4 h-4 text-primary" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold font-mono text-primary">
-                  {formatMoney(myDoctorBalance?.totalEarned || Number((summary as any)?.totalCommission || (summary as any)?.totalEarned || 0))} so'm
+                  {formatMoney(
+                    myDoctorBalance?.totalEarned ||
+                      Number((summary as any)?.totalCommission || (summary as any)?.totalEarned || 0)
+                  )}{' '}
+                  so'm
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">Barcha muolajalardan hisoblangan</p>
               </CardContent>
@@ -182,7 +388,9 @@ export function PayrollFeature() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground">Olingan Maosh (To'langan)</CardTitle>
+                <CardTitle className="text-xs font-semibold text-muted-foreground">
+                  Olingan Maosh (To'langan)
+                </CardTitle>
                 <DollarSign className="w-4 h-4 text-emerald-600" />
               </CardHeader>
               <CardContent>
@@ -195,20 +403,24 @@ export function PayrollFeature() {
 
             <Card className="border-amber-500/20 bg-amber-500/5">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground">Joriy Olinmagan Qoldiq</CardTitle>
+                <CardTitle className="text-xs font-semibold text-muted-foreground">
+                  Joriy Olinmagan Qoldiq
+                </CardTitle>
                 <Wallet className="w-4 h-4 text-amber-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
                   {formatMoney(myDoctorBalance?.balance || 0)} so'm
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">Kassadan olinishi kerak bo'lgan summa</p>
+                <p className="text-[11px] text-muted-foreground mt-1">Klinikadan olinishi kerak bo'lgan summa</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground">Mening Foiz Stavkasi</CardTitle>
+                <CardTitle className="text-xs font-semibold text-muted-foreground">
+                  Mening Foiz Stavkasi
+                </CardTitle>
                 <User className="w-4 h-4 text-blue-600" />
               </CardHeader>
               <CardContent>
@@ -224,18 +436,26 @@ export function PayrollFeature() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground">Jami Shifokorlar Ishlagan</CardTitle>
+                <CardTitle className="text-xs font-semibold text-muted-foreground">
+                  Jami Shifokorlar Ishlagan
+                </CardTitle>
                 <TrendingUp className="w-4 h-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold font-mono text-primary">{formatMoney(totalClinicEarned)} so'm</div>
-                <p className="text-[11px] text-muted-foreground mt-1">Shifokorlar hisoblangan umumiy komissiyasi</p>
+                <div className="text-2xl font-bold font-mono text-primary">
+                  {formatMoney(totalClinicEarned)} so'm
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Shifokorlar hisoblangan umumiy komissiyasi
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground">Jami To'langan Maosh</CardTitle>
+                <CardTitle className="text-xs font-semibold text-muted-foreground">
+                  Jami To'langan Maosh
+                </CardTitle>
                 <DollarSign className="w-4 h-4 text-emerald-600" />
               </CardHeader>
               <CardContent>
@@ -248,14 +468,18 @@ export function PayrollFeature() {
 
             <Card className="border-amber-500/20 bg-amber-500/5">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground">Klinika Qarzdorligi (Qoldiq)</CardTitle>
+                <CardTitle className="text-xs font-semibold text-muted-foreground">
+                  Klinika Qarzdorligi (Qoldiq)
+                </CardTitle>
                 <Wallet className="w-4 h-4 text-amber-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
                   {formatMoney(totalClinicBalance)} so'm
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">Shifokorlarga to'lanishi kutilayotgan summa</p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Shifokorlarga to'lanishi kutilayotgan summa
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -269,7 +493,8 @@ export function PayrollFeature() {
               <div>
                 <CardTitle className="text-base font-bold">Bajarilgan Muolajalar va Komissiyalarim</CardTitle>
                 <CardDescription className="text-xs">
-                  Har bir bemordan sizga hisoblangan komissiya foizlari va summalari yoyilmasi ({searchedDocCommissions.length} ta yozuv).
+                  Har bir bemordan sizga hisoblangan komissiya foizlari va summalari yoyilmasi (
+                  {searchedDocCommissions.length} ta yozuv).
                 </CardDescription>
               </div>
 
@@ -293,7 +518,7 @@ export function PayrollFeature() {
                     { label: 'Barchasi', value: 'all' },
                     { label: 'Bugun', value: 'today' },
                     { label: 'Shu Hafta', value: 'week' },
-                    { label: 'Shu Oy', value: 'month' }
+                    { label: 'Shu Oy', value: 'month' },
                   ].map((item) => (
                     <Button
                       key={item.value}
@@ -309,6 +534,24 @@ export function PayrollFeature() {
                     </Button>
                   ))}
                 </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCommissionsCSV}
+                  className="h-8 text-xs gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" /> CSV
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={triggerPrint}
+                  className="h-8 text-xs gap-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Chop Etish
+                </Button>
               </div>
             </CardHeader>
 
@@ -335,7 +578,10 @@ export function PayrollFeature() {
                     ) : (
                       paginatedDocCommissions.map((c: any) => {
                         const dateStr = c?.calculatedAt || c?.calculated_at || c?.createdAt || c?.created_at || ''
-                        const patientName = c?.patientName || (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}`.trim() : '') || 'Bemor'
+                        const patientName =
+                          c?.patientName ||
+                          (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}`.trim() : '') ||
+                          'Bemor'
                         const procName = c?.procedureName || c?.procedureTypeName || 'Muolaja'
                         const treatmentPrice = Number(c?.treatmentPrice || c?.treatment_price || c?.amount || 0)
                         const commissionAmt = Number(c?.amount || 0)
@@ -382,10 +628,23 @@ export function PayrollFeature() {
         ) : (
           /* Head Doctor & Admin View: All Doctors Table + Statement Viewer */
           <Tabs defaultValue="doctors" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="doctors">Shifokorlar Balansi</TabsTrigger>
-              {selectedDoctorId && <TabsTrigger value="statement">Shifokor Tafsiloti (Tarix)</TabsTrigger>}
-            </TabsList>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <TabsList>
+                <TabsTrigger value="doctors">Shifokorlar Balansi</TabsTrigger>
+                {selectedDoctorId && <TabsTrigger value="statement">Shifokor Tafsiloti (Tarix)</TabsTrigger>}
+              </TabsList>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportBalancesCSV}
+                  className="h-8 text-xs gap-1.5 shadow-sm"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" /> Barcha Balans (CSV)
+                </Button>
+              </div>
+            </div>
 
             <TabsContent value="doctors">
               <Card className="shadow-sm">
@@ -393,7 +652,8 @@ export function PayrollFeature() {
                   <div>
                     <CardTitle className="text-base font-bold">Shifokorlar Ish Haqi Balansi</CardTitle>
                     <CardDescription className="text-xs">
-                      Har bir shifokorning jami ishlagan summasi, to'langan oyligi va joriy qarzdorlik qoldig'i ({searchedBalances.length} ta shifokor).
+                      Har bir shifokorning jami ishlagan summasi, to'langan oyligi va joriy qarzdorlik qoldig'i (
+                      {searchedBalances.length} ta shifokor).
                     </CardDescription>
                   </div>
 
@@ -412,7 +672,9 @@ export function PayrollFeature() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {isLoading ? (
-                    <div className="text-center p-8 text-xs text-muted-foreground">Ma'lumotlar yuklanmoqda...</div>
+                    <div className="text-center p-8 text-xs text-muted-foreground">
+                      Ma'lumotlar yuklanmoqda...
+                    </div>
                   ) : (
                     <>
                       <div className="overflow-x-auto w-full rounded-lg border">
@@ -434,30 +696,38 @@ export function PayrollFeature() {
                                 <TableCell className="font-semibold text-xs">
                                   {doc.firstName} {doc.lastName}
                                 </TableCell>
-                                <TableCell className="text-xs text-muted-foreground font-mono">{doc.phone}</TableCell>
-                                <TableCell className="text-xs text-center font-mono">
-                                  <Badge variant="outline" className="text-[10px]">{doc.defaultRate || '30'}%</Badge>
+                                <TableCell className="text-xs text-muted-foreground font-mono">
+                                  {doc.phone}
                                 </TableCell>
-                                <TableCell className="text-right text-xs font-mono">{formatMoney(doc.totalEarned)}</TableCell>
-                                <TableCell className="text-right text-xs font-mono text-muted-foreground">{formatMoney(doc.totalPaid)}</TableCell>
+                                <TableCell className="text-xs text-center font-mono">
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {doc.defaultRate || '30'}%
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right text-xs font-mono">
+                                  {formatMoney(doc.totalEarned)}
+                                </TableCell>
+                                <TableCell className="text-right text-xs font-mono text-muted-foreground">
+                                  {formatMoney(doc.totalPaid)}
+                                </TableCell>
                                 <TableCell className="text-right text-xs font-bold font-mono text-primary">
                                   {formatMoney(doc.balance)} so'm
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex items-center justify-end gap-1.5">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
                                       className="h-8 text-xs"
                                       onClick={() => setSelectedDoctorId(doc.id)}
                                     >
                                       <Eye className="w-3.5 h-3.5 mr-1" /> Ko'rish
                                     </Button>
                                     {(isHeadDoctor || isAdministrator) && (
-                                      <Button 
-                                        variant="default" 
-                                        size="sm" 
-                                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                                      <Button
+                                        variant="default"
+                                        size="sm"
+                                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 font-bold"
                                         onClick={() => setSelectedDoctorForPayout(doc)}
                                       >
                                         <Banknote className="w-3.5 h-3.5 mr-1" /> To'lash
@@ -499,11 +769,18 @@ export function PayrollFeature() {
                 <Card className="shadow-sm">
                   <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3">
                     <div>
-                      <CardTitle className="text-base font-bold">
-                        Shifokor Komissiyalari Tarixi ({searchedStatement.length} ta yozuv)
+                      <CardTitle className="text-base font-bold flex items-center gap-2">
+                        <span>
+                          Dr. {currentSelectedDoc?.user?.firstName || ''}{' '}
+                          {currentSelectedDoc?.user?.lastName || ''} — Komissiyalari
+                        </span>
+                        <Badge variant="outline" className="text-xs font-mono">
+                          Qoldiq: {formatMoney(currentSelectedDocBalance?.balance || 0)} so'm
+                        </Badge>
                       </CardTitle>
                       <CardDescription className="text-xs">
-                        Tanlangan shifokorning barcha muolajalari bo'yicha hisoblangan komissiyalar.
+                        Tanlangan shifokorning barcha muolajalari bo'yicha hisoblangan komissiyalar (
+                        {searchedStatement.length} ta yozuv).
                       </CardDescription>
                     </div>
 
@@ -520,7 +797,31 @@ export function PayrollFeature() {
                           className="ps-8 text-xs h-8"
                         />
                       </div>
-                      <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSelectedDoctorId('')}>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportCommissionsCSV}
+                        className="h-8 text-xs gap-1"
+                      >
+                        <Download className="w-3.5 h-3.5" /> CSV
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={triggerPrint}
+                        className="h-8 text-xs gap-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 font-medium"
+                      >
+                        <Printer className="w-3.5 h-3.5" /> Vedomost
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        onClick={() => setSelectedDoctorId('')}
+                      >
                         Orqaga
                       </Button>
                     </div>
@@ -548,7 +849,10 @@ export function PayrollFeature() {
                           ) : (
                             paginatedStatement.map((c: any) => {
                               const dateStr = c?.calculatedAt || c?.calculated_at || c?.createdAt || ''
-                              const patientName = c?.patientName || (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}`.trim() : '') || 'Bemor'
+                              const patientName =
+                                c?.patientName ||
+                                (c?.patient ? `${c.patient.firstName || ''} ${c.patient.lastName || ''}`.trim() : '') ||
+                                'Bemor'
                               const procName = c?.procedureName || 'Muolaja'
                               const amt = Number(c?.amount || 0)
 
@@ -563,7 +867,9 @@ export function PayrollFeature() {
                                     {formatMoney(Number(c?.treatmentPrice || c?.amount || 0))} so'm
                                   </TableCell>
                                   <TableCell className="text-xs text-center font-mono">
-                                    <Badge variant="outline" className="text-[10px]">{c?.rate || 30}%</Badge>
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {c?.rate || 30}%
+                                    </Badge>
                                   </TableCell>
                                   <TableCell className="text-xs text-right font-bold font-mono text-emerald-600">
                                     +{formatMoney(amt)} so'm
@@ -599,6 +905,16 @@ export function PayrollFeature() {
         onClose={() => setSelectedDoctorForPayout(null)}
         doctor={selectedDoctorForPayout}
       />
+
+      {/* Hidden Salary Slip Print component */}
+      <div style={{ display: 'none' }}>
+        <SalarySlipPrint
+          ref={printRef}
+          doctor={slipDoctorInfo}
+          summary={slipSummaryInfo}
+          items={slipItems}
+        />
+      </div>
     </div>
   )
 }
