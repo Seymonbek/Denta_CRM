@@ -12,12 +12,12 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from django.db.models import Count, IntegerField, Q, QuerySet, Sum, Value
+from django.db.models import Avg, Count, IntegerField, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce
 
 from apps.doctors.models import DoctorProfile
 
-from .models import Badge, DoctorBadge, ScoreLog  # noqa: F401 — re-exported
+from .models import Badge, DoctorBadge, ScoreLog, PatientReview  # noqa: F401 — re-exported
 
 # YYYY-MM period matcher used by the leaderboard filter.
 _PERIOD_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
@@ -37,6 +37,9 @@ class LeaderboardEntry:
     total_points: int
     entries: int
     rank: int
+    average_rating: float = 5.0
+    reviews_count: int = 0
+    badges_count: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +125,7 @@ def leaderboard(
         qs = (
             DoctorProfile.objects.filter(is_active=True)
             .select_related("user")
+            .prefetch_related("patient_reviews", "badges")
             .annotate(
                 total_points=Coalesce(
                     annotation, Value(0), output_field=IntegerField(),
@@ -157,6 +161,7 @@ def leaderboard(
         qs = (
             DoctorProfile.objects.filter(is_active=True)
             .select_related("user")
+            .prefetch_related("patient_reviews", "badges")
             .annotate(
                 total_points=Coalesce(
                     annotation, Value(0), output_field=IntegerField(),
@@ -178,6 +183,17 @@ def leaderboard(
 
     result: list[LeaderboardEntry] = []
     for rank, profile in enumerate(qs, start=1):
+        # Calculate rating
+        reviews = profile.patient_reviews.filter(is_active=True)
+        rev_count = reviews.count()
+        avg_rat = 5.0
+        if rev_count > 0:
+            avg_res = reviews.aggregate(a=Avg("rating"))["a"]
+            if avg_res is not None:
+                avg_rat = round(float(avg_res), 1)
+
+        b_count = profile.badges.filter(is_active=True).count()
+
         result.append(
             LeaderboardEntry(
                 doctor_id=str(profile.pk),
@@ -187,16 +203,55 @@ def leaderboard(
                 total_points=int(getattr(profile, "total_points", 0) or 0),
                 entries=int(getattr(profile, "entries", 0) or 0),
                 rank=rank,
+                average_rating=avg_rat,
+                reviews_count=rev_count,
+                badges_count=b_count,
             )
         )
     return result
+
+
+def seed_default_badges_if_empty() -> None:
+    defaults = [
+        ("top_doctor", "Oltin Stomatolog", "Oy davomida eng yuqori ball to'plagan chempion shifokor", "crown"),
+        ("patient_favorite", "Bemorlar Sevimlisi", "Bemorlardan eng ko'p 5 yulduzli baho olgan shifokor", "heart"),
+        ("punctual_doc", "O'z Vaqtida Qabul", "Barcha qabullarni o'z vaqtida boshlagan intizomli mutaxassis", "clock"),
+        ("implant_master", "Muolajalar Ustasi", "Klinikada 100 dan ortiq muvaffaqiyatli muolajalarni amalga oshirgan shifokor", "award"),
+        ("streak_pro", "Faollik Chempioni", "Uzluksiz kunlik faollik va qabullar zanjirini saqlagan shifokor", "zap"),
+    ]
+    for slug, name, desc, icon in defaults:
+        Badge.objects.get_or_create(slug=slug, defaults={"name": name, "description": desc, "icon": icon})
+
+
+def rating_stats(period: str | None = None) -> dict[str, Any]:
+    """Return clinic-wide gamification and ratings KPIs."""
+    board = leaderboard(period=period, limit=1)
+    top_doc = board[0] if board else None
+
+    avg_rating_res = PatientReview.objects.filter(is_active=True).aggregate(avg=Avg("rating"))
+    avg_rating = round(float(avg_rating_res["avg"] or 5.0), 1)
+    total_reviews = PatientReview.objects.filter(is_active=True).count()
+    total_badges = DoctorBadge.objects.filter(is_active=True).count()
+    total_points = ScoreLog.objects.filter(is_active=True).aggregate(s=Sum("points"))["s"] or 0
+
+    return {
+        "topDoctorName": f"{top_doc.first_name} {top_doc.last_name}".strip() if top_doc else "Mavjud emas",
+        "topDoctorSpecialization": top_doc.specialization if top_doc else "",
+        "topDoctorPoints": top_doc.total_points if top_doc else 0,
+        "averageClinicRating": avg_rating,
+        "totalReviewsCount": total_reviews,
+        "totalBadgesCount": total_badges,
+        "totalPointsEarned": int(total_points),
+    }
 
 
 # ---------------------------------------------------------------------------
 # Badges
 # ---------------------------------------------------------------------------
 def all_badges() -> QuerySet[Badge]:
+    seed_default_badges_if_empty()
     return Badge.objects.filter(is_active=True).order_by("name")
+
 
 
 def badges_for_doctor(doctor_id) -> QuerySet[DoctorBadge]:
@@ -236,4 +291,6 @@ __all__ = [
     "badges_for_doctor",
     "get_or_create_badge",
     "iter_active_doctors",
+    "seed_default_badges_if_empty",
+    "rating_stats",
 ]

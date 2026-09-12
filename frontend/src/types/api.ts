@@ -355,14 +355,33 @@ export interface PaymentStats {
 }
 
 export interface LeaderboardEntry {
-  doctor: DoctorProfile
+  doctorId?: string
+  firstName?: string
+  lastName?: string
+  specialization?: string
   totalPoints: number
+  entries?: number
   rank: number
-  badgeCount: number
+  averageRating?: number
+  reviewsCount?: number
+  badgesCount?: number
+  doctor?: DoctorProfile
+  badgeCount?: number
+}
+
+export interface RatingStats {
+  topDoctorName: string
+  topDoctorSpecialization: string
+  topDoctorPoints: number
+  averageClinicRating: number
+  totalReviewsCount: number
+  totalBadgesCount: number
+  totalPointsEarned: number
 }
 
 export interface Badge {
   id: string
+  slug?: string
   name: string
   description: string
   icon: string
@@ -370,10 +389,12 @@ export interface Badge {
 
 export interface DoctorBadge {
   id: string
-  doctor: string
+  doctor?: string
+  doctorId?: string
   badge: Badge
   period: string
-  awardedAt: string
+  awardedAt?: string
+  totalPoints?: number
 }
 
 export interface DashboardReport {

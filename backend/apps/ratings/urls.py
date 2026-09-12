@@ -10,7 +10,13 @@ from __future__ import annotations
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 
-from .views import DoctorBadgesView, LeaderboardView, PatientReviewViewSet
+from .views import (
+    DoctorBadgesView,
+    LeaderboardView,
+    PatientReviewViewSet,
+    RatingStatsView,
+    AllBadgesView,
+)
 
 app_name = "ratings"
 
@@ -21,6 +27,8 @@ router.register(r"reviews", PatientReviewViewSet, basename="review")
 
 leaderboard_urlpatterns = [
     path("leaderboard/", LeaderboardView.as_view(), name="leaderboard"),
+    path("stats/", RatingStatsView.as_view(), name="ratings-stats"),
+    path("badges/", AllBadgesView.as_view(), name="all-badges"),
     path("", include(router.urls)),
 ]
 

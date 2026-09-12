@@ -69,6 +69,9 @@ class LeaderboardEntrySerializer(_CamelMixin, serializers.Serializer):
     total_points = serializers.IntegerField()
     entries = serializers.IntegerField()
     rank = serializers.IntegerField()
+    average_rating = serializers.FloatField(default=5.0)
+    reviews_count = serializers.IntegerField(default=0)
+    badges_count = serializers.IntegerField(default=0)
 
 
 # ---------------------------------------------------------------------------

@@ -420,3 +420,21 @@ class TestDoctorBadgesApi:
         _auth(api_client, head_doctor)
         response = api_client.get(self._url(uuid.uuid4()))
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestRatingsStatsAndBadges:
+    def test_ratings_stats_and_badges(self, api_client, head_doctor, doctor_a):
+        _auth(api_client, head_doctor)
+
+        # 1. Test badges endpoint (should auto-seed default badges)
+        res_badges = api_client.get("/api/v1/ratings/badges/")
+        assert res_badges.status_code == status.HTTP_200_OK
+        assert len(res_badges.data) >= 5
+
+        # 2. Test stats endpoint
+        res_stats = api_client.get("/api/v1/ratings/stats/")
+        assert res_stats.status_code == status.HTTP_200_OK
+        assert "averageClinicRating" in res_stats.data
+        assert "totalBadgesCount" in res_stats.data
+        assert "totalPointsEarned" in res_stats.data
+

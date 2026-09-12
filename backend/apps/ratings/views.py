@@ -133,4 +133,35 @@ class PatientReviewViewSet(viewsets.ModelViewSet):
         return qs
 
 
-__all__ = ["LeaderboardView", "DoctorBadgesView", "PatientReviewViewSet"]
+@extend_schema(tags=["ratings"])
+class RatingStatsView(APIView):
+    """``GET /api/v1/ratings/stats/?period=YYYY-MM``."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        from .selectors import rating_stats
+        period = request.query_params.get("period")
+        return Response(rating_stats(period=period))
+
+
+@extend_schema(tags=["ratings"])
+class AllBadgesView(APIView):
+    """``GET /api/v1/ratings/badges/``."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        from .selectors import all_badges
+        from .serializers import BadgeSerializer
+        return Response(BadgeSerializer(all_badges(), many=True).data)
+
+
+__all__ = [
+    "LeaderboardView",
+    "DoctorBadgesView",
+    "PatientReviewViewSet",
+    "RatingStatsView",
+    "AllBadgesView",
+]
+
