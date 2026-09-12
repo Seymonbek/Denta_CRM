@@ -1,6 +1,20 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Plus, Search, ArrowRight, Phone, Send, Calendar, Clock, Sparkles, RefreshCw } from 'lucide-react'
+import {
+  Plus,
+  Search,
+  ArrowRight,
+  Phone,
+  Send,
+  Calendar,
+  Clock,
+  Sparkles,
+  RefreshCw,
+  Users,
+  UserCheck,
+  FileSpreadsheet,
+  HeartPulse,
+} from 'lucide-react'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { confirmSwal } from '@/lib/sweetalert'
 import { usePatients, useCreatePatient, usePatientRecall, useSendPatientRecall } from '@/api/hooks/use-patients'
@@ -181,6 +195,55 @@ export function PatientsList() {
     }
   }
 
+  const malePatientsCount = patients.filter((p: any) => p.gender === 'male').length
+  const femalePatientsCount = patients.filter((p: any) => p.gender === 'female').length
+
+  const exportPatientsToCSV = () => {
+    if (patients.length === 0) {
+      toast.error("Eksport qilish uchun bemorlar mavjud emas")
+      return
+    }
+
+    const headers = [
+      'Familiya',
+      'Ism',
+      'Telefon',
+      'Jinsi',
+      'Tug\'ilgan sana',
+      'Qon guruhi',
+      'Manzil',
+      'Allergiyalar',
+      'Qayd sanasi',
+    ]
+
+    const rows = patients.map((p: any) => {
+      const gVal = p.gender === 'male' ? 'Erkak' : p.gender === 'female' ? 'Ayol' : '-'
+      const createdDate = p.created_at || p.createdAt ? format(new Date(p.created_at || p.createdAt), 'dd.MM.yyyy') : '-'
+
+      return [
+        `"${(p.last_name || p.lastName || '').replace(/"/g, '""')}"`,
+        `"${(p.first_name || p.firstName || '').replace(/"/g, '""')}"`,
+        `"${(p.phone_number || p.phoneNumber || '').replace(/"/g, '""')}"`,
+        `"${gVal}"`,
+        `"${(p.birth_date || p.birthDate || '').replace(/"/g, '""')}"`,
+        `"${(p.blood_group || p.bloodGroup || '').replace(/"/g, '""')}"`,
+        `"${(p.address || '').replace(/"/g, '""')}"`,
+        `"${(p.allergies || '').replace(/"/g, '""')}"`,
+        `"${createdDate}"`,
+      ].join(',')
+    })
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `Klinika_Bemorlari_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success("Bemorlar ro'yxati CSV formatida muvaffaqiyatli yuklab olindi!")
+  }
+
   return (
     <>
       <Header>
@@ -204,15 +267,73 @@ export function PatientsList() {
               </TabsTrigger>
             </TabsList>
 
-            {canAddPatient && activeTab === 'list' && (
-              <Button onClick={() => setIsModalOpen(true)} className='shadow h-9 text-xs'>
-                <Plus className='me-2 h-4 w-4' /> Yangi Bemor Ro'yxatga Olish
-              </Button>
-            )}
+            <div className='flex items-center gap-2'>
+              {activeTab === 'list' && (
+                <Button
+                  variant='outline'
+                  onClick={exportPatientsToCSV}
+                  className='shadow-sm h-9 text-xs gap-1.5 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20'
+                >
+                  <FileSpreadsheet className='h-4 w-4' /> Eksport CSV
+                </Button>
+              )}
+              {canAddPatient && activeTab === 'list' && (
+                <Button onClick={() => setIsModalOpen(true)} className='shadow h-9 text-xs'>
+                  <Plus className='me-2 h-4 w-4' /> Yangi Bemor Ro'yxatga Olish
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* TAB 1: BEMORLAR RO'YXATI */}
           <TabsContent value='list' className='space-y-4'>
+            {/* 4 KPI Summary Cards */}
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
+              <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+                <div className='p-3 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'>
+                  <Users className='h-5 w-5' />
+                </div>
+                <div>
+                  <p className='text-xs font-medium text-muted-foreground'>Jami Bemorlar</p>
+                  <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{totalCount}</h3>
+                  <p className='text-[10px] text-muted-foreground mt-0.5'>Barcha ro'yxatga olingan</p>
+                </div>
+              </div>
+
+              <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+                <div className='p-3 rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'>
+                  <Clock className='h-5 w-5' />
+                </div>
+                <div>
+                  <p className='text-xs font-medium text-muted-foreground'>Qayta Qabul Kerak</p>
+                  <h3 className='text-2xl font-bold tracking-tight mt-0.5 text-amber-600'>{recallData.length}</h3>
+                  <p className='text-[10px] text-amber-600 mt-0.5 font-medium'>Recall eslatma kutilmoqda</p>
+                </div>
+              </div>
+
+              <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+                <div className='p-3 rounded-lg bg-primary/10 text-primary dark:bg-primary/20'>
+                  <UserCheck className='h-5 w-5' />
+                </div>
+                <div>
+                  <p className='text-xs font-medium text-muted-foreground'>Erkak Bemorlar</p>
+                  <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{malePatientsCount}</h3>
+                  <p className='text-[10px] text-muted-foreground mt-0.5'>Joriy sahifada</p>
+                </div>
+              </div>
+
+              <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+                <div className='p-3 rounded-lg bg-pink-500/10 text-pink-600 dark:bg-pink-950/40 dark:text-pink-400'>
+                  <HeartPulse className='h-5 w-5' />
+                </div>
+                <div>
+                  <p className='text-xs font-medium text-muted-foreground'>Ayol Bemorlar</p>
+                  <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{femalePatientsCount}</h3>
+                  <p className='text-[10px] text-muted-foreground mt-0.5'>Joriy sahifada</p>
+                </div>
+              </div>
+            </div>
+
             <div className='mb-2'>
               <h1 className='text-xl font-bold tracking-tight'>
                 {isDoctor ? "Mening Bemorlarim" : "Klinika Bemorlari"}
