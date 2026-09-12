@@ -426,6 +426,81 @@ def _build_rule_based_fallback(query: str, ctx: dict[str, Any]) -> str:
             return "⚠️ Kechirasiz, sizda moliyaviy hisobotlarni ko'rish uchun ruxsat mavjud emas."
         return f"<b>💰 Bugungi ({ctx['date']}) Jami Tushum:</b> <code>{income} so'm</code>"
 
+    # 7. Clinical Dental Diagnostics & Treatment Protocols (Stomatologik AI Yordamchi)
+    if any(k in q_lower for k in ["pulpit", "ildiz kanali", "endodont"]):
+        return (
+            "<b>🩺 AI Stomatologik Klinik Tavsiya: Pulpit (K04.0)</b>\n\n"
+            "<b>Belgilari:</b> O'z-o'zidan, ayniqsa tunda paydo bo'ladigan o'tkir og'riq, termik ta'sirotga uzoq davom etuvchi reaksiya.\n\n"
+            "<b>Davolash Protokoli:</b>\n"
+            "1. Infiltratsion yoki o'tkazuvchan anesteziya (Artikain 1:100 000 / 1:200 000).\n"
+            "2. Karioz bo'shliqni nekrektomiya qilish va tish kavagini ochish.\n"
+            "3. Pulpa ekstirpatsiyasi va ildiz kanallarini apekslokator orqali o'lchash.\n"
+            "4. Medikamentoz ishlov (NaOCl 3% + EDTA 17%) va ultratovushli aktivatsiya.\n"
+            "5. Kanallarni doimiy obturatsiyasi (Gutapercha + siler) yoki vaqtinchalik kaltsiy gidroksid qo'yish.\n"
+            "6. Rentgen nazorati va kompozit restavratsiya.\n\n"
+            "<b>💊 Retsept Tavsiyasi:</b> Nimesil 100mg (kuniga 1-2 marta ovqatdan so'ng), antiseptik chayish."
+        )
+
+    if any(k in q_lower for k in ["karies", "caries", "plomba"]):
+        return (
+            "<b>🩺 AI Stomatologik Klinik Tavsiya: Tish Kariesi (K02.1 Dentin kariesi)</b>\n\n"
+            "<b>Belgilari:</b> Shirin, nordon, sovuq va issiq taomlarda qisqa muddatli og'riq, emal yoki dentin nuqsoni.\n\n"
+            "<b>Davolash Protokoli:</b>\n"
+            "1. Mahalliy anesteziya (zarurat bo'lsa).\n"
+            "2. Karioz to'qimalarni karies-marker nazoratida to'liq tozalash.\n"
+            "3. Bo'shliqni antiseptik ishlov berish (Xlorgeksidin 2%).\n"
+            "4. Adgeziv protokol (Kislota bilan gravirovka qilish + 5/7-avlod bond).\n"
+            "5. Fotopolimer kompozit bilan qatlamma-qatlam (stratifikatsiya) plombalash.\n"
+            "6. Pardozlash va okluziyani artikulyatsion qog'ozda tekshirish.\n\n"
+            "<b>💡 Tavsiya:</b> R.O.C.S. Minerals yoki ftorli lak bilan remineralizatsiya."
+        )
+
+    if any(k in q_lower for k in ["periodontit", "ildiz uchi", "periapikal"]):
+        return (
+            "<b>🩺 AI Stomatologik Klinik Tavsiya: Periodontit (K04.5)</b>\n\n"
+            "<b>Belgilari:</b> Tishga bosganda yoki luqma tishlaganda og'riq, tish 'o'sib qolgandek' his qilinishi, rentgenda periapikal o'zgarish.\n\n"
+            "<b>Davolash Protokoli:</b>\n"
+            "1. Anesteziya va ildiz kanallariga kirish.\n"
+            "2. Nekrotik to'qimalarni evakuatsiya qilish va kanallarni kengaytirish (F1-F3).\n"
+            "3. Kuchli antiseptik yuvish (Gipoxlorit 3-5%, Xlorgeksidin 2%).\n"
+            "4. Vaqtinchalik kaltsiy gidroksid pastasini (Metapex / Calcicur) 10-14 kunga kiritish.\n"
+            "5. Yallig'lanish to'xtagach, kanallarni doimiy obturatsiyasi.\n\n"
+            "<b>💊 Dori Terapiyasi:</b> Amoxicillin 500mg (yoki Amoxiclav 625mg) 5 kun, Nimesil 100mg."
+        )
+
+    if any(k in q_lower for k in ["ekstraktsiya", "sug'urish", "jarrohlik", "tish olish"]):
+        return (
+            "<b>🩺 AI Stomatologik Klinik Tavsiya: Tish Ekstraktsiyasi (Jarrohlik)</b>\n\n"
+            "<b>Bosqichlar:</b>\n"
+            "1. Samarali anesteziya (o'tkazuvchan yoki infiltratsion).\n"
+            "2. Sindesmotomiya (dumaloq bog'lamni ajratish).\n"
+            "3. Elevator yoki qisqich yordamida tishni lyuksatsiyasi va chiqarilishi.\n"
+            "4. Katakchani (lujanka) kyuretaj qilish va qon ivishini (tromblanish) ta'minlash.\n"
+            "5. Doka tamponini 20 daqiqaga qo'yish (zaruratda tikish).\n\n"
+            "<b>Postoperatsion Parvarish:</b> 2 soat ovqatlanmaslik, issiq vanna va kuchli chayqash taqiqlanadi. Nimesil va Xlorgeksidin vannochkalari (2-kundan)."
+        )
+
+    if any(k in q_lower for k in ["implant", "implantatsiya"]):
+        return (
+            "<b>🩺 AI Stomatologik Klinik Tavsiya: Dental Implantatsiya Protokoli</b>\n\n"
+            "<b>Protokol:</b>\n"
+            "1. 3D KT (CBCT) rentgen tahlili va suyak qalinligini baholash.\n"
+            "2. Jarrohlik shabloni bo'yicha osteotomiya (frezerlash ketma-ketligi).\n"
+            "3. Implantni 30-35 Ncm tork bilan o'rnatish.\n"
+            "4. Formirovatel qo'yish yoki shilliq qavatni zich tikish.\n\n"
+            "<b>💊 Post-op Rejim:</b> Augmentin 875/125mg 7 kun, Nimesil, Loratadin 10mg (shishga qarshi), tashqi tomondan muz kompressi."
+        )
+
+    if any(k in q_lower for k in ["gingivit", "milk", "parodont", "tish toshi"]):
+        return (
+            "<b>🩺 AI Stomatologik Klinik Tavsiya: Parodontologiya & Gingivit (K05.0)</b>\n\n"
+            "<b>Protokol:</b>\n"
+            "1. Ultratovushli skeyler yordamida tish usti va osti toshlarini tozalash.\n"
+            "2. Air-Flow (glitsin/soda kukuni) orqali pigment dog'larni ketkazish va jilolash.\n"
+            "3. Milklarga Metrogil Denta va antiseptik applikatsiya qilish.\n\n"
+            "<b>Uy Sharoitida:</b> Xlorgeksidin 0.05% 7 kun chayish, Metrogil Denta geli 2 mahal surtish."
+        )
+
     # Default fallback — try entity search or structured summary
     entity_result = search_specific_entity_data(query)
     if entity_result:

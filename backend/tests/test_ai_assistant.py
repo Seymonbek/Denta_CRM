@@ -147,3 +147,30 @@ def test_doctor_cannot_manage_ai_permissions(doctor_user):
 
     res = client.get("/api/v1/ai/permissions/")
     assert res.status_code == status.HTTP_403_FORBIDDEN
+
+
+def test_ai_chat_clinical_pulpitis_guidance(doctor_user):
+    res = generate_ai_chat_response("Pulpit kasalligini davolash protokoli qanday?", doctor_user)
+    assert "answer" in res
+    assert "Pulpit" in res["answer"] or "K04.0" in res["answer"]
+    assert "Anesteziya" in res["answer"] or "anesteziya" in res["answer"]
+
+
+def test_ai_chat_clinical_caries_guidance(doctor_user):
+    res = generate_ai_chat_response("Chuqur karies plombalash bosqichlari", doctor_user)
+    assert "answer" in res
+    assert "Karies" in res["answer"] or "K02.1" in res["answer"]
+    assert "kompozit" in res["answer"] or "Adgeziv" in res["answer"]
+
+
+def test_ai_chat_clinical_extraction_guidance(doctor_user):
+    res = generate_ai_chat_response("Tish sug'urish jarrohlik protokoli", doctor_user)
+    assert "answer" in res
+    assert "Ekstraktsiya" in res["answer"] or "Jarrohlik" in res["answer"]
+
+
+def test_ai_chat_clinical_implant_guidance(doctor_user):
+    res = generate_ai_chat_response("Dental implantatsiya operatsiyasi", doctor_user)
+    assert "answer" in res
+    assert "Implant" in res["answer"] or "implant" in res["answer"]
+
