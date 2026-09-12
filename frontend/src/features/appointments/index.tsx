@@ -7,6 +7,10 @@ import {
   Search,
   X,
   AlertCircle,
+  Download,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react'
 import { confirmSwal } from '@/lib/sweetalert'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -17,9 +21,16 @@ import {
   endOfWeek,
   startOfMonth,
   endOfMonth,
+  isToday,
 } from 'date-fns'
 import { Input } from '@/components/ui/input'
 import { TablePagination } from '@/components/ui/table-pagination'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import {
   useAppointments,
   useCalendarAppointments,
@@ -157,6 +168,106 @@ export function AppointmentsList() {
   const appointments = isFilteringOverdue
     ? overdueAppointments.slice((page - 1) * pageSize, page * pageSize)
     : rawAppointments
+
+  // KPI Summary Stats
+  const appointmentStats = useMemo(() => {
+    const total = rawAppointments.length
+    const todayCount = rawAppointments.filter((a: any) => {
+      const s = a?.scheduledStart || a?.scheduled_start
+      if (!s) return false
+      try {
+        return isToday(new Date(s))
+      } catch {
+        return false
+      }
+    }).length
+    const activeCount = rawAppointments.filter(
+      (a: any) => a?.status === 'confirmed' || a?.status === 'in_progress'
+    ).length
+    const completedCount = rawAppointments.filter((a: any) => a?.status === 'completed').length
+
+    return {
+      total,
+      todayCount,
+      activeCount,
+      completedCount,
+    }
+  }, [rawAppointments])
+
+  // CSV Export
+  const handleExportCSV = () => {
+    if (appointments.length === 0) {
+      toast.info("Eksport qilish uchun navbat ma'lumotlari topilmadi.")
+      return
+    }
+
+    const headers = [
+      'ID',
+      'Bemor',
+      'Telefon',
+      'Shifokor',
+      'Bo\'lim',
+      'Muolaja',
+      'Boshlanish vaqti',
+      'Tugash vaqti',
+      'Holati',
+    ]
+
+    const rows = appointments.map((a: any) => {
+      const pName =
+        a?.patient && typeof a.patient === 'object'
+          ? `${a.patient.firstName || a.patient.first_name || ''} ${a.patient.lastName || a.patient.last_name || ''}`.trim()
+          : a?.patientName || `Bemor #${a?.patient || ''}`
+      const pPhone =
+        a?.patient && typeof a.patient === 'object'
+          ? a.patient.phoneNumber || a.patient.phone_number || ''
+          : ''
+      const dName =
+        a?.doctor && typeof a.doctor === 'object'
+          ? a.doctor.fullName || a.doctor.name || a.doctor.user?.first_name || 'Shifokor'
+          : a?.doctorName || 'Shifokor'
+      const deptName =
+        a?.department && typeof a.department === 'object'
+          ? a.department.name
+          : a?.departmentName || ''
+      const procName =
+        a?.procedureType && typeof a.procedureType === 'object'
+          ? a.procedureType.name
+          : a?.procedureTypeName || ''
+      const start =
+        a?.scheduledStart || a?.scheduled_start
+          ? format(new Date(a.scheduledStart || a.scheduled_start), 'dd.MM.yyyy HH:mm')
+          : ''
+      const end =
+        a?.scheduledEnd || a?.scheduled_end
+          ? format(new Date(a.scheduledEnd || a.scheduled_end), 'HH:mm')
+          : ''
+      const statusLabel = STATUS_BADGES[a?.status]?.label || a?.status || ''
+
+      return [
+        a?.id || '',
+        `"${pName.replace(/"/g, '""')}"`,
+        `"${pPhone}"`,
+        `"${dName.replace(/"/g, '""')}"`,
+        `"${deptName.replace(/"/g, '""')}"`,
+        `"${procName.replace(/"/g, '""')}"`,
+        start,
+        end,
+        `"${statusLabel}"`,
+      ].join(',')
+    })
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Klinika_Navbatlari_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success("Navbatlar jadvali CSV faylga muvaffaqiyatli yuklab olindi!")
+  }
 
   // Calendar Date Range Calculation
   const { calDateFrom, calDateTo } = useMemo(() => {
@@ -391,7 +502,16 @@ export function AppointmentsList() {
               Bemorlarning qabul vaqtlari, interaktiv kalendar va shifokorlar bandlik jadvali.
             </p>
           </div>
-          <div className='flex items-center gap-3'>
+          <div className='flex items-center gap-2 sm:gap-3 flex-wrap'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={handleExportCSV}
+              className='h-8 text-xs gap-1.5'
+            >
+              <Download className='h-3.5 w-3.5 text-emerald-600' /> Eksport (CSV)
+            </Button>
+
             {/* View Mode Toggle Buttons */}
             <div className='flex items-center bg-muted/60 p-1 rounded-lg border shadow-xs'>
               <Button
@@ -418,6 +538,77 @@ export function AppointmentsList() {
               </Button>
             )}
           </div>
+        </div>
+
+        {/* 4 KPI Summary Cards */}
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6'>
+          <Card className='border-l-4 border-l-blue-500 shadow-sm'>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
+                Jami Qabullar
+              </CardTitle>
+              <CalendarDays className='h-4 w-4 text-blue-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold text-blue-600 font-mono'>
+                {totalCount}
+              </div>
+              <p className='text-xs text-muted-foreground mt-1'>
+                Ro'yxatga olingan qabullar
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className='border-l-4 border-l-emerald-500 shadow-sm'>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
+                Bugungi Navbatlar
+              </CardTitle>
+              <Clock className='h-4 w-4 text-emerald-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold text-emerald-600 font-mono'>
+                {appointmentStats.todayCount}
+              </div>
+              <p className='text-xs text-muted-foreground mt-1'>
+                Bugun qabul qilinishi kutilmoqda
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className='border-l-4 border-l-sky-500 shadow-sm'>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
+                Tasdiqlangan / Qabulda
+              </CardTitle>
+              <CheckCircle2 className='h-4 w-4 text-sky-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold text-sky-600 font-mono'>
+                {appointmentStats.activeCount}
+              </div>
+              <p className='text-xs text-muted-foreground mt-1'>
+                Tasdiqlangan va xonada bo'lganlar
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className='border-l-4 border-l-amber-500 shadow-sm'>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
+                Muddati O'tganlar
+              </CardTitle>
+              <AlertTriangle className='h-4 w-4 text-amber-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold text-amber-600 font-mono'>
+                {overdueCount}
+              </div>
+              <p className='text-xs text-muted-foreground mt-1'>
+                {overdueCount > 0 ? "Tartibga solish talab etiladi" : "Barcha navbatlar o'z vaqtida"}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Overdue Alert Banner & Quick Settlement */}
