@@ -7,6 +7,11 @@ import {
   Search,
   X,
   Stethoscope,
+  FileSpreadsheet,
+  Coins,
+  CheckCircle2,
+  Clock,
+  Activity,
 } from 'lucide-react'
 import { Link, useSearch } from '@tanstack/react-router'
 import { format } from 'date-fns'
@@ -271,6 +276,63 @@ export function TreatmentsList() {
     }
   }
 
+  // Treatments KPI Calculations
+  const totalRevenue = treatments.reduce((sum: number, t: any) => sum + Number(t.price || 0), 0)
+  const paidTreatmentsCount = treatments.filter((t: any) => t.paymentStatus === 'paid').length
+  const inProgressTreatmentsCount = treatments.filter((t: any) => t.stage === 'in_progress').length
+
+  const exportTreatmentsToCSV = () => {
+    if (treatments.length === 0) {
+      toast.error("Eksport qilish uchun davolash yozuvlari mavjud emas")
+      return
+    }
+
+    const headers = [
+      'Bemor',
+      'Shifokor',
+      'Tashxis',
+      'Muolaja Turi',
+      'Tishlar (FDI)',
+      'Narxi (so\'m)',
+      'Chegirma (%)',
+      'To\'lov Holati',
+      'Bosqich',
+    ]
+
+    const rows = treatments.map((t: any) => {
+      const pName = t.patientName || (typeof t.patient === 'object' ? `${(t.patient as any).firstName || ''} ${(t.patient as any).lastName || ''}`.trim() : '') || 'Bemor'
+      const dName = t.doctorName || (typeof t.doctor === 'object' && (t.doctor as any)?.user ? `Dr. ${(t.doctor as any).user.firstName || ''} ${(t.doctor as any).user.lastName || ''}`.trim() : '') || 'Shifokor'
+      const procName = t.procedureTypeName || (typeof t.procedureType === 'object' ? (t.procedureType as any)?.name : '') || ''
+      const teethList = (t.toothRecords || []).map((r: any) => `#${r.toothNumber}`).join(' ') || (t.teeth || []).join(' ') || '-'
+      const priceVal = Number(t.price || 0)
+      const discountVal = t.discountPercent || t.discount_percent || 0
+      const paymentVal = t.paymentStatus === 'paid' ? "To'langan" : t.paymentStatus === 'partial' ? "Qisman to'langan" : "To'lanmagan"
+      const stageVal = t.stage === 'completed' ? 'Yakunlangan' : 'Jarayonda'
+
+      return [
+        `"${pName.replace(/"/g, '""')}"`,
+        `"${dName.replace(/"/g, '""')}"`,
+        `"${(t.diagnosis || '').replace(/"/g, '""')}"`,
+        `"${procName.replace(/"/g, '""')}"`,
+        `"${teethList}"`,
+        priceVal,
+        discountVal,
+        `"${paymentVal}"`,
+        `"${stageVal}"`,
+      ].join(',')
+    })
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `Klinika_Davolash_Yozuvlari_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success("Davolash yozuvlari CSV formatida muvaffaqiyatli yuklab olindi!")
+  }
+
   return (
     <>
       <Header>
@@ -289,9 +351,67 @@ export function TreatmentsList() {
               Bemorlarning davolash yozuvlari, tish kartalari, fotosuratlari va kassa dalolatnomalari.
             </p>
           </div>
-          <Button onClick={() => setIsModalOpen(true)} className='shadow h-8 text-xs gap-1.5'>
-            <Plus className='h-4 w-4' /> Yangi Davolash Yozish
-          </Button>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              onClick={exportTreatmentsToCSV}
+              className='shadow-sm h-8 text-xs gap-1.5 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20'
+            >
+              <FileSpreadsheet className='h-4 w-4' /> Eksport CSV
+            </Button>
+            <Button onClick={() => setIsModalOpen(true)} className='shadow h-8 text-xs gap-1.5'>
+              <Plus className='h-4 w-4' /> Yangi Davolash Yozish
+            </Button>
+          </div>
+        </div>
+
+        {/* 4 KPI Summary Cards */}
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6'>
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'>
+              <Activity className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Jami Muolajalar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{totalCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Barcha qaydlar</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-emerald-500/10 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'>
+              <Coins className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Davolash Qiymati</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5 font-mono text-emerald-600'>
+                {totalRevenue.toLocaleString()} <span className='text-xs font-normal'>so'm</span>
+              </h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Umumiy hajm</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-primary/10 text-primary dark:bg-primary/20'>
+              <CheckCircle2 className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>To'langan Seanslar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{paidTreatmentsCount}</h3>
+              <p className='text-[10px] text-emerald-600 mt-0.5 font-medium'>To'liq hisoblangan</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'>
+              <Clock className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Jarayonda</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{inProgressTreatmentsCount}</h3>
+              <p className='text-[10px] text-amber-600 mt-0.5 font-medium'>Davom etayotgan</p>
+            </div>
+          </div>
         </div>
 
         {/* Search & Filters */}
