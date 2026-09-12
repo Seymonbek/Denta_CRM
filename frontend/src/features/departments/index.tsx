@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Plus, Building2, Trash2, Edit2, Search } from 'lucide-react'
+import { Plus, Building2, Trash2, Edit2, Search, Download, Layers, CheckCircle2 } from 'lucide-react'
 import { confirmSwal } from '@/lib/sweetalert'
 import {
   useDepartments,
@@ -16,6 +16,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { format } from 'date-fns'
 import {
   Table,
   TableBody,
@@ -121,6 +128,39 @@ export function DepartmentsList() {
     }
   }
 
+  const handleExportCSV = () => {
+    if (departments.length === 0) {
+      toast.info("Eksport qilish uchun bo'lim ma'lumotlari topilmadi.")
+      return
+    }
+
+    const headers = ['ID', "Bo'lim Nomi", 'Tavsifi', 'Holati', 'Yaratilgan Sana']
+    const rows = filteredDepartments.map((d) => {
+      const isAct = d.isActive ?? true
+      const dateStr = d.createdAt ? format(new Date(d.createdAt), 'dd.MM.yyyy HH:mm') : ''
+      return [
+        d.id || '',
+        `"${(d.name || '').replace(/"/g, '""')}"`,
+        `"${(d.description || '').replace(/"/g, '""')}"`,
+        isAct ? 'Faol' : 'Nofaol',
+        dateStr,
+      ].join(',')
+    })
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Klinika_Bolimlari_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success("Bo'limlar ro'yxati CSV faylga muvaffaqiyatli yuklab olindi!")
+  }
+
+  const activeCount = departments.filter((d) => (d.isActive ?? true)).length
+
   return (
     <>
       <Header>
@@ -142,9 +182,72 @@ export function DepartmentsList() {
               Terapiya, Ortopediya, Jarrohlik va boshqa bo'limlar hamda ularning tavsifi.
             </p>
           </div>
-          <Button onClick={handleOpenCreate} className='shadow text-xs font-bold gap-1.5'>
-            <Plus className='h-4 w-4' /> Yangi Bo'lim Qo'shish
-          </Button>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              onClick={handleExportCSV}
+              className='text-xs font-semibold'
+            >
+              <Download className='me-1.5 h-4 w-4 text-emerald-600' /> Eksport (CSV)
+            </Button>
+            <Button onClick={handleOpenCreate} className='shadow text-xs font-bold gap-1.5'>
+              <Plus className='h-4 w-4' /> Yangi Bo'lim Qo'shish
+            </Button>
+          </div>
+        </div>
+
+        {/* 3 KPI Summary Cards */}
+        <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6'>
+          <Card className='border-l-4 border-l-blue-500 shadow-sm'>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
+                Jami Bo'limlar
+              </CardTitle>
+              <Building2 className='h-4 w-4 text-blue-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold text-blue-600 font-mono'>
+                {departments.length}
+              </div>
+              <p className='text-xs text-muted-foreground mt-1'>
+                Klinikada mavjud mutaxassisliklar
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className='border-l-4 border-l-emerald-500 shadow-sm'>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
+                Faol Bo'limlar
+              </CardTitle>
+              <CheckCircle2 className='h-4 w-4 text-emerald-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold text-emerald-600 font-mono'>
+                {activeCount}
+              </div>
+              <p className='text-xs text-muted-foreground mt-1'>
+                Amalda xizmat ko'rsatayotgan bo'limlar
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className='border-l-4 border-l-purple-500 shadow-sm'>
+            <CardHeader className='flex flex-row items-center justify-between pb-2'>
+              <CardTitle className='text-xs font-medium text-muted-foreground uppercase tracking-wider'>
+                Qidiruv Natijasi
+              </CardTitle>
+              <Layers className='h-4 w-4 text-purple-500' />
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold text-purple-600 font-mono'>
+                {filteredDepartments.length}
+              </div>
+              <p className='text-xs text-muted-foreground mt-1'>
+                Filtrlangan bo'limlar soni
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Search Toolbar */}
