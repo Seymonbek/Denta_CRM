@@ -585,6 +585,15 @@ def test_reminder_1day_window(patient, doctor, department, administrator):
     now = timezone.now()
     start = now + timedelta(hours=24)
     end = start + timedelta(minutes=30)
+    start_local = timezone.localtime(start)
+    WorkingHours.objects.update_or_create(
+        user=doctor.user,
+        weekday=start_local.weekday(),
+        defaults={
+            "start_time": time(0, 0),
+            "end_time": time(23, 59, 59),
+        },
+    )
     create_appointment(
         patient=patient,
         doctor=doctor,

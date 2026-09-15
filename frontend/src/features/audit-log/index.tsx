@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
-import { Search, X } from 'lucide-react'
+import { Search, X, FileSpreadsheet, History, PlusCircle, Edit3, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { TablePagination } from '@/components/ui/table-pagination'
@@ -87,6 +88,60 @@ export function AuditLogFeature() {
 
   const logs = data?.results ?? []
   const totalCount = data?.count ?? logs.length
+  const createCount = logs.filter((l: AuditLog) => l.action === 'create').length
+  const updateCount = logs.filter((l: AuditLog) => l.action === 'update').length
+  const deleteCount = logs.filter((l: AuditLog) => l.action === 'delete').length
+
+  const exportAuditLogsToCSV = () => {
+    if (logs.length === 0) {
+      toast.error('Eksport qilish uchun jurnal yozuvlari mavjud emas')
+      return
+    }
+
+    const headers = ['Vaqti', 'Foydalanuvchi', 'Rol', 'Amal', 'Model', 'Obyekt ID', 'IP Manzil']
+
+    const rows = logs.map((log: AuditLog) => {
+      const timeStr = format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')
+      const userStr = log.user ? `${log.user.firstName || ''} ${log.user.lastName || ''}`.trim() : 'Tizim'
+      const roleStr = log.user?.role || '-'
+      const actionLabel =
+        log.action === 'create'
+          ? 'Yaratildi'
+          : log.action === 'update'
+          ? 'O\'zgartirildi'
+          : log.action === 'delete'
+          ? 'O\'chirildi'
+          : log.action === 'login'
+          ? 'Tizimga Kirdi'
+          : log.action === 'logout'
+          ? 'Tizimdan Chiqdi'
+          : log.action
+
+      return [
+        `"${timeStr}"`,
+        `"${userStr.replace(/"/g, '""')}"`,
+        `"${roleStr.replace(/"/g, '""')}"`,
+        `"${actionLabel}"`,
+        `"${(log.model_name || '-').replace(/"/g, '""')}"`,
+        `"${(log.object_id || '-').replace(/"/g, '""')}"`,
+        `"${(log.ip_address || '-').replace(/"/g, '""')}"`,
+      ].join(',')
+    })
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute(
+      'download',
+      `Audit_Log_${new Date().toISOString().split('T')[0]}.csv`
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success("Audit jurnali CSV formatida muvaffaqiyatli yuklab olindi!")
+  }
   
   const [selectedChanges, setSelectedChanges] = useState<Record<string, { old: unknown; new: unknown }> | null>(null)
 
@@ -157,6 +212,7 @@ export function AuditLogFeature() {
               <option value="Payment">To'lovlar</option>
               <option value="DoctorProfile">Shifokorlar</option>
               <option value="Material">Sklad (Material)</option>
+              <option value="Appointment">Qabullar</option>
             </select>
 
             {(searchTerm || actionFilter || modelFilter) && (
@@ -173,12 +229,67 @@ export function AuditLogFeature() {
                 <X className="me-1 h-3.5 w-3.5" /> Tozalash
               </Button>
             )}
+
+            <Button
+              variant='outline'
+              onClick={exportAuditLogsToCSV}
+              className='shadow-sm h-9 text-xs gap-1.5 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20'
+            >
+              <FileSpreadsheet className='h-4 w-4' /> Eksport CSV
+            </Button>
             
             <ProfileDropdown />
           </div>
         </div>
       </Header>
       <Main>
+        {/* 4 KPI Summary Cards */}
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4'>
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'>
+              <History className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Jami Yozuvlar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{totalCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Barcha amallar</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-emerald-500/10 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'>
+              <PlusCircle className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Yaratilganlar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{createCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Ushbu sahifada</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'>
+              <Edit3 className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>O'zgartirishlar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{updateCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Ushbu sahifada</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-rose-500/10 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'>
+              <Trash2 className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>O'chirilganlar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{deleteCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Ushbu sahifada</p>
+            </div>
+          </div>
+        </div>
+
         <div className='rounded-md border bg-card text-card-foreground overflow-x-auto w-full'>
           <Table>
             <TableHeader>

@@ -40,7 +40,7 @@ from apps.doctors.models import DoctorProfile, ProcedureType
 from apps.inventory.models import ProcedureBOM
 from apps.inventory.services import record_usage
 from apps.patients.models import Patient
-from apps.scheduling.models import Appointment
+from apps.scheduling.models import Appointment, AppointmentStatus
 
 from .models import PaymentStatus, PhotoType, Treatment, TreatmentPhoto, TreatmentStage
 
@@ -438,6 +438,18 @@ def create_treatment(
                     quantity_used=bom.default_quantity,
                 )
 
+    # Sync appointment status if linked
+    if appointment_obj is not None:
+        if resolved_stage == TreatmentStage.COMPLETED and appointment_obj.status != AppointmentStatus.COMPLETED:
+            appointment_obj.status = AppointmentStatus.COMPLETED
+            appointment_obj.save(update_fields=["status", "updated_at"])
+        elif resolved_stage == TreatmentStage.IN_PROGRESS and appointment_obj.status in (
+            AppointmentStatus.SCHEDULED,
+            AppointmentStatus.CONFIRMED,
+        ):
+            appointment_obj.status = AppointmentStatus.IN_PROGRESS
+            appointment_obj.save(update_fields=["status", "updated_at"])
+
     return treatment
 
 
@@ -575,8 +587,12 @@ def update_treatment(
     if update_fields:
         treatment.save(update_fields=update_fields + ["updated_at"])
         
-        # Trigger notification if it was just completed
+        # Trigger notification and appointment sync if it was just completed
         if "stage" in update_fields and treatment.stage == TreatmentStage.COMPLETED:
+            if treatment.appointment and treatment.appointment.status != AppointmentStatus.COMPLETED:
+                treatment.appointment.status = AppointmentStatus.COMPLETED
+                treatment.appointment.save(update_fields=["status", "updated_at"])
+
             try:
                 from apps.notifications.services import notify_roles
                 from apps.notifications.models import NotificationType

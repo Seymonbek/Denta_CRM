@@ -11,11 +11,12 @@ from apps.payments.models import Payment
 from apps.doctors.models import DoctorProfile
 from apps.inventory.models import Material
 from apps.patients.models import Patient
+from apps.scheduling.models import Appointment
 from django.db.models.signals import pre_save
 
 logger = logging.getLogger(__name__)
 
-AUDITED_MODELS = [Treatment, Payment, DoctorProfile, Material, Patient]
+AUDITED_MODELS = [Treatment, Payment, DoctorProfile, Material, Patient, Appointment]
 
 def _get_client_ip(request):
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")

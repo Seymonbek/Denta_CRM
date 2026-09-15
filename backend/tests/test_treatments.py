@@ -362,6 +362,29 @@ def test_create_treatment_with_appointment_ok(
         created_by=head_doctor,
     )
     assert tr.appointment_id == appointment.pk
+    # Created with default in_progress stage -> appointment becomes in_progress
+    appointment.refresh_from_db()
+    assert appointment.status == "in_progress"
+
+
+def test_treatment_syncs_appointment_to_completed(
+    doctor, patient, department, appointment, head_doctor
+):
+    tr = create_treatment(
+        doctor=doctor,
+        patient=patient,
+        department=department,
+        appointment=appointment,
+        stage="in_progress",
+        created_by=head_doctor,
+    )
+    appointment.refresh_from_db()
+    assert appointment.status == "in_progress"
+
+    update_treatment(tr, stage="completed")
+    appointment.refresh_from_db()
+    assert appointment.status == "completed"
+
 
 
 # ===========================================================================

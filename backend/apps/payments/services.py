@@ -205,6 +205,15 @@ def record_payment(
         resolved_patient = treatment.patient
 
     if treatment:
+        if treatment.approval_status == Treatment.ApprovalStatus.PENDING:
+            raise ValidationError(
+                {"treatment": ["Ushbu muolajaning chegirmasi bosh shifokor tomonidan hali tasdiqlanmagan. To'lov qabul qilishdan oldin chegirma tasdiqlanishi shart."]}
+            )
+        if treatment.approval_status == Treatment.ApprovalStatus.REJECTED:
+            raise ValidationError(
+                {"treatment": ["Ushbu muolajaning chegirmasi rad etilgan. Narxni to'g'rilang yoki qayta ko'rib chiqing."]}
+            )
+
         already_paid = total_paid_for_treatment(treatment.pk)
         price = Decimal(treatment.price or _ZERO)
         projected = already_paid + money
@@ -330,6 +339,10 @@ def _refresh_payment_status(treatment: Treatment) -> Treatment:
                 "payments: commission recalculation failed for treatment %s",
                 treatment.pk,
             )
+    else:
+        # If the treatment is no longer fully paid (e.g. payment was voided or refunded),
+        # remove the unearned commission record to keep doctor's balance strictly accurate.
+        CommissionRecord.objects.filter(treatment=treatment).delete()
     return treatment
 
 

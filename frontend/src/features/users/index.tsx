@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, CalendarDays, Trash2, Search as SearchIcon } from 'lucide-react'
+import {
+  Plus,
+  Edit,
+  CalendarDays,
+  Trash2,
+  Search as SearchIcon,
+  FileSpreadsheet,
+  Users,
+  UserCheck,
+  ShieldCheck,
+  Stethoscope,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
@@ -237,6 +248,53 @@ export function UsersFeature() {
     }
   }
 
+  const boshShifokorCount = users.filter((u: any) => u.role === 'bosh_shifokor').length
+  const doctorCount = users.filter((u: any) => u.role === 'doctor').length
+  const adminCount = users.filter((u: any) => u.role === 'administrator').length
+
+  const exportUsersToCSV = () => {
+    if (users.length === 0) {
+      toast.error('Eksport qilish uchun xodimlar topilmadi')
+      return
+    }
+
+    const headers = ['Familiya', 'Ism', 'Telefon', 'Rol', 'Holati']
+
+    const rows = users.map((u: any) => {
+      const roleLabel =
+        u.role === 'bosh_shifokor'
+          ? 'Bosh Shifokor'
+          : u.role === 'doctor'
+          ? 'Shifokor'
+          : u.role === 'administrator'
+          ? 'Administrator'
+          : u.role
+      const statusLabel = u.isActive !== false ? 'Faol' : 'Nofaol'
+
+      return [
+        `"${(u.lastName || '').replace(/"/g, '""')}"`,
+        `"${(u.firstName || '').replace(/"/g, '""')}"`,
+        `"${(u.phoneNumber || u.phone_number || '').replace(/"/g, '""')}"`,
+        `"${roleLabel}"`,
+        `"${statusLabel}"`,
+      ].join(',')
+    })
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute(
+      'download',
+      `Klinika_Xodimlari_${new Date().toISOString().split('T')[0]}.csv`
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success("Xodimlar ro'yxati CSV formatida muvaffaqiyatli yuklab olindi!")
+  }
+
   return (
     <>
       <Header>
@@ -255,9 +313,65 @@ export function UsersFeature() {
               Tizimga kirish huquqiga ega barcha xodimlarni boshqarish ({totalCount} ta xodim)
             </p>
           </div>
-          <Button onClick={openAddDialog} className='shadow h-9 text-xs'>
-            <Plus className='mr-2 h-4 w-4' /> Yangi xodim
-          </Button>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              onClick={exportUsersToCSV}
+              className='shadow-sm h-9 text-xs gap-1.5 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20'
+            >
+              <FileSpreadsheet className='h-4 w-4' /> Eksport CSV
+            </Button>
+            <Button onClick={openAddDialog} className='shadow h-9 text-xs'>
+              <Plus className='mr-2 h-4 w-4' /> Yangi xodim
+            </Button>
+          </div>
+        </div>
+
+        {/* 4 KPI Summary Cards */}
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4'>
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-blue-500/10 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'>
+              <Users className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Jami Xodimlar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{totalCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Barcha xodimlar</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-emerald-500/10 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'>
+              <ShieldCheck className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Bosh Shifokor</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5 text-emerald-600'>{boshShifokorCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Klinika rahbariyati</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-primary/10 text-primary dark:bg-primary/20'>
+              <Stethoscope className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Shifokorlar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5'>{doctorCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Davolovchi vrachlar</p>
+            </div>
+          </div>
+
+          <div className='rounded-xl border bg-card p-4 shadow-sm flex items-center gap-4 transition-all hover:shadow-md'>
+            <div className='p-3 rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'>
+              <UserCheck className='h-5 w-5' />
+            </div>
+            <div>
+              <p className='text-xs font-medium text-muted-foreground'>Administratorlar</p>
+              <h3 className='text-2xl font-bold tracking-tight mt-0.5 text-amber-600'>{adminCount}</h3>
+              <p className='text-[10px] text-muted-foreground mt-0.5'>Qabulxona & Kassa</p>
+            </div>
+          </div>
         </div>
 
         {/* Search & Filter Toolbar */}

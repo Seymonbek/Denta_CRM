@@ -682,4 +682,61 @@ class TestCashShiftStatsAndDetails:
         assert res_close.data["status"] == "closed"
 
 
+class TestDiscountGuardAndVoidCommission:
+    def test_payment_rejected_when_discount_pending_or_rejected(
+        self, doctor, patient, department, head_doctor
+    ):
+        tr = create_treatment(
+            doctor=doctor,
+            patient=patient,
+            department=department,
+            price=Decimal("100000.00"),
+            created_by=head_doctor,
+        )
+        tr.approval_status = "pending"
+        tr.save(update_fields=["approval_status"])
+
+        with pytest.raises(Exception) as exc:
+            record_payment(
+                treatment=tr,
+                amount=Decimal("100000.00"),
+                received_by=head_doctor,
+            )
+        assert "tasdiqlanmagan" in str(exc.value).lower()
+
+        tr.approval_status = "rejected"
+        tr.save(update_fields=["approval_status"])
+
+        with pytest.raises(Exception) as exc2:
+            record_payment(
+                treatment=tr,
+                amount=Decimal("100000.00"),
+                received_by=head_doctor,
+            )
+        assert "rad etilgan" in str(exc2.value).lower()
+
+    def test_void_payment_cleans_up_commission_record(
+        self, doctor, patient, department, head_doctor
+    ):
+        tr = create_treatment(
+            doctor=doctor,
+            patient=patient,
+            department=department,
+            price=Decimal("100000.00"),
+            created_by=head_doctor,
+        )
+        # 1. Pay in full -> Commission created
+        p = record_payment(
+            treatment=tr,
+            amount=Decimal("100000.00"),
+            received_by=head_doctor,
+        )
+        assert CommissionRecord.objects.filter(treatment=tr).exists()
+
+        # 2. Void payment -> Commission deleted
+        void_payment(payment=p)
+        assert not CommissionRecord.objects.filter(treatment=tr).exists()
+
+
+
 
