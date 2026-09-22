@@ -1,4 +1,4 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from .models import AuditLog
 
 class AuditLogSerializer(serializers.ModelSerializer):
@@ -17,5 +17,5 @@ from .models import ClinicSettings
 class ClinicSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClinicSettings
-        fields = ['id', 'name', 'inn', 'address']
+        fields = ['id', 'name', 'inn', 'address', 'phone']
 

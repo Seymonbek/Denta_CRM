@@ -79,6 +79,7 @@ export function PayrollFeature() {
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
     isDoctor && myDoctorProfile ? myDoctorProfile.id : ''
   )
+  const [activeTab, setActiveTab] = useState<string>('doctors')
   const [selectedDoctorForPayout, setSelectedDoctorForPayout] = useState<DoctorBalance | null>(null)
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all')
 
@@ -95,9 +96,11 @@ export function PayrollFeature() {
   const [statementPageSize, setStatementPageSize] = useState(10)
 
   const effectiveDoctorId = isDoctor ? myDoctorProfile?.id || selectedDoctorId : selectedDoctorId
-  const { data: commissionsData = [] } = useDoctorCommissions(effectiveDoctorId)
+  const { data: commissionsData = [], isLoading: isCommissionsLoading } = useDoctorCommissions(effectiveDoctorId)
   const commissions: any[] = Array.isArray(commissionsData) ? commissionsData : []
   const { data: summary } = useDoctorCommissionSummary(effectiveDoctorId)
+  const selectedDoctor = balances.find((b: DoctorBalance) => b.id === selectedDoctorId)
+
 
   // Find active selected doctor object for statements/printing
   const currentSelectedDoc = useMemo(() => {
@@ -627,11 +630,15 @@ export function PayrollFeature() {
           </Card>
         ) : (
           /* Head Doctor & Admin View: All Doctors Table + Statement Viewer */
-          <Tabs defaultValue="doctors" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <TabsList>
                 <TabsTrigger value="doctors">Shifokorlar Balansi</TabsTrigger>
-                {selectedDoctorId && <TabsTrigger value="statement">Shifokor Tafsiloti (Tarix)</TabsTrigger>}
+                {selectedDoctorId && (
+                  <TabsTrigger value="statement">
+                    {selectedDoctor ? `${selectedDoctor.firstName} ${selectedDoctor.lastName} (Tafsilot)` : 'Shifokor Tafsiloti'}
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               <div className="flex items-center gap-2">
@@ -718,11 +725,15 @@ export function PayrollFeature() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="h-8 text-xs"
-                                      onClick={() => setSelectedDoctorId(doc.id)}
+                                      className="h-8 text-xs hover:bg-primary hover:text-primary-foreground transition-colors"
+                                      onClick={() => {
+                                        setSelectedDoctorId(doc.id)
+                                        setActiveTab('statement')
+                                      }}
                                     >
                                       <Eye className="w-3.5 h-3.5 mr-1" /> Ko'rish
                                     </Button>
+
                                     {(isHeadDoctor || isAdministrator) && (
                                       <Button
                                         variant="default"
@@ -820,7 +831,7 @@ export function PayrollFeature() {
                         variant="outline"
                         size="sm"
                         className="h-8 text-xs"
-                        onClick={() => setSelectedDoctorId('')}
+                        onClick={() => setActiveTab('doctors')}
                       >
                         Orqaga
                       </Button>
@@ -897,6 +908,7 @@ export function PayrollFeature() {
               </TabsContent>
             )}
           </Tabs>
+
         )}
       </Main>
 

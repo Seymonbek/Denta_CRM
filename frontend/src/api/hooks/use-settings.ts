@@ -6,7 +6,9 @@ export interface ClinicSettings {
   name: string;
   inn: string;
   address: string;
+  phone?: string;
 }
+
 
 export const useSettings = () => {
   return useQuery({

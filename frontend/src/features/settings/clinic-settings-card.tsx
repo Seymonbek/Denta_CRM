@@ -13,6 +13,7 @@ export function ClinicSettingsCard() {
   const [name, setName] = useState('')
   const [inn, setInn] = useState('')
   const [address, setAddress] = useState('')
+  const [phone, setPhone] = useState('')
 
   useEffect(() => {
     if (settings) {
@@ -20,13 +21,14 @@ export function ClinicSettingsCard() {
       setName(settings.name || '')
       setInn(settings.inn || '')
       setAddress(settings.address || '')
+      setPhone(settings.phone || '')
     }
   }, [settings])
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await updateSettingsMutation.mutateAsync({ name, inn, address })
+      await updateSettingsMutation.mutateAsync({ name, inn, address, phone })
       toast.success("Klinika ma'lumotlari saqlandi!")
     } catch {
       toast.error("Saqlashda xatolik yuz berdi.")
@@ -48,14 +50,25 @@ export function ClinicSettingsCard() {
           <p className="text-sm">Yuklanmoqda...</p>
         ) : (
           <form onSubmit={handleUpdate} className='space-y-4'>
-            <div className='space-y-1'>
-              <label className='text-xs font-medium'>Klinika Nomi *</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder='Masalan: DentaMed MChJ'
-                required
-              />
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+              <div className='space-y-1'>
+                <label className='text-xs font-medium'>Klinika Nomi *</label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder='Masalan: DentaMed MChJ'
+                  required
+                />
+              </div>
+              <div className='space-y-1'>
+                <label className='text-xs font-medium'>Telefon Raqami *</label>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder='+998 90 123 45 67'
+                  required
+                />
+              </div>
             </div>
 
             <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
@@ -87,4 +100,5 @@ export function ClinicSettingsCard() {
       </CardContent>
     </Card>
   )
+
 }

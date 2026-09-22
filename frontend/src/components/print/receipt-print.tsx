@@ -1,6 +1,7 @@
 import { forwardRef } from 'react'
 import { format } from 'date-fns'
 import { type PaymentMethod } from '@/types/api'
+import { useSettings } from '@/api/hooks/use-settings'
 
 interface ReceiptPrintProps {
   payment: any
@@ -17,6 +18,13 @@ const METHOD_LABELS: Record<PaymentMethod | string, string> = {
 export const ReceiptPrint = forwardRef<HTMLDivElement, ReceiptPrintProps>(
   ({ payment }, ref) => {
     if (!payment) return null
+
+    const { data: settings } = useSettings()
+
+    const clinicName = settings?.name || 'DentaCRM'
+    const clinicAddress = settings?.address || 'Toshkent shahar'
+    const clinicPhone = settings?.phone || '+998 90 123 45 67'
+    const clinicInn = settings?.inn || ''
 
     const pMethod = String(payment.method || payment.paymentMethod || payment.payment_method || '')
     const amount = Number(payment.amount || 0).toLocaleString()
@@ -53,10 +61,12 @@ export const ReceiptPrint = forwardRef<HTMLDivElement, ReceiptPrintProps>(
       >
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', letterSpacing: '1px' }}>«DENTA CRM»</h2>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', letterSpacing: '1px' }}>«{clinicName.toUpperCase()}»</h2>
           <p style={{ margin: '2px 0 0', fontSize: '10px', textTransform: 'uppercase' }}>Stomatologiya Markazi</p>
-          <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#333' }}>STIR: 308912456 | Tel: +998 71 200 00 00</p>
-          <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#333' }}>Toshkent sh., Markaziy filial</p>
+          <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#333' }}>
+            {clinicInn ? `STIR: ${clinicInn} | ` : ''}Tel: {clinicPhone}
+          </p>
+          <p style={{ margin: '1px 0 0', fontSize: '9px', color: '#333' }}>{clinicAddress}</p>
         </div>
 
         <div style={{ borderBottom: '1px dashed #000', margin: '8px 0' }} />

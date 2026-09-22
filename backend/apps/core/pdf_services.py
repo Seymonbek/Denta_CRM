@@ -13,6 +13,7 @@ def generate_payment_receipt_html(payment_data: dict[str, Any]) -> str:
     clinic_name = clinic_settings.name if clinic_settings else "DentaCRM Stomatologiya"
     clinic_inn = clinic_settings.inn if clinic_settings else "123456789"
     clinic_address = clinic_settings.address if clinic_settings else "Toshkent sh., Yunusobod t."
+    clinic_phone = clinic_settings.phone if clinic_settings and clinic_settings.phone else "+998 90 123 45 67"
 
     receipt_no = str(payment_data.get("id", ""))[:8].upper()
     amount = Decimal(str(payment_data.get("amount", "0.00")))
@@ -159,8 +160,9 @@ def generate_payment_receipt_html(payment_data: dict[str, Any]) -> str:
         <div class="header">
             <h1>🦷 {clinic_name}</h1>
             <p>Rasmiy To'lov Kvitansiyasi / Chek</p>
-            <p style="margin-top: 4px;">INN: {clinic_inn} | {clinic_address}</p>
+            <p style="margin-top: 4px;">INN: {clinic_inn} | Tel: {clinic_phone} | {clinic_address}</p>
         </div>
+
         <div class="details">
             <div class="details-row"><strong>Chek №:</strong> <span>#{receipt_no}</span></div>
             <div class="details-row"><strong>Sana:</strong> <span>{date_str}</span></div>
@@ -192,7 +194,10 @@ def generate_treatment_act_html(treatment_data: dict[str, Any]) -> str:
     clinic_inn = clinic_settings.inn if clinic_settings else "123456789"
     clinic_address = clinic_settings.address if clinic_settings else "Toshkent sh., Yunusobod t."
 
+    clinic_phone = clinic_settings.phone if clinic_settings and clinic_settings.phone else "+998 90 123 45 67"
+
     act_no = str(treatment_data.get("id", ""))[:8].upper()
+
     patient_name = treatment_data.get("patient_name", "Bemor")
     doctor_name = treatment_data.get("doctor_name", "Shifokor")
     procedure_name = treatment_data.get("procedure_name", "Muolaja")
@@ -347,9 +352,10 @@ def generate_treatment_act_html(treatment_data: dict[str, Any]) -> str:
     <div class="container">
         <div class="header">
             <div>
-                <h1>🦷 DentaCRM Stomatologiya</h1>
-                <span style="font-size: 12px; color: #64748b;">Davolash Muolajasi Dalolatnomasi</span>
+                <h1>🦷 {clinic_name}</h1>
+                <span style="font-size: 12px; color: #64748b;">Davolash Muolajasi Dalolatnomasi | Tel: {clinic_phone}</span>
             </div>
+
             <div style="text-align: right; font-size: 12px; color: #64748b;">
                 <strong>№:</strong> #{act_no}<br>
                 <strong>Sana:</strong> {date_str}

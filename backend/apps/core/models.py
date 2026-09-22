@@ -70,6 +70,7 @@ class ClinicSettings(BaseModel):
     name = models.CharField(max_length=255, default="DentaCRM Stomatologiya")
     inn = models.CharField(max_length=50, blank=True, null=True, default="123456789")
     address = models.CharField(max_length=500, blank=True, null=True, default="Toshkent sh., Yunusobod t.")
+    phone = models.CharField(max_length=50, blank=True, null=True, default="+998 90 123 45 67")
     
     class Meta:
         verbose_name = _("Klinika Sozlamalari")
@@ -77,3 +78,4 @@ class ClinicSettings(BaseModel):
 
     def __str__(self) -> str:
         return self.name
+
