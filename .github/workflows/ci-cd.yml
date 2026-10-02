@@ -74,7 +74,7 @@ jobs:
         with:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USERNAME || 'ubuntu' }}
-          key: ${{ secrets.AWS_SSH_KEY }}
+          key: ${{ secrets.AWS_SSH_KEY || secrets.DENTA }}
           port: ${{ secrets.AWS_PORT || 22 }}
           script_stop: true
           command_timeout: 15m
