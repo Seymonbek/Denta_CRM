@@ -88,7 +88,6 @@ def build_router():
         phone_raw = getattr(contact, "phone_number", "") or ""
         chat_id = getattr(message.chat, "id", None)
 
-        result = await sync_to_async(_link_staff_chat)(phone_raw, chat_id)
         result = await sync_to_async(_link_staff_chat, thread_sensitive=False)(phone_raw, chat_id)
         if result["status"] == "ok":
             await state.clear()
