@@ -162,6 +162,33 @@ services:
         limits:
           memory: 128M
 
+  # ---------------------------------------------------------------------------
+  # Telegram Bot (Aiogram 3 Dispatcher)
+  # ---------------------------------------------------------------------------
+  telegram_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: dentacrm_telegram_bot
+    restart: unless-stopped
+    command: python manage.py run_telegram_bot
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      DATABASE_URL: postgres://${POSTGRES_USER:-dentacrm}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-dentacrm}
+      REDIS_URL: redis://redis:6379/0
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
 volumes:
   postgres_data:
   redis_data:
