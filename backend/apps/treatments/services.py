@@ -42,7 +42,18 @@ from apps.inventory.services import record_usage
 from apps.patients.models import Patient
 from apps.scheduling.models import Appointment, AppointmentStatus
 
-from .models import PaymentStatus, PhotoType, Treatment, TreatmentPhoto, TreatmentStage
+from .models import (
+    ICD10Diagnosis,
+    PaymentStatus,
+    PhotoType,
+    PlanItemStatus,
+    PlanStatus,
+    Treatment,
+    TreatmentPhoto,
+    TreatmentPlan,
+    TreatmentPlanItem,
+    TreatmentStage,
+)
 
 User = get_user_model()
 
@@ -338,8 +349,12 @@ def create_treatment(
     procedure_type: Any = None,
     appointment: Any = None,
     diagnosis: str = "",
+    icd_code: str = "",
+    icd_diagnosis: Any = None,
+    plan_item: Any = None,
     description: str = "",
     price: Any = None,
+    surfaces: list[str] | None = None,
     payment_status: str = PaymentStatus.UNPAID,
     stage: str = TreatmentStage.IN_PROGRESS,
     created_by: Any = None,
@@ -359,10 +374,11 @@ def create_treatment(
         appointment=appointment_obj,
     )
 
-    # Default price from procedure type when omitted.
+    # Default price from procedure type + extra surfaces when omitted
     original_price = Decimal("0.00")
     if procedure_obj is not None:
-        original_price = Decimal(procedure_obj.default_price)
+        from apps.doctors.services import calculate_procedure_price
+        original_price = calculate_procedure_price(procedure_obj, surfaces)
 
     if price in (None, "") and procedure_obj is not None:
         resolved_price = original_price
@@ -391,13 +407,38 @@ def create_treatment(
     if resolved_stage == TreatmentStage.COMPLETED and approval_status == Treatment.ApprovalStatus.PENDING:
         raise ValidationError({"stage": ["Tasdiqlanmagan chegirma bilan muolajani yakunlab bo'lmaydi."]})
 
+    # Resolve ICD-10 diagnosis
+    icd_obj = None
+    if icd_diagnosis is not None:
+        if isinstance(icd_diagnosis, ICD10Diagnosis):
+            icd_obj = icd_diagnosis
+        else:
+            icd_obj = ICD10Diagnosis.objects.filter(pk=icd_diagnosis).first()
+    elif icd_code:
+        icd_obj = ICD10Diagnosis.objects.filter(code__iexact=str(icd_code).strip()).first()
+
+    resolved_icd_code = (icd_code or (icd_obj.code if icd_obj else "")).strip().upper()
+    resolved_diagnosis = _clean_text(diagnosis, max_length=500, field="diagnosis")
+    if not resolved_diagnosis and icd_obj:
+        resolved_diagnosis = f"{icd_obj.code} - {icd_obj.name_uz or icd_obj.name_ru}"
+
+    plan_item_obj = None
+    if plan_item is not None:
+        if isinstance(plan_item, TreatmentPlanItem):
+            plan_item_obj = plan_item
+        else:
+            plan_item_obj = TreatmentPlanItem.objects.filter(pk=plan_item).first()
+
     treatment = Treatment.objects.create(
         doctor=doctor_obj,
         patient=patient_obj,
         department=department_obj,
         procedure_type=procedure_obj,
         appointment=appointment_obj,
-        diagnosis=_clean_text(diagnosis, max_length=500, field="diagnosis"),
+        icd_code=resolved_icd_code,
+        icd_diagnosis=icd_obj,
+        plan_item=plan_item_obj,
+        diagnosis=resolved_diagnosis,
         description=_clean_text(
             description, max_length=10_000, field="description"
         ),
@@ -415,6 +456,18 @@ def create_treatment(
         created_by=created_by if isinstance(created_by, User) else None,
         is_active=True,
     )
+
+    if resolved_stage == TreatmentStage.COMPLETED and plan_item_obj is not None:
+        plan_item_obj.status = PlanItemStatus.COMPLETED
+        plan_item_obj.completed_treatment = treatment
+        plan_item_obj.save(update_fields=["status", "completed_treatment", "updated_at"])
+        plan = plan_item_obj.plan
+        if not plan.items.filter(is_active=True).exclude(status=PlanItemStatus.COMPLETED).exists():
+            plan.status = PlanStatus.COMPLETED
+            plan.save(update_fields=["status", "updated_at"])
+        elif plan.status in (PlanStatus.ACCEPTED, PlanStatus.PROPOSED, PlanStatus.DRAFT):
+            plan.status = PlanStatus.IN_PROGRESS
+            plan.save(update_fields=["status", "updated_at"])
 
     if resolved_stage == TreatmentStage.COMPLETED and procedure_obj is not None:
         boms = ProcedureBOM.objects.filter(procedure_type=procedure_obj, is_active=True)
@@ -458,6 +511,9 @@ def update_treatment(
     treatment: Treatment,
     *,
     diagnosis: str | None = None,
+    icd_code: str | None = None,
+    icd_diagnosis: Any = ...,
+    plan_item: Any = ...,
     description: str | None = None,
     price: Any = ...,
     payment_status: str | None = None,
@@ -473,6 +529,33 @@ def update_treatment(
             diagnosis, max_length=500, field="diagnosis"
         )
         update_fields.append("diagnosis")
+
+    if icd_code is not None:
+        treatment.icd_code = (icd_code or "").strip().upper()
+        update_fields.append("icd_code")
+        if icd_diagnosis is ...:
+            found = ICD10Diagnosis.objects.filter(code__iexact=treatment.icd_code).first()
+            if found:
+                treatment.icd_diagnosis = found
+                update_fields.append("icd_diagnosis")
+
+    if icd_diagnosis is not ...:
+        if icd_diagnosis is None:
+            treatment.icd_diagnosis = None
+        elif isinstance(icd_diagnosis, ICD10Diagnosis):
+            treatment.icd_diagnosis = icd_diagnosis
+        else:
+            treatment.icd_diagnosis = ICD10Diagnosis.objects.filter(pk=icd_diagnosis).first()
+        update_fields.append("icd_diagnosis")
+
+    if plan_item is not ...:
+        if plan_item is None:
+            treatment.plan_item = None
+        elif isinstance(plan_item, TreatmentPlanItem):
+            treatment.plan_item = plan_item
+        else:
+            treatment.plan_item = TreatmentPlanItem.objects.filter(pk=plan_item).first()
+        update_fields.append("plan_item")
 
     if description is not None:
         treatment.description = _clean_text(
@@ -589,6 +672,18 @@ def update_treatment(
         
         # Trigger notification and appointment sync if it was just completed
         if "stage" in update_fields and treatment.stage == TreatmentStage.COMPLETED:
+            if treatment.plan_item:
+                treatment.plan_item.status = PlanItemStatus.COMPLETED
+                treatment.plan_item.completed_treatment = treatment
+                treatment.plan_item.save(update_fields=["status", "completed_treatment", "updated_at"])
+                plan = treatment.plan_item.plan
+                if not plan.items.filter(is_active=True).exclude(status=PlanItemStatus.COMPLETED).exists():
+                    plan.status = PlanStatus.COMPLETED
+                    plan.save(update_fields=["status", "updated_at"])
+                elif plan.status in (PlanStatus.ACCEPTED, PlanStatus.PROPOSED, PlanStatus.DRAFT):
+                    plan.status = PlanStatus.IN_PROGRESS
+                    plan.save(update_fields=["status", "updated_at"])
+
             if treatment.appointment and treatment.appointment.status != AppointmentStatus.COMPLETED:
                 treatment.appointment.status = AppointmentStatus.COMPLETED
                 treatment.appointment.save(update_fields=["status", "updated_at"])
@@ -642,12 +737,7 @@ def upload_treatment_photo(
     caption: str = "",
     uploaded_by: Any = None,
 ) -> TreatmentPhoto:
-    """Attach a before/after/x-ray photo to ``treatment``.
-
-    T130 — validates the incoming file for MIME type, extension, size,
-    and Pillow-openable bytes before it hits storage. See
-    :func:`_validate_photo_upload`.
-    """
+    """Attach a before/after/x-ray photo to ``treatment``."""
     if image in (None, ""):
         raise ValidationError({"image": ["Rasm fayli majburiy."]})
 
@@ -674,12 +764,212 @@ def soft_delete_photo(photo: TreatmentPhoto) -> TreatmentPhoto:
     return photo
 
 
+# ---------------------------------------------------------------------------
+# Public API — TreatmentPlan & TreatmentPlanItem
+# ---------------------------------------------------------------------------
+def _to_decimal(value: Any, *, field: str) -> Decimal:
+    if value is None:
+        raise ValidationError({field: [f"{field} majburiy."]})
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except Exception as exc:
+        raise ValidationError({field: [f"{field} noto'g'ri son."]}) from exc
+
+
+@transaction.atomic
+def create_treatment_plan(
+    *,
+    patient: Any,
+    doctor: Any,
+    title: str = "Kompleks davolash rejasi",
+    status: str = PlanStatus.PROPOSED,
+    notes: str = "",
+    discount_percent: Any = Decimal("0.00"),
+    items_data: list[dict[str, Any]] | None = None,
+    created_by: Any = None,
+) -> TreatmentPlan:
+    patient_obj = _resolve_patient(patient)
+    doctor_obj = _resolve_doctor(doctor)
+    disc = _to_decimal(discount_percent, field="discount_percent") if discount_percent not in (None, "") else Decimal("0.00")
+    if disc < Decimal("0.00") or disc > Decimal("100.00"):
+        raise ValidationError({"discount_percent": ["Chegirma foizi 0..100 oralig'ida bo'lishi kerak."]})
+
+    plan = TreatmentPlan.objects.create(
+        patient=patient_obj,
+        doctor=doctor_obj,
+        title=_clean_text(title, max_length=250, field="title") or "Kompleks davolash rejasi",
+        status=_clean_choice(status, choices=PlanStatus, field="status", default=PlanStatus.PROPOSED),
+        notes=(notes or "").strip(),
+        discount_percent=disc,
+        created_by=created_by if isinstance(created_by, User) else None,
+        is_active=True,
+    )
+
+    if items_data:
+        for idx, item in enumerate(items_data, start=1):
+            create_treatment_plan_item(
+                plan=plan,
+                title=item.get("title", f"Bosqich {idx}"),
+                tooth_number=item.get("tooth_number") or item.get("toothNumber"),
+                procedure_type=item.get("procedure_type") or item.get("procedureTypeId") or item.get("procedureType"),
+                order=item.get("order", idx),
+                estimated_price=item.get("estimated_price") or item.get("estimatedPrice", Decimal("0.00")),
+                status=item.get("status", PlanItemStatus.PLANNED),
+                notes=item.get("notes", ""),
+            )
+
+    return plan
+
+
+@transaction.atomic
+def update_treatment_plan(
+    plan: TreatmentPlan,
+    *,
+    title: str | None = None,
+    status: str | None = None,
+    notes: str | None = None,
+    discount_percent: Any = None,
+) -> TreatmentPlan:
+    update_fields: list[str] = []
+    if title is not None:
+        plan.title = _clean_text(title, max_length=250, field="title")
+        update_fields.append("title")
+    if status is not None:
+        plan.status = _clean_choice(status, choices=PlanStatus, field="status")
+        update_fields.append("status")
+    if notes is not None:
+        plan.notes = (notes or "").strip()
+        update_fields.append("notes")
+    if discount_percent is not None:
+        disc = _to_decimal(discount_percent, field="discount_percent")
+        if disc < Decimal("0.00") or disc > Decimal("100.00"):
+            raise ValidationError({"discount_percent": ["Chegirma foizi 0..100 oralig'ida bo'lishi kerak."]})
+        plan.discount_percent = disc
+        update_fields.append("discount_percent")
+
+    if update_fields:
+        update_fields.append("updated_at")
+        plan.save(update_fields=update_fields)
+    return plan
+
+
+@transaction.atomic
+def soft_delete_treatment_plan(plan: TreatmentPlan) -> TreatmentPlan:
+    if plan.is_active:
+        plan.is_active = False
+        plan.save(update_fields=["is_active", "updated_at"])
+    return plan
+
+
+@transaction.atomic
+def create_treatment_plan_item(
+    *,
+    plan: TreatmentPlan,
+    title: str,
+    tooth_number: int | None = None,
+    procedure_type: Any = None,
+    order: int = 1,
+    estimated_price: Any = Decimal("0.00"),
+    status: str = PlanItemStatus.PLANNED,
+    notes: str = "",
+) -> TreatmentPlanItem:
+    proc_obj = _resolve_procedure_type(procedure_type) if procedure_type else None
+    price = _to_decimal(estimated_price, field="estimated_price") if estimated_price not in (None, "") else Decimal("0.00")
+    if price < Decimal("0.00"):
+        raise ValidationError({"estimated_price": ["Narx manfiy bo'lishi mumkin emas."]})
+
+    if price == Decimal("0.00") and proc_obj is not None:
+        price = Decimal(proc_obj.default_price or "0.00")
+
+    item = TreatmentPlanItem.objects.create(
+        plan=plan,
+        tooth_number=int(tooth_number) if tooth_number else None,
+        procedure_type=proc_obj,
+        order=int(order) if order else 1,
+        title=_clean_text(title, max_length=250, field="title"),
+        estimated_price=price,
+        status=_clean_choice(status, choices=PlanItemStatus, field="status", default=PlanItemStatus.PLANNED),
+        notes=(notes or "").strip(),
+        is_active=True,
+    )
+    return item
+
+
+@transaction.atomic
+def update_treatment_plan_item(
+    item: TreatmentPlanItem,
+    *,
+    title: str | None = None,
+    tooth_number: Any = "__unset__",
+    procedure_type: Any = "__unset__",
+    order: int | None = None,
+    estimated_price: Any = None,
+    status: str | None = None,
+    notes: str | None = None,
+    completed_treatment: Any = "__unset__",
+) -> TreatmentPlanItem:
+    update_fields: list[str] = []
+    if title is not None:
+        item.title = _clean_text(title, max_length=250, field="title")
+        update_fields.append("title")
+    if tooth_number != "__unset__":
+        item.tooth_number = int(tooth_number) if tooth_number else None
+        update_fields.append("tooth_number")
+    if procedure_type != "__unset__":
+        item.procedure_type = _resolve_procedure_type(procedure_type) if procedure_type else None
+        update_fields.append("procedure_type")
+    if order is not None:
+        item.order = int(order)
+        update_fields.append("order")
+    if estimated_price is not None:
+        price = _to_decimal(estimated_price, field="estimated_price")
+        if price < Decimal("0.00"):
+            raise ValidationError({"estimated_price": ["Narx manfiy bo'lishi mumkin emas."]})
+        item.estimated_price = price
+        update_fields.append("estimated_price")
+    if status is not None:
+        item.status = _clean_choice(status, choices=PlanItemStatus, field="status")
+        update_fields.append("status")
+    if notes is not None:
+        item.notes = (notes or "").strip()
+        update_fields.append("notes")
+    if completed_treatment != "__unset__":
+        if completed_treatment is None:
+            item.completed_treatment = None
+        elif isinstance(completed_treatment, Treatment):
+            item.completed_treatment = completed_treatment
+        else:
+            item.completed_treatment = Treatment.objects.filter(pk=completed_treatment).first()
+        update_fields.append("completed_treatment")
+
+    if update_fields:
+        update_fields.append("updated_at")
+        item.save(update_fields=update_fields)
+    return item
+
+
+@transaction.atomic
+def soft_delete_treatment_plan_item(item: TreatmentPlanItem) -> TreatmentPlanItem:
+    if item.is_active:
+        item.is_active = False
+        item.save(update_fields=["is_active", "updated_at"])
+    return item
+
+
 __all__ = [
     "create_treatment",
     "update_treatment",
     "soft_delete_treatment",
     "upload_treatment_photo",
     "soft_delete_photo",
+    "create_treatment_plan",
+    "update_treatment_plan",
+    "soft_delete_treatment_plan",
+    "create_treatment_plan_item",
+    "update_treatment_plan_item",
+    "soft_delete_treatment_plan_item",
     "ALLOWED_PHOTO_MIME_TYPES",
     "ALLOWED_PHOTO_EXTENSIONS",
     "DENIED_PHOTO_MIME_TYPES",

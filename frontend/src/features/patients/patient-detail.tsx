@@ -15,6 +15,7 @@ import { getTreatmentsApi } from '@/api/treatments'
 import { savePatientOdontogramApi } from '@/api/patients'
 import { ActiveTreatmentSession } from '@/components/treatment-session/active-treatment-session'
 import { DentalRecord025 } from '@/components/print/dental-record-025'
+import { PatientTreatmentPlansTab } from './patient-treatment-plans-tab'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -380,6 +381,12 @@ export function PatientDetail() {
               🦷 Odontogram (Tish Xaritasi)
             </TabsTrigger>
             <TabsTrigger
+              value='treatment-plans'
+              className='data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent px-4 py-2 text-xs font-semibold'
+            >
+              📋 Davolash Rejasi (Smeta)
+            </TabsTrigger>
+            <TabsTrigger
               value='timeline'
               className='data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent px-4 py-2 text-xs font-semibold'
             >
@@ -409,6 +416,13 @@ export function PatientDetail() {
               toothRecords={toothRecords} 
               readOnly={false}
               onSaveRecord={handleSaveToothRecord} 
+            />
+          </TabsContent>
+
+          <TabsContent value='treatment-plans' className='pt-2'>
+            <PatientTreatmentPlansTab
+              patientId={id}
+              patientName={`${patient.lastName} ${patient.firstName}`}
             />
           </TabsContent>
 

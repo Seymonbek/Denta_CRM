@@ -56,6 +56,11 @@ from apps.ratings.urls import (
 from apps.ratings.urls import (
     leaderboard_urlpatterns as ratings_leaderboard_urls,
 )
+from apps.treatments.urls import (
+    icd10_urlpatterns,
+    treatment_plan_item_urlpatterns,
+    treatment_plan_urlpatterns,
+)
 
 
 def healthcheck(_request):
@@ -96,6 +101,18 @@ api_v1_patterns: list = [
     ),
     path("appointments/", include("apps.scheduling.urls", namespace="scheduling")),
     path("treatments/", include("apps.treatments.urls", namespace="treatments")),
+    path(
+        "treatment-plans/",
+        include((treatment_plan_urlpatterns, "treatment-plans")),
+    ),
+    path(
+        "treatment-plan-items/",
+        include((treatment_plan_item_urlpatterns, "treatment-plan-items")),
+    ),
+    path(
+        "icd10-diagnoses/",
+        include((icd10_urlpatterns, "icd10-diagnoses")),
+    ),
     # ``/api/v1/treatments/{id}/prescription/`` — POST issues a retsept.
     # Mounted *before* the treatments viewset router in DRF terms so the
     # named route wins; DRF routers match by full path so order-safe here.

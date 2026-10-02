@@ -408,6 +408,9 @@ class ProcedureTypeSerializer(serializers.ModelSerializer):
     default_price = serializers.DecimalField(
         max_digits=12, decimal_places=2, required=False
     )
+    price_per_surface = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False
+    )
     commission_rate_override = serializers.DecimalField(
         max_digits=5, decimal_places=2, required=False, allow_null=True
     )
@@ -421,6 +424,7 @@ class ProcedureTypeSerializer(serializers.ModelSerializer):
             "department_id",
             "default_duration_minutes",
             "default_price",
+            "price_per_surface",
             "commission_rate_override",
             "is_active",
         )
@@ -429,7 +433,7 @@ class ProcedureTypeSerializer(serializers.ModelSerializer):
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         request = self.context.get("request")
         if request and getattr(request.user, "role", None) != "bosh_shifokor":
-            forbidden_keys = {"default_price", "commission_rate_override", "is_active"}
+            forbidden_keys = {"default_price", "price_per_surface", "commission_rate_override", "is_active"}
             if any(k in attrs for k in forbidden_keys):
                 raise serializers.ValidationError("Ushbu amaliyotni faqat Bosh Shifokor bajara oladi")
         return super().validate(attrs)
@@ -438,6 +442,7 @@ class ProcedureTypeSerializer(serializers.ModelSerializer):
         "departmentId": "department_id",
         "defaultDurationMinutes": "default_duration_minutes",
         "defaultPrice": "default_price",
+        "pricePerSurface": "price_per_surface",
         "commissionRateOverride": "commission_rate_override",
         "isActive": "is_active",
     }
@@ -460,6 +465,7 @@ class ProcedureTypeSerializer(serializers.ModelSerializer):
             },
             "defaultDurationMinutes": instance.default_duration_minutes,
             "defaultPrice": _dec_to_str(instance.default_price),
+            "pricePerSurface": _dec_to_str(instance.price_per_surface),
             "commissionRateOverride": _dec_to_str(instance.commission_rate_override),
             "isActive": instance.is_active,
             "createdAt": instance.created_at.isoformat() if instance.created_at else None,
@@ -477,6 +483,7 @@ class ProcedureTypeSerializer(serializers.ModelSerializer):
                     "default_duration_minutes", 30
                 ),
                 default_price=validated_data.get("default_price", Decimal("0.00")),
+                price_per_surface=validated_data.get("price_per_surface", Decimal("0.00")),
                 commission_rate_override=validated_data.get(
                     "commission_rate_override"
                 ),
@@ -503,6 +510,7 @@ class ProcedureTypeSerializer(serializers.ModelSerializer):
                     "default_duration_minutes"
                 ),
                 default_price=validated_data.get("default_price"),
+                price_per_surface=validated_data.get("price_per_surface"),
                 commission_rate_override=override_sentinel,
                 is_active=validated_data.get("is_active"),
             )

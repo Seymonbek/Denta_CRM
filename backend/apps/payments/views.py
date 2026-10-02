@@ -633,8 +633,16 @@ class DoctorBalancesView(APIView):
 class SalaryPaymentCreateSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.01"))
     method = serializers.ChoiceField(choices=PaymentMethod.choices, default=PaymentMethod.CASH)
-    shift_id = serializers.IntegerField(required=True)
+    shift_id = serializers.CharField(required=False, allow_null=True)
+    shiftId = serializers.CharField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        shift = attrs.get("shift_id") or attrs.get("shiftId")
+        if not shift:
+            raise serializers.ValidationError({"shiftId": ["Kassa smenasi ko'rsatilishi shart."]})
+        attrs["shift_id"] = shift
+        return attrs
 
 
 class SalaryPaymentCreateView(APIView, IdempotencyMixin):

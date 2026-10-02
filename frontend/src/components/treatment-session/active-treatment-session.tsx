@@ -14,7 +14,7 @@ import {
   Stethoscope,
   ShieldAlert
 } from 'lucide-react'
-import { useUpdateTreatment, useUploadTreatmentPhoto, useTreatment } from '@/api/hooks/use-treatments'
+import { useUpdateTreatment, useUploadTreatmentPhoto, useTreatment, useICD10Diagnoses, useTreatmentPlans } from '@/api/hooks/use-treatments'
 import { useUpdateAppointment, useCreateAppointment } from '@/api/hooks/use-appointments'
 import { usePrescriptions, useIssuePrescription, usePrescriptionTemplates } from '@/api/hooks/use-prescriptions'
 import { useProcedureTypes } from '@/api/hooks/use-procedure-types'
@@ -49,6 +49,14 @@ const TOOTH_STATUS_STYLES: Record<ToothStatus, { bg: string; text: string; label
   planned: { bg: 'bg-amber-500/10 hover:bg-amber-500/20', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-300 dark:border-amber-700', label: 'Rejalashtirilgan' },
   missing: { bg: 'bg-rose-500/10 hover:bg-rose-500/20', text: 'text-rose-700 dark:text-rose-400 line-through', border: 'border-rose-300 dark:border-rose-700', label: "Yo'q" },
 }
+
+export const TOOTH_SURFACES = [
+  { code: 'M', name: 'Mezial (M)', desc: 'Oldingi yuza' },
+  { code: 'O', name: 'Okkluzal (O)', desc: 'Chaynash yuzasi' },
+  { code: 'D', name: 'Distal (D)', desc: 'Orqa yuza' },
+  { code: 'B', name: 'Bukkal (B)', desc: 'Vestibulyar yuza' },
+  { code: 'L', name: 'Lingval (L)', desc: 'Til / Tanglay yuzasi' },
+]
 
 interface ActiveTreatmentSessionProps {
   treatmentId: string
@@ -104,10 +112,35 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
 
   // Form states
   const [selectedTooth, setSelectedTooth] = useState<number | null>(16)
+  const [selectedSurfaces, setSelectedSurfaces] = useState<string[]>([])
   const [selectedProcedureId, setSelectedProcedureId] = useState<string>('')
   const [diagnosis, setDiagnosis] = useState(treatment?.diagnosis || '')
+  const [selectedIcdCode, setSelectedIcdCode] = useState<string>('')
+  const [isIcdModalOpen, setIsIcdModalOpen] = useState(false)
+  const [icdSearch, setIcdSearch] = useState('')
+  const { data: icdDiagnosesData = [] } = useICD10Diagnoses({ search: icdSearch || undefined })
+  const icdDiagnoses: any[] = Array.isArray(icdDiagnosesData) ? icdDiagnosesData : []
   const [description, setDescription] = useState(treatment?.description || '')
   const [price, setPrice] = useState(treatment?.price || '0.00')
+
+  // Treatment Plan (Smeta) Linking State
+  const { data: patientPlansData = [] } = useTreatmentPlans({ patient: resolvedPatientId })
+  const patientPlans: any[] = Array.isArray(patientPlansData) ? patientPlansData : []
+  const [selectedPlanItemId, setSelectedPlanItemId] = useState<string>('')
+
+  const activePlanItems = useMemo(() => {
+    const list: any[] = []
+    for (const plan of patientPlans) {
+      if (plan.status !== 'completed' && plan.status !== 'cancelled' && Array.isArray(plan.items)) {
+        for (const item of plan.items) {
+          if (item.status === 'planned' || item.status === 'in_progress') {
+            list.push({ ...item, planTitle: plan.title })
+          }
+        }
+      }
+    }
+    return list
+  }, [patientPlans])
 
   // Prescription UI State
   const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false)
@@ -160,6 +193,11 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
       if (procId && !selectedProcedureId) {
         setSelectedProcedureId(String(procId))
       }
+      const planItem = (treatment as any).planItemId || (treatment as any).plan_item_id || (treatment as any).plan_item
+      const planItemIdVal = typeof planItem === 'object' && planItem !== null ? planItem.id : planItem
+      if (planItemIdVal && !selectedPlanItemId) {
+        setSelectedPlanItemId(String(planItemIdVal))
+      }
     }
   }, [treatment])
 
@@ -170,6 +208,38 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
       localStorage.setItem(draftKey, JSON.stringify({ diagnosis, description, price, selectedTooth }))
     }
   }, [diagnosis, description, price, selectedTooth, treatmentId])
+
+  // Handle Plan Item Linking
+  const handleSelectPlanItem = async (planItemId: string) => {
+    setSelectedPlanItemId(planItemId)
+    const item = activePlanItems.find((p) => String(p.id) === String(planItemId))
+    if (!item) return
+
+    if (item.toothNumber) setSelectedTooth(item.toothNumber)
+    if (item.title) setDiagnosis(item.title)
+    if (item.estimatedPrice && Number(item.estimatedPrice) > 0) {
+      setPrice(String(item.estimatedPrice))
+    }
+    if (item.procedureType) {
+      const procId = typeof item.procedureType === 'object' ? item.procedureType.id : item.procedureType
+      setSelectedProcedureId(String(procId))
+    }
+
+    try {
+      await updateTreatment.mutateAsync({
+        id: treatmentId,
+        data: {
+          planItemId: planItemId,
+          diagnosis: item.title || diagnosis,
+          price: item.estimatedPrice || price,
+          procedureType: (typeof item.procedureType === 'object' ? item.procedureType.id : item.procedureType) || selectedProcedureId || undefined,
+        } as any
+      })
+      toast.success(`Davolash rejasi bandi biriktirildi: ${item.title}`)
+    } catch {
+      // ignore
+    }
+  }
 
   // Handle Procedure Type Selection with Auto-Price and Auto-BOM suggestions
   const handleSelectProcedure = async (procId: string) => {
@@ -220,6 +290,59 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
         const errMsg = _err?.response?.data?.procedure_type?.[0] || _err?.response?.data?.detail || "Muolajani saqlashda xatolik."
         toast.error(errMsg)
       }
+    }
+  }
+
+  const handleToggleSurface = async (surfCode: string) => {
+    const next = selectedSurfaces.includes(surfCode)
+      ? selectedSurfaces.filter(s => s !== surfCode)
+      : [...selectedSurfaces, surfCode]
+    setSelectedSurfaces(next)
+
+    // Dynamic price calculation based on price_per_surface
+    const proc = availableProcedures.find((p: any) => String(p.id) === String(selectedProcedureId))
+    let newPrice = price
+    if (proc && proc.defaultPrice) {
+      const basePrice = Number(proc.defaultPrice || 0)
+      const surfacePrice = Number(proc.pricePerSurface || proc.price_per_surface || 0)
+      const extraSurfaces = Math.max(0, next.length - 1)
+      const calculated = basePrice + (extraSurfaces * surfacePrice)
+      newPrice = String(calculated)
+      setPrice(newPrice)
+    }
+
+    try {
+      await updateTreatment.mutateAsync({
+        id: treatmentId,
+        data: {
+          surfaces: next,
+          price: newPrice,
+        } as any
+      })
+      toast.success(`Tish yuzalari yangilandi: ${next.join(', ') || "Tozalandi"}`)
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleSelectICD10 = async (diagItem: any) => {
+    setSelectedIcdCode(diagItem.code)
+    const codeWithTitle = `${diagItem.code} - ${diagItem.nameUz}`
+    const updatedDiag = diagnosis ? `${diagnosis} | ${codeWithTitle}` : codeWithTitle
+    setDiagnosis(updatedDiag)
+    setIsIcdModalOpen(false)
+
+    try {
+      await updateTreatment.mutateAsync({
+        id: treatmentId,
+        data: {
+          icdCode: diagItem.code,
+          diagnosis: updatedDiag,
+        } as any
+      })
+      toast.success(`XKT-10 tashxisi biriktirildi: ${diagItem.code}`)
+    } catch {
+      toast.error("Tashxisni saqlashda xatolik yuz berdi")
     }
   }
 
@@ -389,8 +512,9 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
           description, 
           price, 
           procedureType: selectedProcedureId || undefined,
+          planItemId: selectedPlanItemId || undefined,
           stage: 'completed' 
-        }
+        } as any
       })
 
       // 2. Update appointment status to completed if appointment ID exists
@@ -409,6 +533,7 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
       await queryClient.invalidateQueries({ queryKey: ['treatments'] })
       await queryClient.invalidateQueries({ queryKey: ['appointments'] })
       await queryClient.invalidateQueries({ queryKey: ['patients', resolvedPatientId] })
+      await queryClient.invalidateQueries({ queryKey: ['treatment-plans'] })
       toast.success("Qabul muvaffaqiyatli yakunlandi! Kassaga hisob uzatildi.")
       
       // Open Follow-up Appointment Modal
@@ -523,6 +648,36 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
         </div>
       )}
 
+      {/* Optional Treatment Plan Smeta Linking */}
+      {activePlanItems.length > 0 && (
+        <Card className="bg-primary/5 border-primary/20 shadow-xs mb-4">
+          <CardContent className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold flex items-center gap-1.5 text-primary">
+                <FileText className="w-3.5 h-3.5" /> Bemorning Davolash Rejasi (Smeta) bandini biriktirish
+              </span>
+              <p className="text-[11px] text-muted-foreground">
+                Ushbu muolajani oldindan tuzilgan rejaga bog'lang. Yakunlanganda rejadagi bosqich avtomatik ravishda bajarildi deb hisoblanadi.
+              </p>
+            </div>
+            <div className="w-full sm:w-80">
+              <Select value={selectedPlanItemId} onValueChange={handleSelectPlanItem} disabled={!canEditTreatment}>
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue placeholder="Rejadagi bandni tanlang..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-56">
+                  {activePlanItems.map((item) => (
+                    <SelectItem key={item.id} value={item.id} className="text-xs">
+                      {item.toothNumber ? `#${item.toothNumber} ` : ''}{item.title} ({Number(item.estimatedPrice || 0).toLocaleString()} so'm)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 1-QADAM: INTERAKTIV TISH XARITASI VA MUOLAJA KATALOGI */}
       <Card className="border-primary/20 shadow-sm overflow-hidden">
         <CardHeader className="bg-muted/30 pb-3">
@@ -620,6 +775,54 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
               </div>
             )}
           </div>
+
+          {/* Tish Yuzalari (MODBL Surfaces) Tanlash */}
+          {selectedTooth && canEditTreatment && (
+            <div className="pt-3 border-t bg-muted/20 p-3 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <span className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+                  Zararlangan Tish Yuzalari (MODBL)
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  Plomba yoki muolaja qilinadigan yuzalarni belgilang (narx avtomatik hisoblanadi).
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {TOOTH_SURFACES.map((surf) => {
+                  const isSelected = selectedSurfaces.includes(surf.code)
+                  return (
+                    <Button
+                      key={surf.code}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleToggleSurface(surf.code)}
+                      disabled={!canEditTreatment}
+                      className={`h-7 px-2.5 text-xs font-semibold ${isSelected ? 'bg-primary text-primary-foreground shadow-sm' : ''}`}
+                      title={surf.desc}
+                    >
+                      {surf.name}
+                    </Button>
+                  )
+                })}
+                {selectedSurfaces.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedSurfaces([])
+                      updateTreatment.mutate({ id: treatmentId, data: { surfaces: [] } as any })
+                    }}
+                    className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+                  >
+                    Tozalash
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -633,16 +836,38 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="diagnosis" className="text-xs">Tashxis (Diagnoz)</Label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="diagnosis" className="text-xs font-semibold">Tashxis (Diagnoz)</Label>
+                {canEditTreatment && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsIcdModalOpen(true)}
+                    className="h-6 px-2 text-[10px] font-bold text-primary border-primary/40 hover:bg-primary/10 gap-1"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    XKT-10 (ICD-10) Katalogi
+                  </Button>
+                )}
+              </div>
               <Input 
                 id="diagnosis" 
-                placeholder="Masalan: Tish #16 kariesi, Pulpit..." 
+                placeholder="Masalan: K02.1 Dentin kariesi, Tish #16..." 
                 className="h-8 text-xs font-medium"
                 value={diagnosis}
                 disabled={!canEditTreatment}
                 onChange={(_e) => setDiagnosis(_e.target.value)}
               />
+              {selectedIcdCode && (
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                  <Badge variant="secondary" className="text-[10px] font-mono font-bold bg-primary/10 text-primary border-primary/20">
+                    ICD: {selectedIcdCode}
+                  </Badge>
+                  <span>XKT-10 kodi biriktirilgan</span>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label htmlFor="description" className="text-xs">Bajarilgan Ishlar / Xulosa</Label>
@@ -1025,6 +1250,74 @@ export function ActiveTreatmentSession({ treatmentId, appointmentId, patientId }
             </Button>
             <Button size="sm" onClick={handleCreateFollowUp} disabled={createAppointment.isPending}>
               {createAppointment.isPending ? 'Belgilanmoqda...' : 'Navbatni Belgilash'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ICD-10 Diagnosis Search Dialog */}
+      <Dialog open={isIcdModalOpen} onOpenChange={setIsIcdModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold flex items-center gap-2">
+              <Stethoscope className="w-4 h-4 text-primary" />
+              Xalqaro Kasalliklar Tasnifi (XKT-10 / ICD-10)
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Stomatologik tashxisni kod yoki nomi bo'yicha qidiring va tanlang.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <Input
+              placeholder="Qidirish (masalan: K02 karies, K04 pulpit, K05 parodontit)..."
+              value={icdSearch}
+              onChange={(e) => setIcdSearch(e.target.value)}
+              className="h-9 text-xs"
+              autoFocus
+            />
+
+            <div className="max-h-72 overflow-y-auto space-y-1 pr-1 divide-y divide-border/40">
+              {icdDiagnoses.length === 0 ? (
+                <p className="text-xs text-center text-muted-foreground py-6">
+                  {icdSearch ? "Bunday tashxis topilmadi" : "Tashxislar ro'yxati yuklanmoqda..."}
+                </p>
+              ) : (
+                icdDiagnoses.map((diag: any) => (
+                  <div
+                    key={diag.code}
+                    onClick={() => handleSelectICD10(diag)}
+                    className="p-2.5 rounded-lg hover:bg-primary/10 cursor-pointer transition-colors flex items-start justify-between gap-3 text-left"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono font-bold text-xs bg-muted">
+                          {diag.code}
+                        </Badge>
+                        <span className="text-xs font-semibold text-foreground">
+                          {diag.nameUz}
+                        </span>
+                      </div>
+                      {diag.nameRu && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {diag.nameRu}
+                        </p>
+                      )}
+                    </div>
+                    {diag.category && (
+                      <Badge variant="secondary" className="text-[10px] text-muted-foreground flex-shrink-0">
+                        {diag.category}
+                      </Badge>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIsIcdModalOpen(false)}>
+              Yopish
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -141,6 +141,8 @@ def create_material(
     quantity_in_stock: Any = Decimal("0.000"),
     minimum_threshold: Any = Decimal("0.000"),
     unit_cost: Any = None,
+    batch_number: str = "",
+    expiry_date: Any = None,
     notes: str = "",
 ) -> Material:
     """Create a new active material."""
@@ -161,6 +163,8 @@ def create_material(
         quantity_in_stock=qty,
         minimum_threshold=threshold,
         unit_cost=cost,
+        batch_number=(batch_number or "").strip(),
+        expiry_date=expiry_date if expiry_date else None,
         notes=(notes or "").strip(),
         is_active=True,
     )
@@ -183,6 +187,8 @@ def update_material(
     unit: str | None = None,
     minimum_threshold: Any = None,
     unit_cost: Any = None,
+    batch_number: str | None = None,
+    expiry_date: Any = "__unset__",
     notes: str | None = None,
     is_active: bool | None = None,
 ) -> Material:
@@ -220,6 +226,14 @@ def update_material(
             raise ValidationError({"unit_cost": ["Salbiy qiymat ruxsat etilmaydi."]})
         material.unit_cost = cost
         update_fields.append("unit_cost")
+
+    if batch_number is not None:
+        material.batch_number = (batch_number or "").strip()
+        update_fields.append("batch_number")
+
+    if expiry_date != "__unset__":
+        material.expiry_date = expiry_date if expiry_date else None
+        update_fields.append("expiry_date")
 
     if notes is not None:
         material.notes = (notes or "").strip()

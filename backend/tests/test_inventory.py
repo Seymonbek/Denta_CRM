@@ -612,3 +612,44 @@ class TestMaterialAllLogsAndStats:
         assert "recentRestocksCount" in data
         assert "recentUsagesCount" in data
         assert data["totalMaterials"] >= 1
+
+
+class TestMaterialBatchAndExpiry:
+    """Tests for batch_number and expiry_date logic."""
+
+    def test_material_batch_and_expiry_properties(self):
+        from datetime import date, timedelta
+        from apps.inventory.services import create_material
+
+        today = date.today()
+        # Expired material
+        mat_expired = create_material(
+            name="Eski Anesteziya",
+            unit="dona",
+            batch_number="BATCH-2023-A",
+            expiry_date=today - timedelta(days=5),
+        )
+        assert mat_expired.batch_number == "BATCH-2023-A"
+        assert mat_expired.is_expired is True
+        assert mat_expired.is_near_expiry is False
+
+        # Near expiry material (expires in 15 days)
+        mat_near = create_material(
+            name="Yaqinda Tugaydigan Kompozit",
+            unit="gram",
+            batch_number="BATCH-2026-N",
+            expiry_date=today + timedelta(days=15),
+        )
+        assert mat_near.is_expired is False
+        assert mat_near.is_near_expiry is True
+
+        # Fresh material (expires in 180 days)
+        mat_fresh = create_material(
+            name="Yangi Kompozit A2",
+            unit="gram",
+            batch_number="BATCH-2026-F",
+            expiry_date=today + timedelta(days=180),
+        )
+        assert mat_fresh.is_expired is False
+        assert mat_fresh.is_near_expiry is False
+

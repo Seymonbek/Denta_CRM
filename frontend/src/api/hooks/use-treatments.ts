@@ -7,6 +7,15 @@ import {
   uploadTreatmentPhotoApi,
   createToothRecordApi,
   approveDiscountApi,
+  getICD10DiagnosesApi,
+  getTreatmentPlansApi,
+  getTreatmentPlanApi,
+  createTreatmentPlanApi,
+  updateTreatmentPlanApi,
+  deleteTreatmentPlanApi,
+  createTreatmentPlanItemApi,
+  updateTreatmentPlanItemApi,
+  deleteTreatmentPlanItemApi,
 } from '../treatments'
 
 export const TREATMENTS_QUERY_KEY = ['treatments']
@@ -98,6 +107,100 @@ export function useCreateToothRecord() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['treatments', variables.treatmentId] })
       queryClient.invalidateQueries({ queryKey: ['patients'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// ICD-10 Hook
+// ---------------------------------------------------------------------------
+export const ICD10_QUERY_KEY = ['icd10-diagnoses']
+
+export function useICD10Diagnoses(params?: { search?: string; category?: string; is_common?: boolean }) {
+  return useQuery({
+    queryKey: [...ICD10_QUERY_KEY, params],
+    queryFn: () => getICD10DiagnosesApi(params),
+    staleTime: 1000 * 60 * 60, // 1 hour cache
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Treatment Plans Hooks
+// ---------------------------------------------------------------------------
+export const TREATMENT_PLANS_QUERY_KEY = ['treatment-plans']
+
+export function useTreatmentPlans(params?: { patient?: string; doctor?: string; status?: string; search?: string }) {
+  return useQuery({
+    queryKey: [...TREATMENT_PLANS_QUERY_KEY, params],
+    queryFn: () => getTreatmentPlansApi(params),
+  })
+}
+
+export function useTreatmentPlan(id: string) {
+  return useQuery({
+    queryKey: ['treatment-plans', id],
+    queryFn: () => getTreatmentPlanApi(id),
+    enabled: Boolean(id),
+  })
+}
+
+export function useCreateTreatmentPlan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: createTreatmentPlanApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TREATMENT_PLANS_QUERY_KEY })
+    },
+  })
+}
+
+export function useUpdateTreatmentPlan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<any> }) => updateTreatmentPlanApi(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: TREATMENT_PLANS_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: ['treatment-plans', variables.id] })
+    },
+  })
+}
+
+export function useDeleteTreatmentPlan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteTreatmentPlanApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TREATMENT_PLANS_QUERY_KEY })
+    },
+  })
+}
+
+export function useCreateTreatmentPlanItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: createTreatmentPlanItemApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TREATMENT_PLANS_QUERY_KEY })
+    },
+  })
+}
+
+export function useUpdateTreatmentPlanItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<any> }) => updateTreatmentPlanItemApi(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TREATMENT_PLANS_QUERY_KEY })
+    },
+  })
+}
+
+export function useDeleteTreatmentPlanItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteTreatmentPlanItemApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TREATMENT_PLANS_QUERY_KEY })
     },
   })
 }

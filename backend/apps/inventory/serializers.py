@@ -48,6 +48,10 @@ def _camel_material(instance: Material) -> dict[str, Any]:
         "unitCost": (
             f"{instance.unit_cost:.2f}" if instance.unit_cost is not None else None
         ),
+        "batchNumber": instance.batch_number or "",
+        "expiryDate": instance.expiry_date.isoformat() if instance.expiry_date else None,
+        "isExpired": instance.is_expired,
+        "isNearExpiry": instance.is_near_expiry,
         "notes": instance.notes or "",
         "isBelowThreshold": instance.is_below_threshold,
         "isActive": instance.is_active,
@@ -85,6 +89,19 @@ class MaterialSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    batch_number = serializers.CharField(
+        max_length=64,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    expiry_date = serializers.DateField(
+        required=False,
+        allow_null=True,
+        default=None,
+    )
+    is_expired = serializers.BooleanField(read_only=True)
+    is_near_expiry = serializers.BooleanField(read_only=True)
     notes = serializers.CharField(required=False, allow_blank=True, default="")
     is_active = serializers.BooleanField(required=False)
 
@@ -97,10 +114,14 @@ class MaterialSerializer(serializers.ModelSerializer):
             "quantity_in_stock",
             "minimum_threshold",
             "unit_cost",
+            "batch_number",
+            "expiry_date",
+            "is_expired",
+            "is_near_expiry",
             "notes",
             "is_active",
         )
-        read_only_fields = ("id",)
+        read_only_fields = ("id", "is_expired", "is_near_expiry")
 
     # ------------------------------------------------------------------
     # camelCase aliases on the way in
@@ -109,6 +130,8 @@ class MaterialSerializer(serializers.ModelSerializer):
         "quantityInStock": "quantity_in_stock",
         "minimumThreshold": "minimum_threshold",
         "unitCost": "unit_cost",
+        "batchNumber": "batch_number",
+        "expiryDate": "expiry_date",
         "isActive": "is_active",
     }
 
@@ -139,6 +162,8 @@ class MaterialSerializer(serializers.ModelSerializer):
                     "minimum_threshold", Decimal("0.000")
                 ),
                 unit_cost=validated_data.get("unit_cost"),
+                batch_number=validated_data.get("batch_number", ""),
+                expiry_date=validated_data.get("expiry_date"),
                 notes=validated_data.get("notes", ""),
             )
         except DjangoValidationError as exc:
@@ -150,6 +175,8 @@ class MaterialSerializer(serializers.ModelSerializer):
         # quantity_in_stock deliberately ignored on update — must go
         # through /restock/ or /adjust/ for auditability.
         validated_data.pop("quantity_in_stock", None)
+        expiry_val = validated_data.get("expiry_date")
+        expiry_arg = expiry_val if "expiry_date" in validated_data else "__unset__"
         try:
             return update_material(
                 instance,
@@ -157,6 +184,8 @@ class MaterialSerializer(serializers.ModelSerializer):
                 unit=validated_data.get("unit"),
                 minimum_threshold=validated_data.get("minimum_threshold"),
                 unit_cost=validated_data.get("unit_cost"),
+                batch_number=validated_data.get("batch_number"),
+                expiry_date=expiry_arg,
                 notes=validated_data.get("notes"),
                 is_active=validated_data.get("is_active"),
             )

@@ -84,6 +84,8 @@ export function InventoryList() {
   const [editUnit, setEditUnit] = useState<MaterialUnit>('piece')
   const [editThreshold, setEditThreshold] = useState('')
   const [editCost, setEditCost] = useState('')
+  const [editBatchNumber, setEditBatchNumber] = useState('')
+  const [editExpiryDate, setEditExpiryDate] = useState('')
   const [editNotes, setEditNotes] = useState('')
 
   // Create Form State
@@ -92,6 +94,8 @@ export function InventoryList() {
   const [quantityInStock, setQuantityInStock] = useState('')
   const [minimumThreshold, setMinimumThreshold] = useState('')
   const [unitCost, setUnitCost] = useState('')
+  const [batchNumber, setBatchNumber] = useState('')
+  const [expiryDate, setExpiryDate] = useState('')
   const [notes, setNotes] = useState('')
 
   // Materials tab filters & pagination
@@ -180,14 +184,18 @@ export function InventoryList() {
         quantityInStock,
         minimumThreshold,
         unitCost: unitCost || undefined,
+        batchNumber: batchNumber || undefined,
+        expiryDate: expiryDate || undefined,
         notes: notes || undefined,
-      })
+      } as any)
       toast.success('Yangi material qo’shildi!')
       setIsCreateModalOpen(false)
       setName('')
       setQuantityInStock('')
       setMinimumThreshold('')
       setUnitCost('')
+      setBatchNumber('')
+      setExpiryDate('')
       setNotes('')
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Material yaratishda xatolik.'))
@@ -200,6 +208,8 @@ export function InventoryList() {
     setEditUnit(m.unit || 'piece')
     setEditThreshold(String(m.minimumThreshold || ''))
     setEditCost(m.unitCost ? String(m.unitCost) : '')
+    setEditBatchNumber(m.batchNumber || '')
+    setEditExpiryDate(m.expiryDate ? m.expiryDate.slice(0, 10) : '')
     setEditNotes(m.notes || '')
   }
 
@@ -215,8 +225,10 @@ export function InventoryList() {
           unit: editUnit,
           minimumThreshold: editThreshold,
           unitCost: editCost ? editCost : null,
+          batchNumber: editBatchNumber,
+          expiryDate: editExpiryDate || null,
           notes: editNotes,
-        },
+        } as any,
       })
       toast.success('Material ma’lumotlari yangilandi!')
       setEditMaterial(null)
@@ -577,8 +589,28 @@ export function InventoryList() {
                               </div>
                               <div>
                                 <div className='font-bold'>{m.name}</div>
+                                <div className='flex items-center gap-1.5 flex-wrap mt-0.5'>
+                                  {m.batchNumber && (
+                                    <span className='text-[10px] font-mono px-1 py-0.2 rounded bg-muted text-muted-foreground border'>
+                                      Partiya: #{m.batchNumber}
+                                    </span>
+                                  )}
+                                  {m.isExpired ? (
+                                    <Badge variant='destructive' className='text-[9px] px-1 py-0'>
+                                      Muddati o'tgan
+                                    </Badge>
+                                  ) : m.isNearExpiry ? (
+                                    <Badge variant='outline' className='text-[9px] px-1 py-0 text-amber-600 border-amber-500/40 bg-amber-500/10'>
+                                      Muddati oz qoldi ({m.expiryDate ? m.expiryDate.slice(0, 10) : ''})
+                                    </Badge>
+                                  ) : m.expiryDate ? (
+                                    <span className='text-[10px] text-muted-foreground font-mono'>
+                                      Muddat: {m.expiryDate.slice(0, 10)}
+                                    </span>
+                                  ) : null}
+                                </div>
                                 {m.notes && (
-                                  <div className='text-[11px] text-muted-foreground line-clamp-1'>
+                                  <div className='text-[11px] text-muted-foreground line-clamp-1 mt-0.5'>
                                     {m.notes}
                                   </div>
                                 )}
@@ -896,6 +928,27 @@ export function InventoryList() {
                 </div>
               </div>
 
+              <div className='grid grid-cols-2 gap-3'>
+                <div className='space-y-1'>
+                  <label className='text-xs font-semibold'>Partiya raqami (Batch #)</label>
+                  <Input
+                    placeholder='Masalan: B-2026-09'
+                    value={batchNumber}
+                    onChange={(e) => setBatchNumber(e.target.value)}
+                    className='text-xs font-mono'
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <label className='text-xs font-semibold'>Yaroqlilik muddati</label>
+                  <Input
+                    type='date'
+                    value={expiryDate}
+                    onChange={(e) => setExpiryDate(e.target.value)}
+                    className='text-xs font-mono'
+                  />
+                </div>
+              </div>
+
               <div className='space-y-1'>
                 <label className='text-xs font-semibold'>Qo'shimcha izoh</label>
                 <Input
@@ -1146,6 +1199,27 @@ export function InventoryList() {
                   className='text-xs font-mono'
                   required
                 />
+              </div>
+
+              <div className='grid grid-cols-2 gap-3'>
+                <div className='space-y-1'>
+                  <label className='text-xs font-semibold'>Partiya raqami (Batch #)</label>
+                  <Input
+                    placeholder='Masalan: B-2026-09'
+                    value={editBatchNumber}
+                    onChange={(e) => setEditBatchNumber(e.target.value)}
+                    className='text-xs font-mono'
+                  />
+                </div>
+                <div className='space-y-1'>
+                  <label className='text-xs font-semibold'>Yaroqlilik muddati</label>
+                  <Input
+                    type='date'
+                    value={editExpiryDate}
+                    onChange={(e) => setEditExpiryDate(e.target.value)}
+                    className='text-xs font-mono'
+                  />
+                </div>
               </div>
 
               <div className='space-y-1'>

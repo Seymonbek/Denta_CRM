@@ -737,6 +737,44 @@ class TestDiscountGuardAndVoidCommission:
         void_payment(payment=p)
         assert not CommissionRecord.objects.filter(treatment=tr).exists()
 
+    def test_partial_refund_adjusts_commission_proportionally(
+        self, doctor, patient, department, head_doctor
+    ):
+        # 1. Create treatment: 1 000 000 UZS. Doctor commission rate = 30%.
+        tr = create_treatment(
+            doctor=doctor,
+            patient=patient,
+            department=department,
+            price=Decimal("1000000.00"),
+            created_by=head_doctor,
+        )
+        # 2. Pay 1 000 000 UZS in 2 installments: 600 000 and 400 000
+        p1 = record_payment(
+            treatment=tr,
+            amount=Decimal("600000.00"),
+            received_by=head_doctor,
+        )
+        p2 = record_payment(
+            treatment=tr,
+            amount=Decimal("400000.00"),
+            received_by=head_doctor,
+        )
+        tr.refresh_from_db()
+        assert tr.payment_status == PaymentStatus.PAID
+        comm = CommissionRecord.objects.get(treatment=tr)
+        assert comm.amount == Decimal("300000.00")  # 30% of 1 000 000
+
+        # 3. Partial void/refund of p2 (400 000 UZS) -> Remaining collected is 600 000 UZS
+        void_payment(payment=p2)
+        tr.refresh_from_db()
+        assert tr.payment_status == PaymentStatus.PARTIAL
+
+        # Commission MUST NOT be deleted to 0; it should be 30% of 600 000 = 180 000 UZS!
+        comm.refresh_from_db()
+        assert comm.amount == Decimal("180000.00")
+        assert comm.base_amount == Decimal("600000.00")
+
+
 
 
 

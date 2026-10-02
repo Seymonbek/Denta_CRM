@@ -11,16 +11,27 @@ from typing import Any
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from apps.doctors.models import ProcedureType
+
 from .models import (
+    ICD10Diagnosis,
     PaymentStatus,
     PhotoType,
+    PlanItemStatus,
+    PlanStatus,
     Treatment,
     TreatmentPhoto,
+    TreatmentPlan,
+    TreatmentPlanItem,
     TreatmentStage,
 )
 from .services import (
     create_treatment,
+    create_treatment_plan,
+    create_treatment_plan_item,
     update_treatment,
+    update_treatment_plan,
+    update_treatment_plan_item,
     upload_treatment_photo,
 )
 
@@ -198,6 +209,15 @@ class TreatmentSerializer(serializers.ModelSerializer):
     discount_reason = serializers.CharField(
         max_length=500, allow_blank=True, required=False
     )
+    icd_code = serializers.CharField(
+        max_length=20, allow_blank=True, required=False, default=""
+    )
+    icd_diagnosis = serializers.PrimaryKeyRelatedField(
+        queryset=ICD10Diagnosis.objects.all(), required=False, allow_null=True
+    )
+    plan_item = serializers.PrimaryKeyRelatedField(
+        queryset=TreatmentPlanItem.objects.all(), required=False, allow_null=True
+    )
     teeth = serializers.ListField(
         child=serializers.IntegerField(), required=False, write_only=True
     )
@@ -214,6 +234,9 @@ class TreatmentSerializer(serializers.ModelSerializer):
             "department",
             "procedure_type",
             "appointment",
+            "icd_code",
+            "icd_diagnosis",
+            "plan_item",
             "diagnosis",
             "description",
             "price",
@@ -242,6 +265,11 @@ class TreatmentSerializer(serializers.ModelSerializer):
         "departmentId": "department",
         "appointmentId": "appointment",
         "procedureTypeId": "procedure_type",
+        "icdCode": "icd_code",
+        "icdDiagnosisId": "icd_diagnosis",
+        "icdDiagnosis": "icd_diagnosis",
+        "planItemId": "plan_item",
+        "planItem": "plan_item",
         "toothNumbers": "teeth",
         "teeth": "teeth",
         "surfaces": "surfaces",
@@ -294,6 +322,10 @@ class TreatmentSerializer(serializers.ModelSerializer):
         department_name = instance.department.name if instance.department else ""
         procedure_type_name = instance.procedure_type.name if instance.procedure_type else ""
 
+        icd_name = ""
+        if instance.icd_diagnosis:
+            icd_name = instance.icd_diagnosis.name_uz or instance.icd_diagnosis.name_ru
+
         return {
             "id": str(instance.id),
             "appointmentId": str(instance.appointment_id)
@@ -314,6 +346,10 @@ class TreatmentSerializer(serializers.ModelSerializer):
             else None,
             "procedureType": _camel_procedure(instance.procedure_type),
             "procedureTypeName": procedure_type_name,
+            "icdCode": instance.icd_code or "",
+            "icdDiagnosisId": str(instance.icd_diagnosis_id) if instance.icd_diagnosis_id else None,
+            "icdDiagnosisName": icd_name,
+            "planItemId": str(instance.plan_item_id) if instance.plan_item_id else None,
             "diagnosis": instance.diagnosis or "",
             "description": instance.description or "",
             "price": str(instance.price),
@@ -351,9 +387,13 @@ class TreatmentSerializer(serializers.ModelSerializer):
                 department=validated_data["department"],
                 procedure_type=validated_data.get("procedure_type"),
                 appointment=validated_data.get("appointment"),
+                icd_code=validated_data.get("icd_code", "") or "",
+                icd_diagnosis=validated_data.get("icd_diagnosis"),
+                plan_item=validated_data.get("plan_item"),
                 diagnosis=validated_data.get("diagnosis", "") or "",
                 description=validated_data.get("description", "") or "",
                 price=validated_data.get("price"),
+                surfaces=surfaces,
                 payment_status=validated_data.get(
                     "payment_status", PaymentStatus.UNPAID
                 ),
@@ -399,6 +439,13 @@ class TreatmentSerializer(serializers.ModelSerializer):
             return update_treatment(
                 instance,
                 diagnosis=validated_data.get("diagnosis"),
+                icd_code=validated_data.get("icd_code"),
+                icd_diagnosis=validated_data["icd_diagnosis"]
+                if "icd_diagnosis" in validated_data
+                else ...,
+                plan_item=validated_data["plan_item"]
+                if "plan_item" in validated_data
+                else ...,
                 description=validated_data.get("description"),
                 price=validated_data["price"]
                 if "price" in validated_data
@@ -479,8 +526,242 @@ class TreatmentPhotoUploadSerializer(serializers.Serializer):
             ) from exc
 
 
+# ---------------------------------------------------------------------------
+# ICD-10 Serializer
+# ---------------------------------------------------------------------------
+class ICD10DiagnosisSerializer(serializers.ModelSerializer):
+    """Read-only serializer for standard ICD-10 dental diagnoses."""
+
+    class Meta:
+        model = ICD10Diagnosis
+        fields = ("id", "code", "name_uz", "name_ru", "category", "is_common")
+
+    def to_representation(self, instance: ICD10Diagnosis) -> dict[str, Any]:
+        return {
+            "id": str(instance.id),
+            "code": instance.code,
+            "nameUz": instance.name_uz,
+            "nameRu": instance.name_ru,
+            "category": instance.category,
+            "isCommon": instance.is_common,
+        }
+
+
+# ---------------------------------------------------------------------------
+# TreatmentPlanItem & TreatmentPlan Serializers
+# ---------------------------------------------------------------------------
+class TreatmentPlanItemSerializer(serializers.ModelSerializer):
+    order = serializers.IntegerField(required=False, default=1)
+    title = serializers.CharField(max_length=250)
+    estimated_price = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, default=Decimal("0.00")
+    )
+    status = serializers.ChoiceField(
+        choices=PlanItemStatus.choices, required=False, default=PlanItemStatus.PLANNED
+    )
+    tooth_number = serializers.IntegerField(required=False, allow_null=True)
+    procedure_type = serializers.PrimaryKeyRelatedField(
+        queryset=ProcedureType.objects.all(), required=False, allow_null=True
+    )
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+    class Meta:
+        model = TreatmentPlanItem
+        fields = (
+            "id",
+            "plan",
+            "tooth_number",
+            "procedure_type",
+            "order",
+            "title",
+            "estimated_price",
+            "status",
+            "completed_treatment",
+            "notes",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
+
+    _CAMEL_TO_SNAKE = {
+        "toothNumber": "tooth_number",
+        "procedureTypeId": "procedure_type",
+        "procedureType": "procedure_type",
+        "estimatedPrice": "estimated_price",
+        "completedTreatmentId": "completed_treatment",
+        "planId": "plan",
+    }
+
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, dict):
+            normalised = {**data}
+            for camel, snake in self._CAMEL_TO_SNAKE.items():
+                if camel in normalised and snake not in normalised:
+                    normalised[snake] = normalised[camel]
+            data = normalised
+        return super().to_internal_value(data)
+
+    def to_representation(self, instance: TreatmentPlanItem) -> dict[str, Any]:
+        return {
+            "id": str(instance.id),
+            "planId": str(instance.plan_id),
+            "toothNumber": instance.tooth_number,
+            "procedureTypeId": str(instance.procedure_type_id) if instance.procedure_type_id else None,
+            "procedureTypeName": instance.procedure_type.name if instance.procedure_type else "",
+            "order": instance.order,
+            "title": instance.title,
+            "estimatedPrice": str(instance.estimated_price),
+            "status": instance.status,
+            "completedTreatmentId": str(instance.completed_treatment_id) if instance.completed_treatment_id else None,
+            "notes": instance.notes or "",
+            "createdAt": instance.created_at.isoformat() if instance.created_at else None,
+            "updatedAt": instance.updated_at.isoformat() if instance.updated_at else None,
+        }
+
+    def create(self, validated_data: dict[str, Any]) -> TreatmentPlanItem:
+        try:
+            return create_treatment_plan_item(
+                plan=validated_data["plan"],
+                title=validated_data["title"],
+                tooth_number=validated_data.get("tooth_number"),
+                procedure_type=validated_data.get("procedure_type"),
+                order=validated_data.get("order", 1),
+                estimated_price=validated_data.get("estimated_price", Decimal("0.00")),
+                status=validated_data.get("status", PlanItemStatus.PLANNED),
+                notes=validated_data.get("notes", ""),
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else list(exc.messages)
+            ) from exc
+
+    def update(self, instance: TreatmentPlanItem, validated_data: dict[str, Any]) -> TreatmentPlanItem:
+        try:
+            return update_treatment_plan_item(
+                instance,
+                title=validated_data.get("title"),
+                tooth_number=validated_data["tooth_number"] if "tooth_number" in validated_data else "__unset__",
+                procedure_type=validated_data["procedure_type"] if "procedure_type" in validated_data else "__unset__",
+                order=validated_data.get("order"),
+                estimated_price=validated_data.get("estimated_price"),
+                status=validated_data.get("status"),
+                notes=validated_data.get("notes"),
+                completed_treatment=validated_data["completed_treatment"] if "completed_treatment" in validated_data else "__unset__",
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else list(exc.messages)
+            ) from exc
+
+
+class TreatmentPlanSerializer(serializers.ModelSerializer):
+    items = TreatmentPlanItemSerializer(many=True, required=False)
+    title = serializers.CharField(max_length=250, required=False, default="Kompleks davolash rejasi")
+    status = serializers.ChoiceField(choices=PlanStatus.choices, required=False, default=PlanStatus.PROPOSED)
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+    discount_percent = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, default=Decimal("0.00"))
+
+    class Meta:
+        model = TreatmentPlan
+        fields = (
+            "id",
+            "patient",
+            "doctor",
+            "title",
+            "status",
+            "notes",
+            "discount_percent",
+            "items",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
+
+    _CAMEL_TO_SNAKE = {
+        "patientId": "patient",
+        "doctorId": "doctor",
+        "discountPercent": "discount_percent",
+    }
+
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, dict):
+            normalised = {**data}
+            for camel, snake in self._CAMEL_TO_SNAKE.items():
+                if camel in normalised and snake not in normalised:
+                    normalised[snake] = normalised[camel]
+            data = normalised
+        return super().to_internal_value(data)
+
+    def to_representation(self, instance: TreatmentPlan) -> dict[str, Any]:
+        items_data = [
+            TreatmentPlanItemSerializer(item).data
+            for item in instance.items.filter(is_active=True).order_by("order", "created_at")
+        ]
+        patient_name = f"{instance.patient.first_name} {instance.patient.last_name}".strip() if instance.patient else ""
+        doctor_name = (
+            f"Dr. {instance.doctor.user.first_name} {instance.doctor.user.last_name}".strip()
+            if instance.doctor and hasattr(instance.doctor, "user") and instance.doctor.user
+            else ""
+        )
+
+        return {
+            "id": str(instance.id),
+            "patientId": str(instance.patient_id),
+            "patientName": patient_name,
+            "doctorId": str(instance.doctor_id),
+            "doctorName": doctor_name,
+            "title": instance.title,
+            "status": instance.status,
+            "notes": instance.notes or "",
+            "discountPercent": str(instance.discount_percent),
+            "totalEstimatedPrice": str(instance.total_estimated_price),
+            "finalPriceWithDiscount": str(instance.final_price_with_discount),
+            "items": items_data,
+            "createdAt": instance.created_at.isoformat() if instance.created_at else None,
+            "updatedAt": instance.updated_at.isoformat() if instance.updated_at else None,
+        }
+
+    def create(self, validated_data: dict[str, Any]) -> TreatmentPlan:
+        request = self.context.get("request")
+        actor = getattr(request, "user", None) if request is not None else None
+        items_data = validated_data.pop("items", None)
+        try:
+            return create_treatment_plan(
+                patient=validated_data["patient"],
+                doctor=validated_data["doctor"],
+                title=validated_data.get("title", "Kompleks davolash rejasi"),
+                status=validated_data.get("status", PlanStatus.PROPOSED),
+                notes=validated_data.get("notes", ""),
+                discount_percent=validated_data.get("discount_percent", Decimal("0.00")),
+                items_data=items_data,
+                created_by=actor,
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else list(exc.messages)
+            ) from exc
+
+    def update(self, instance: TreatmentPlan, validated_data: dict[str, Any]) -> TreatmentPlan:
+        validated_data.pop("items", None)
+        try:
+            return update_treatment_plan(
+                instance,
+                title=validated_data.get("title"),
+                status=validated_data.get("status"),
+                notes=validated_data.get("notes"),
+                discount_percent=validated_data.get("discount_percent"),
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else list(exc.messages)
+            ) from exc
+
+
 __all__ = [
     "TreatmentSerializer",
     "TreatmentPhotoSerializer",
     "TreatmentPhotoUploadSerializer",
+    "ICD10DiagnosisSerializer",
+    "TreatmentPlanSerializer",
+    "TreatmentPlanItemSerializer",
 ]

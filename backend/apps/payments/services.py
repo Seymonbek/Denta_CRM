@@ -115,14 +115,22 @@ def _resolve_rate_and_basis(treatment: Treatment) -> tuple[Decimal, str]:
 # ---------------------------------------------------------------------------
 # Commission calculation
 # ---------------------------------------------------------------------------
-def calculate_commission_for(treatment: Treatment) -> dict[str, Decimal | str]:
+def calculate_commission_for(
+    treatment: Treatment,
+    revenue_override: Decimal | None = None,
+) -> dict[str, Decimal | str]:
     """Return the numbers used for a commission WITHOUT writing anything.
 
-    Handy for previewing the doctor's cut on the treatment form before
-    the treatment is finalised.
+    If ``revenue_override`` is provided, the commission is calculated on that
+    collected revenue rather than the treatment list price. Handy for previewing
+    and proportional refund recalculations.
     """
     rate, basis = _resolve_rate_and_basis(treatment)
-    price = Decimal(treatment.price or _ZERO)
+    if revenue_override is not None:
+        price = Decimal(revenue_override)
+    else:
+        price = Decimal(treatment.price or _ZERO)
+
     material_cost = _ZERO
     if basis == CommissionBasis.FROM_NET:
         material_cost = _material_cost_for(treatment)
@@ -143,13 +151,16 @@ def calculate_commission_for(treatment: Treatment) -> dict[str, Decimal | str]:
 
 
 @transaction.atomic
-def recalculate_commission(treatment: Treatment) -> CommissionRecord:
+def recalculate_commission(
+    treatment: Treatment,
+    revenue_override: Decimal | None = None,
+) -> CommissionRecord:
     """Create or refresh the :class:`CommissionRecord` for ``treatment``.
 
     Called after :func:`record_payment` marks the treatment as ``paid``
-    and can also be called directly (admin action, backfill, tests).
+    or when a partial refund adjusts the earned commission on remaining revenue.
     """
-    numbers = calculate_commission_for(treatment)
+    numbers = calculate_commission_for(treatment, revenue_override=revenue_override)
     basis_value = numbers["basis"]
     # Map into the snapshot enum — same string values, kept separate so
     # the payments module doesn't depend on the doctors enum at DB level.
@@ -308,15 +319,18 @@ def void_payment(payment: Payment) -> Payment:
         payment.is_active = False
         payment.refund_status = "approved" if payment.refund_status == "pending" else "none"
         payment.save(update_fields=["is_active", "refund_status", "updated_at"])
-    _refresh_payment_status(payment.treatment)
+    if payment.treatment:
+        _refresh_payment_status(payment.treatment)
     return payment
 
 
-def _refresh_payment_status(treatment: Treatment) -> Treatment:
+def _refresh_payment_status(treatment: Treatment | None) -> Treatment | None:
     """Recompute ``treatment.payment_status`` from active payments.
 
     Also refreshes the commission when the treatment is fully paid.
     """
+    if not treatment:
+        return None
     total = total_paid_for_treatment(treatment.pk)
     price = Decimal(treatment.price or _ZERO)
 
@@ -339,9 +353,19 @@ def _refresh_payment_status(treatment: Treatment) -> Treatment:
                 "payments: commission recalculation failed for treatment %s",
                 treatment.pk,
             )
+    elif new_status == PaymentStatus.PARTIAL:
+        # If commission record existed (treatment was paid and now partially refunded),
+        # recalculate earned commission proportionally on the remaining collected revenue.
+        if CommissionRecord.objects.filter(treatment=treatment).exists():
+            try:
+                recalculate_commission(treatment, revenue_override=total)
+            except ValidationError:
+                logger.exception(
+                    "payments: proportional commission recalculation failed for treatment %s",
+                    treatment.pk,
+                )
     else:
-        # If the treatment is no longer fully paid (e.g. payment was voided or refunded),
-        # remove the unearned commission record to keep doctor's balance strictly accurate.
+        # Zero collected revenue (unpaid or fully refunded): delete commission record.
         CommissionRecord.objects.filter(treatment=treatment).delete()
     return treatment
 

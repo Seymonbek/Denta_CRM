@@ -141,11 +141,60 @@ export interface Treatment {
   diagnosis: string
   description: string
   price: string
+  originalPrice?: number
+  discountPercent?: number
+  surfaces?: string[]
+  icdCode?: string
+  planItem?: string
   paymentStatus: PaymentStatus
   stage: TreatmentStage
   photos?: TreatmentPhoto[]
   toothRecords?: ToothRecord[]
   createdAt: string
+}
+
+export interface ICD10Diagnosis {
+  id: string
+  code: string
+  nameUz: string
+  nameRu?: string
+  category?: string
+  isCommon: boolean
+}
+
+export type PlanStatus = 'draft' | 'proposed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
+export type PlanItemStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled'
+
+export interface TreatmentPlanItem {
+  id: string
+  planId?: string
+  toothNumber?: number | null
+  procedureType?: string | any | null
+  procedureTypeName?: string | null
+  order: number
+  title: string
+  estimatedPrice: string
+  status: PlanItemStatus
+  notes?: string
+  completedTreatmentId?: string | null
+  createdAt?: string
+}
+
+export interface TreatmentPlan {
+  id: string
+  patientId: string
+  patientName?: string
+  doctorId: string
+  doctorName?: string
+  title: string
+  status: PlanStatus
+  notes?: string
+  discountPercent?: string
+  totalEstimatedPrice: string
+  finalPriceWithDiscount: string
+  items: TreatmentPlanItem[]
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type PhotoType = 'before' | 'after' | 'xray'
@@ -221,6 +270,10 @@ export interface Material {
   quantityInStock: string
   minimumThreshold: string
   unitCost: string | null
+  batchNumber?: string
+  expiryDate?: string | null
+  isExpired?: boolean
+  isNearExpiry?: boolean
   notes?: string
 }
 

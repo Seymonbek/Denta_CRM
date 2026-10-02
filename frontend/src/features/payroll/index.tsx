@@ -96,7 +96,7 @@ export function PayrollFeature() {
   const [statementPageSize, setStatementPageSize] = useState(10)
 
   const effectiveDoctorId = isDoctor ? myDoctorProfile?.id || selectedDoctorId : selectedDoctorId
-  const { data: commissionsData = [], isLoading: isCommissionsLoading } = useDoctorCommissions(effectiveDoctorId)
+  const { data: commissionsData = [] } = useDoctorCommissions(effectiveDoctorId)
   const commissions: any[] = Array.isArray(commissionsData) ? commissionsData : []
   const { data: summary } = useDoctorCommissionSummary(effectiveDoctorId)
   const selectedDoctor = balances.find((b: DoctorBalance) => b.id === selectedDoctorId)

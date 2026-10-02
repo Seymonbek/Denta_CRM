@@ -24,7 +24,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from simple_history.models import HistoricalRecords
@@ -52,6 +52,22 @@ class ApprovalStatus(models.TextChoices):
     REJECTED = "rejected", _("Rad etilgan")
 
 
+class PlanStatus(models.TextChoices):
+    DRAFT = "draft", _("Qoralama")
+    PROPOSED = "proposed", _("Taklif qilingan")
+    ACCEPTED = "accepted", _("Bemor qabul qilgan")
+    IN_PROGRESS = "in_progress", _("Bajarilmoqda")
+    COMPLETED = "completed", _("Yakunlangan")
+    CANCELLED = "cancelled", _("Bekor qilingan")
+
+
+class PlanItemStatus(models.TextChoices):
+    PLANNED = "planned", _("Rejalashtirilgan")
+    IN_PROGRESS = "in_progress", _("Bajarilmoqda")
+    COMPLETED = "completed", _("Yakunlangan")
+    CANCELLED = "cancelled", _("Bekor qilingan")
+
+
 class PhotoType(models.TextChoices):
     BEFORE = "before", _("Davolashdan oldin")
     AFTER = "after", _("Davolashdan keyin")
@@ -63,6 +79,162 @@ def _treatment_photo_upload_to(instance: TreatmentPhoto, filename: str) -> str:
     tid = instance.treatment_id or "unknown"
     ptype = instance.photo_type or "misc"
     return f"treatments/{tid}/{ptype}/{filename}"
+
+
+# ---------------------------------------------------------------------------
+# ICD-10 Diagnosis Catalog
+# ---------------------------------------------------------------------------
+class ICD10Diagnosis(BaseModel):
+    """Xalqaro Kasalliklar Tasnifi (XKT-10 / ICD-10) stomatologik tashxislar katalogi."""
+
+    code = models.CharField(_("XKT-10 Kodi"), max_length=20, unique=True, db_index=True)
+    name_uz = models.CharField(_("Tashxis nomi (O'zbekcha)"), max_length=300)
+    name_ru = models.CharField(_("Tashxis nomi (Ruscha)"), max_length=300, blank=True, default="")
+    category = models.CharField(_("Kategoriya"), max_length=150, blank=True, default="")
+    is_common = models.BooleanField(_("Ko'p uchraydigan"), default=True)
+
+    class Meta:
+        verbose_name = _("XKT-10 Tashxis")
+        verbose_name_plural = _("XKT-10 Tashxislar")
+        ordering = ["code"]
+
+    def __str__(self) -> str:
+        return f"{self.code} - {self.name_uz}"
+
+
+# ---------------------------------------------------------------------------
+# Treatment Plan & Plan Items
+# ---------------------------------------------------------------------------
+class TreatmentPlan(BaseModel):
+    """Bemor uchun kompleks davolash rejasi (Smeta)."""
+
+    Status = PlanStatus
+
+    patient = models.ForeignKey(
+        "patients.Patient",
+        on_delete=models.PROTECT,
+        related_name="treatment_plans",
+        related_query_name="treatment_plan",
+        verbose_name=_("Bemor"),
+    )
+    doctor = models.ForeignKey(
+        "doctors.DoctorProfile",
+        on_delete=models.PROTECT,
+        related_name="treatment_plans",
+        related_query_name="treatment_plan",
+        verbose_name=_("Shifokor"),
+    )
+    title = models.CharField(_("Reja nomi"), max_length=250, default="Kompleks davolash rejasi")
+    status = models.CharField(
+        _("Holati"),
+        max_length=20,
+        choices=PlanStatus.choices,
+        default=PlanStatus.PROPOSED,
+    )
+    notes = models.TextField(_("Klinik izohlar"), blank=True, default="")
+    discount_percent = models.DecimalField(
+        _("Chegirma foizi"),
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00")), MaxValueValidator(Decimal("100.00"))],
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_treatment_plans",
+        verbose_name=_("Tuzgan xodim"),
+    )
+
+    history = HistoricalRecords(
+        inherit=True,
+        table_name="treatments_treatmentplan_history",
+    )
+
+    class Meta:
+        verbose_name = _("Davolash rejasi")
+        verbose_name_plural = _("Davolash rejalari")
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.title} ({self.patient})"
+
+    @property
+    def total_estimated_price(self) -> Decimal:
+        return sum(
+            (item.estimated_price for item in self.items.filter(is_active=True)),
+            Decimal("0.00"),
+        )
+
+    @property
+    def final_price_with_discount(self) -> Decimal:
+        total = self.total_estimated_price
+        if self.discount_percent > 0:
+            discount_amount = total * self.discount_percent / Decimal("100")
+            return max(Decimal("0.00"), total - discount_amount)
+        return total
+
+
+class TreatmentPlanItem(BaseModel):
+    """Davolash rejasining alohida bandi / bosqichi."""
+
+    Status = PlanItemStatus
+
+    plan = models.ForeignKey(
+        TreatmentPlan,
+        on_delete=models.CASCADE,
+        related_name="items",
+        related_query_name="item",
+        verbose_name=_("Davolash rejasi"),
+    )
+    tooth_number = models.PositiveSmallIntegerField(
+        _("Tish raqami (FDI)"),
+        null=True,
+        blank=True,
+        help_text=_("Ixtiyoriy: muayyan tishga tegishli bo'lsa (11-85)."),
+    )
+    procedure_type = models.ForeignKey(
+        "doctors.ProcedureType",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="plan_items",
+        verbose_name=_("Muolaja turi"),
+    )
+    order = models.PositiveSmallIntegerField(_("Bosqich tartibi"), default=1)
+    title = models.CharField(_("Bosqich / Muolaja nomi"), max_length=250)
+    estimated_price = models.DecimalField(
+        _("Taxminiy narx"),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    status = models.CharField(
+        _("Holati"),
+        max_length=20,
+        choices=PlanItemStatus.choices,
+        default=PlanItemStatus.PLANNED,
+    )
+    completed_treatment = models.ForeignKey(
+        "treatments.Treatment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="plan_items_completed",
+        verbose_name=_("Bajarilgan davolash"),
+    )
+    notes = models.TextField(_("Izoh"), blank=True, default="")
+
+    class Meta:
+        verbose_name = _("Davolash rejasi bandi")
+        verbose_name_plural = _("Davolash rejasi bandlari")
+        ordering = ["plan", "order", "created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.order}. {self.title} - {self.estimated_price} ({self.status})"
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +285,28 @@ class Treatment(BaseModel):
         verbose_name=_("Muolaja turi"),
         null=True,
         blank=True,
+    )
+    icd_code = models.CharField(
+        _("XKT-10 Kodi"),
+        max_length=20,
+        blank=True,
+        default="",
+    )
+    icd_diagnosis = models.ForeignKey(
+        ICD10Diagnosis,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="treatments",
+        verbose_name=_("XKT-10 Tashxis"),
+    )
+    plan_item = models.ForeignKey(
+        TreatmentPlanItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="completed_treatments",
+        verbose_name=_("Reja bandi"),
     )
     diagnosis = models.CharField(
         _("Tashxis"),
@@ -342,7 +536,13 @@ class TreatmentPhoto(BaseModel):
 __all__ = [
     "Treatment",
     "TreatmentPhoto",
+    "ICD10Diagnosis",
+    "TreatmentPlan",
+    "TreatmentPlanItem",
     "PaymentStatus",
     "TreatmentStage",
+    "ApprovalStatus",
+    "PlanStatus",
+    "PlanItemStatus",
     "PhotoType",
 ]

@@ -98,6 +98,19 @@ class Material(BaseModel):
             "xarajati sifatida qo'llaniladi."
         ),
     )
+    batch_number = models.CharField(
+        _("Partiya / Lot raqami"),
+        max_length=100,
+        blank=True,
+        default="",
+        help_text=_("Ishlab chiqaruvchi partiya raqami."),
+    )
+    expiry_date = models.DateField(
+        _("Yaroqlilik muddati"),
+        null=True,
+        blank=True,
+        help_text=_("Materialning amal qilish muddati."),
+    )
     notes = models.TextField(
         _("Izohlar"),
         blank=True,
@@ -125,6 +138,7 @@ class Material(BaseModel):
         ]
         indexes = [
             models.Index(fields=["is_active"], name="inv_material_active_idx"),
+            models.Index(fields=["expiry_date"], name="inv_material_expiry_idx"),
         ]
 
     def __str__(self) -> str:  # pragma: no cover - repr helper
@@ -134,6 +148,24 @@ class Material(BaseModel):
     def is_below_threshold(self) -> bool:
         """True when the current stock is at or under the minimum threshold."""
         return self.quantity_in_stock <= self.minimum_threshold
+
+    @property
+    def is_expired(self) -> bool:
+        """True when the material has passed its expiration date."""
+        if not self.expiry_date:
+            return False
+        from django.utils import timezone
+        return self.expiry_date < timezone.localdate()
+
+    @property
+    def is_near_expiry(self) -> bool:
+        """True when the material expires within 30 days."""
+        if not self.expiry_date:
+            return False
+        from datetime import timedelta
+        from django.utils import timezone
+        today = timezone.localdate()
+        return today <= self.expiry_date <= today + timedelta(days=30)
 
 
 # ---------------------------------------------------------------------------

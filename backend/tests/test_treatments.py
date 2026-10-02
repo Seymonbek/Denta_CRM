@@ -808,3 +808,139 @@ def test_tooth_records_stub_returns_501_when_odontogram_missing(
         status.HTTP_501_NOT_IMPLEMENTED,
         status.HTTP_400_BAD_REQUEST,
     )
+
+
+# ===========================================================================
+# Clinical Enhancements — Surfaces, ICD-10, Treatment Plans
+# ===========================================================================
+def test_treatment_surface_pricing_auto_calculated(
+    doctor, patient, department, procedure_type
+):
+    from decimal import Decimal
+    from apps.treatments.services import create_treatment
+
+    # Set procedure with price per extra surface
+    procedure_type.default_price = Decimal("200000.00")
+    procedure_type.price_per_surface = Decimal("50000.00")
+    procedure_type.save()
+
+    # 3 surfaces -> 1 base surface + 2 extra * 50,000 = 300,000
+    tr = create_treatment(
+        doctor=doctor,
+        patient=patient,
+        department=department,
+        procedure_type=procedure_type,
+        surfaces=["O", "M", "D"],
+    )
+
+    assert tr.price == Decimal("300000.00")
+    assert tr.original_price == Decimal("300000.00")
+
+
+def test_treatment_icd10_diagnosis_link(
+    doctor, patient, department
+):
+    from apps.treatments.models import ICD10Diagnosis
+    from apps.treatments.services import create_treatment
+
+    diag = ICD10Diagnosis.objects.create(
+        code="K02.1",
+        name_uz="Dentin kariesi",
+        name_ru="Кариес дентина",
+        category="Karies",
+        is_common=True,
+    )
+
+    tr = create_treatment(
+        doctor=doctor,
+        patient=patient,
+        department=department,
+        icd_code="K02.1",
+    )
+
+    assert tr.icd_code == "K02.1"
+    assert tr.icd_diagnosis_id == diag.pk
+    assert "K02.1" in tr.diagnosis
+
+
+def test_treatment_plan_and_items_lifecycle(
+    doctor, patient, department, procedure_type
+):
+    from decimal import Decimal
+    from apps.treatments.models import PlanStatus, PlanItemStatus
+    from apps.treatments.services import (
+        create_treatment_plan,
+        create_treatment,
+        update_treatment,
+        TreatmentStage,
+    )
+
+    # 1. Create a treatment plan with 2 items
+    plan = create_treatment_plan(
+        patient=patient,
+        doctor=doctor,
+        title="Kompleks reja: 16 va 24 tishlar",
+        status=PlanStatus.ACCEPTED,
+        items_data=[
+            {
+                "title": "16-tish plomba",
+                "toothNumber": 16,
+                "procedureType": procedure_type.pk,
+                "estimatedPrice": Decimal("250000.00"),
+                "order": 1,
+            },
+            {
+                "title": "24-tish karies",
+                "toothNumber": 24,
+                "procedureType": procedure_type.pk,
+                "estimatedPrice": Decimal("200000.00"),
+                "order": 2,
+            },
+        ],
+    )
+
+    assert plan.items.count() == 2
+    assert plan.total_estimated_price == Decimal("450000.00")
+    assert plan.status == PlanStatus.ACCEPTED
+
+    item1 = plan.items.get(order=1)
+    item2 = plan.items.get(order=2)
+
+    # 2. Treat item 1 and complete it
+    tr1 = create_treatment(
+        doctor=doctor,
+        patient=patient,
+        department=department,
+        procedure_type=procedure_type,
+        plan_item=item1,
+        stage=TreatmentStage.COMPLETED,
+    )
+
+    item1.refresh_from_db()
+    plan.refresh_from_db()
+
+    assert item1.status == PlanItemStatus.COMPLETED
+    assert item1.completed_treatment_id == tr1.pk
+    # Partial plan completion -> IN_PROGRESS
+    assert plan.status == PlanStatus.IN_PROGRESS
+
+    # 3. Complete item 2
+    tr2 = create_treatment(
+        doctor=doctor,
+        patient=patient,
+        department=department,
+        procedure_type=procedure_type,
+        plan_item=item2,
+        stage=TreatmentStage.IN_PROGRESS,
+    )
+    # Finish treatment 2
+    update_treatment(tr2, stage=TreatmentStage.COMPLETED)
+
+    item2.refresh_from_db()
+    plan.refresh_from_db()
+
+    assert item2.status == PlanItemStatus.COMPLETED
+    assert item2.completed_treatment_id == tr2.pk
+    # All items completed -> Plan COMPLETED!
+    assert plan.status == PlanStatus.COMPLETED
+

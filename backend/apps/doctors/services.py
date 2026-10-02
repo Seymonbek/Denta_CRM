@@ -319,6 +319,7 @@ def create_procedure_type(
     default_duration_minutes: int = 30,
     default_price: Any = Decimal("0.00"),
     commission_rate_override: Any = None,
+    price_per_surface: Any = Decimal("0.00"),
 ) -> ProcedureType:
     if not name or not str(name).strip():
         raise ValidationError({"name": ["Muolaja nomi majburiy."]})
@@ -336,6 +337,10 @@ def create_procedure_type(
     price = _to_decimal(default_price, field="default_price")
     if price < Decimal("0"):
         raise ValidationError({"default_price": ["Narx manfiy bo'lmaydi."]})
+
+    pps = _to_decimal(price_per_surface, field="price_per_surface")
+    if pps < Decimal("0"):
+        raise ValidationError({"price_per_surface": ["Qo'shimcha yuza narxi manfiy bo'lmaydi."]})
 
     override: Decimal | None = None
     if commission_rate_override is not None and commission_rate_override != "":
@@ -355,6 +360,7 @@ def create_procedure_type(
         default_duration_minutes=duration,
         default_price=price,
         commission_rate_override=override,
+        price_per_surface=pps,
     )
 
 
@@ -367,6 +373,7 @@ def update_procedure_type(
     default_duration_minutes: int | None = None,
     default_price: Any = None,
     commission_rate_override: Any = "__unset__",
+    price_per_surface: Any = None,
     is_active: bool | None = None,
 ) -> ProcedureType:
     update_fields: list[str] = []
@@ -413,6 +420,13 @@ def update_procedure_type(
             raise ValidationError({"default_price": ["Narx manfiy bo'lmaydi."]})
         procedure.default_price = price
         update_fields.append("default_price")
+
+    if price_per_surface is not None:
+        pps = _to_decimal(price_per_surface, field="price_per_surface")
+        if pps < Decimal("0"):
+            raise ValidationError({"price_per_surface": ["Qo'shimcha yuza narxi manfiy bo'lmaydi."]})
+        procedure.price_per_surface = pps
+        update_fields.append("price_per_surface")
 
     if commission_rate_override != "__unset__":
         if commission_rate_override in (None, ""):
@@ -548,6 +562,18 @@ def _overlaps_any(
     return False
 
 
+def calculate_procedure_price(
+    procedure_type: ProcedureType,
+    surfaces: list[str] | None = None,
+) -> Decimal:
+    """Calculate price based on base price and extra surfaces beyond 1."""
+    base = Decimal(procedure_type.default_price or "0.00")
+    if surfaces and len(surfaces) > 1 and getattr(procedure_type, "price_per_surface", None):
+        extra_count = len(surfaces) - 1
+        base += Decimal(extra_count) * Decimal(procedure_type.price_per_surface)
+    return base
+
+
 __all__ = [
     "DOCTOR_ELIGIBLE_ROLES",
     "create_doctor_profile",
@@ -559,6 +585,7 @@ __all__ = [
     "create_procedure_type",
     "update_procedure_type",
     "soft_delete_procedure_type",
+    "calculate_procedure_price",
     "compute_available_slots",
     "DEFAULT_SLOT_MINUTES",
 ]

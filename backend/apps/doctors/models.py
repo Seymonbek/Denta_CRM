@@ -381,6 +381,16 @@ class ProcedureType(BaseModel):
             "Bo'sh qoldirilsa, shifokorning standart komissiya foizi ishlatiladi."
         ),
     )
+    price_per_surface = models.DecimalField(
+        _("Har bir qo'shimcha yuza narxi"),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+        help_text=_(
+            "Agar muolaja tish yuzalariga (MOD) bog'liq bo'lsa, har bir qo'shimcha yuza uchun qo'shiladigan narx."
+        ),
+    )
 
     history = HistoricalRecords(
         inherit=True,

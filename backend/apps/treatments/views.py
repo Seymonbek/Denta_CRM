@@ -25,9 +25,11 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from rest_framework.permissions import IsAuthenticated
+
 from apps.core.permissions import ROLE_DOCTOR
 
-from .models import Treatment
+from .models import ICD10Diagnosis, Treatment, TreatmentPlan, TreatmentPlanItem
 from .permissions import TreatmentPermission
 from .selectors import (
     active_treatments,
@@ -36,11 +38,18 @@ from .selectors import (
     photos_for_treatment,
 )
 from .serializers import (
+    ICD10DiagnosisSerializer,
     TreatmentPhotoSerializer,
     TreatmentPhotoUploadSerializer,
+    TreatmentPlanItemSerializer,
+    TreatmentPlanSerializer,
     TreatmentSerializer,
 )
-from .services import soft_delete_treatment
+from .services import (
+    soft_delete_treatment,
+    soft_delete_treatment_plan,
+    soft_delete_treatment_plan_item,
+)
 
 
 @extend_schema(tags=["treatments"])
@@ -388,7 +397,82 @@ class TreatmentViewSet(viewsets.ModelViewSet):
         return Response(TreatmentSerializer(treatment).data, status=status.HTTP_200_OK)
 
 
-__all__ = ["TreatmentViewSet"]
+@extend_schema(tags=["treatments"])
+class ICD10DiagnosisViewSet(viewsets.ReadOnlyModelViewSet):
+    """Katalog XKT-10 (ICD-10) stomatologik tashxislar."""
+
+    queryset = ICD10Diagnosis.objects.filter(is_active=True).order_by("code")
+    serializer_class = ICD10DiagnosisSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["category", "is_common"]
+    search_fields = ["code", "name_uz", "name_ru", "category"]
+    pagination_class = None
+
+
+@extend_schema(tags=["treatments"])
+class TreatmentPlanViewSet(viewsets.ModelViewSet):
+    """Kompleks Davolash Rejasi (Smeta) CRUD."""
+
+    permission_classes = [TreatmentPermission]
+    serializer_class = TreatmentPlanSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filterset_fields = ["patient", "doctor", "status"]
+    search_fields = [
+        "title",
+        "patient__first_name",
+        "patient__last_name",
+        "notes",
+    ]
+
+    def get_queryset(self):
+        user = getattr(self.request, "user", None)
+        qs = TreatmentPlan.objects.filter(is_active=True).select_related(
+            "patient", "doctor__user"
+        ).prefetch_related("items__procedure_type")
+
+        if user and getattr(user, "role", None) == "doctor":
+            from apps.doctors.models import DoctorProfile
+            doctor_profile = DoctorProfile.objects.filter(user=user).first()
+            if doctor_profile and not doctor_profile.can_view_other_doctors:
+                qs = qs.filter(doctor=doctor_profile)
+
+        patient_id = self.request.query_params.get("patient") or self.request.query_params.get("patientId")
+        if patient_id:
+            qs = qs.filter(patient_id=patient_id)
+
+        return qs
+
+    def perform_destroy(self, instance: TreatmentPlan) -> None:
+        soft_delete_treatment_plan(instance)
+
+
+@extend_schema(tags=["treatments"])
+class TreatmentPlanItemViewSet(viewsets.ModelViewSet):
+    """Davolash rejasining alohida bandi / bosqichi."""
+
+    permission_classes = [TreatmentPermission]
+    serializer_class = TreatmentPlanItemSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["plan", "status", "tooth_number"]
+
+    def get_queryset(self):
+        qs = TreatmentPlanItem.objects.filter(is_active=True).select_related("plan", "procedure_type")
+        plan_id = self.request.query_params.get("plan") or self.request.query_params.get("planId")
+        if plan_id:
+            qs = qs.filter(plan_id=plan_id)
+        return qs
+
+    def perform_destroy(self, instance: TreatmentPlanItem) -> None:
+        soft_delete_treatment_plan_item(instance)
+
+
+__all__ = [
+    "TreatmentViewSet",
+    "ICD10DiagnosisViewSet",
+    "TreatmentPlanViewSet",
+    "TreatmentPlanItemViewSet",
+]
 
 # Silence "unused" lint on the import kept for typing / test compatibility.
 _ = all_treatments
